@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { IPC_CHANNELS } from '@shared/ipc';
 import dotenv from 'dotenv';
 import { registerHandlers } from './ipc/registerHandlers';
 import { getAppPaths } from './services/appPaths';
@@ -49,6 +50,16 @@ app.whenReady().then(async () => {
   const services = createServices(db, paths.artifacts, paths.configFile);
 
   registerHandlers(services);
+  services.runService.setRunUpdateEmitter((event) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC_CHANNELS.runUpdate, event);
+    }
+  });
+  services.runService.setBrowserInstallUpdateEmitter((event) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC_CHANNELS.runBrowserInstallUpdate, event);
+    }
+  });
   await createWindow();
 
   app.on('activate', () => {

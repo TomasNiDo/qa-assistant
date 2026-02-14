@@ -2,8 +2,9 @@ export type BrowserName = 'chromium' | 'firefox' | 'webkit';
 
 export type ParsedAction =
   | { type: 'enter'; target: string; value: string }
-  | { type: 'click'; target: string }
-  | { type: 'expect'; assertion: string };
+  | { type: 'click'; target: string; delaySeconds?: number }
+  | { type: 'navigate'; target: string }
+  | { type: 'expect'; assertion: string; timeoutSeconds?: number };
 
 export type StepParseResult =
   | { ok: true; action: ParsedAction; source: 'strict' | 'fallback' }
@@ -50,9 +51,54 @@ export interface StepResult {
   id: string;
   runId: string;
   stepId: string;
+  stepOrder: number;
+  stepRawText: string;
   status: StepStatus;
   errorText: string | null;
   screenshotPath: string | null;
+}
+
+export interface BrowserInstallState {
+  browser: BrowserName;
+  installed: boolean;
+  installInProgress: boolean;
+  executablePath: string | null;
+  lastError: string | null;
+}
+
+export type BrowserInstallPhase =
+  | 'idle'
+  | 'starting'
+  | 'downloading'
+  | 'installing'
+  | 'verifying'
+  | 'completed'
+  | 'failed';
+
+export interface BrowserInstallUpdate {
+  browser: BrowserName;
+  phase: BrowserInstallPhase;
+  progress: number | null;
+  message: string;
+  timestamp: string;
+}
+
+export type RunUpdateEventType =
+  | 'run-started'
+  | 'step-started'
+  | 'step-finished'
+  | 'run-finished';
+
+export interface RunUpdateEvent {
+  runId: string;
+  type: RunUpdateEventType;
+  timestamp: string;
+  runStatus?: RunStatus;
+  stepId?: string;
+  stepOrder?: number;
+  stepStatus?: StepStatus;
+  stepResult?: StepResult;
+  message?: string;
 }
 
 export interface CreateProjectInput {

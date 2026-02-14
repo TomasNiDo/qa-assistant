@@ -58,6 +58,15 @@ export function registerHandlers(services: Services): void {
   ipcMain.handle(IPC_CHANNELS.stepResults, async (_event, runId) =>
     wrap(() => services.runService.stepResults(runId)),
   );
+  ipcMain.handle(IPC_CHANNELS.runGetScreenshotDataUrl, async (_event, screenshotPath) =>
+    wrap(() => services.runService.getScreenshotDataUrl(screenshotPath)),
+  );
+  ipcMain.handle(IPC_CHANNELS.runBrowserStatus, async () =>
+    wrap(() => services.runService.browserStatuses()),
+  );
+  ipcMain.handle(IPC_CHANNELS.runInstallBrowser, async (_event, browser) =>
+    wrapAsync(() => services.runService.installBrowser(browser)),
+  );
 
   ipcMain.handle(IPC_CHANNELS.aiGenerateSteps, async (_event, input) =>
     wrapAsync(() => services.aiService.generateSteps(input)),

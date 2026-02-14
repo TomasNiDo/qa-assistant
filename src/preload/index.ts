@@ -24,6 +24,34 @@ const api: QaAssistantApi = {
   runStatus: (runId) => ipcRenderer.invoke(IPC_CHANNELS.runStatus, runId),
   runHistory: (testCaseId) => ipcRenderer.invoke(IPC_CHANNELS.runHistory, testCaseId),
   stepResults: (runId) => ipcRenderer.invoke(IPC_CHANNELS.stepResults, runId),
+  runGetScreenshotDataUrl: (screenshotPath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.runGetScreenshotDataUrl, screenshotPath),
+  runBrowserStatus: () => ipcRenderer.invoke(IPC_CHANNELS.runBrowserStatus),
+  runInstallBrowser: (browser) => ipcRenderer.invoke(IPC_CHANNELS.runInstallBrowser, browser),
+  onRunUpdate: (listener) => {
+    const channel = IPC_CHANNELS.runUpdate;
+    const wrapped = (_event: unknown, payload: unknown) => {
+      listener(payload as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(channel, wrapped);
+
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  },
+  onBrowserInstallUpdate: (listener) => {
+    const channel = IPC_CHANNELS.runBrowserInstallUpdate;
+    const wrapped = (_event: unknown, payload: unknown) => {
+      listener(payload as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(channel, wrapped);
+
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  },
 
   aiGenerateSteps: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateSteps, input),
   aiGenerateBugReport: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateBugReport, input),

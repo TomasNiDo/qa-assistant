@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AppConfig,
+  BrowserInstallPhase,
+  BrowserInstallState,
+  BrowserInstallUpdate,
   BrowserName,
   GeneratedBugReport,
   Project,
   Run,
+  RunUpdateEvent,
   StepParseResult,
   StepResult,
   TestCase,
@@ -21,6 +25,13 @@ interface TestFormState {
   id: string;
   title: string;
   stepsText: string;
+}
+
+interface BrowserInstallProgressState {
+  phase: BrowserInstallPhase;
+  progress: number | null;
+  message: string;
+  timestamp: string;
 }
 
 type ProjectFormMode = 'create' | 'edit';
@@ -59,6 +70,11 @@ export function App(): JSX.Element {
   const [isValidatingSteps, setIsValidatingSteps] = useState(false);
 
   const [browser, setBrowser] = useState<BrowserName>('chromium');
+  const [browserStates, setBrowserStates] = useState<BrowserInstallState[]>([]);
+  const [browserInstallProgress, setBrowserInstallProgress] = useState<
+    Partial<Record<BrowserName, BrowserInstallProgressState>>
+  >({});
+  const [isInstallStatusOpen, setIsInstallStatusOpen] = useState(false);
   const [activeRunId, setActiveRunId] = useState('');
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
@@ -89,6 +105,34 @@ export function App(): JSX.Element {
     () => runs.find((run) => run.id === selectedRunId) ?? null,
     [runs, selectedRunId],
   );
+
+  const selectedBrowserState = useMemo(
+    () => browserStates.find((state) => state.browser === browser) ?? null,
+    [browser, browserStates],
+  );
+
+  const overallInstallProgress = useMemo(() => {
+    const browsers: BrowserName[] = ['chromium', 'firefox', 'webkit'];
+    const values = browsers.map((name) => {
+      const state = browserStates.find((row) => row.browser === name);
+      if (state?.installed) {
+        return 100;
+      }
+
+      const progress = browserInstallProgress[name]?.progress;
+      if (typeof progress === 'number') {
+        return progress;
+      }
+
+      if (state?.installInProgress) {
+        return 8;
+      }
+
+      return 0;
+    });
+
+    return Math.round(values.reduce((sum, current) => sum + current, 0) / values.length);
+  }, [browserInstallProgress, browserStates]);
 
   const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
 
@@ -223,6 +267,16 @@ export function App(): JSX.Element {
     setStepResults(result.data);
   }, [selectedRunId]);
 
+  const refreshBrowserStates = useCallback(async () => {
+    const result = await window.qaApi.runBrowserStatus();
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setBrowserStates(result.data);
+  }, []);
+
   const loadSelectedTestIntoForm = useCallback(async () => {
     if (!selectedTest) {
       setIsTestEditing(false);
@@ -268,6 +322,10 @@ export function App(): JSX.Element {
   useEffect(() => {
     void refreshStepResults();
   }, [refreshStepResults]);
+
+  useEffect(() => {
+    void refreshBrowserStates();
+  }, [refreshBrowserStates]);
 
   useEffect(() => {
     void loadSelectedTestIntoForm();
@@ -337,6 +395,74 @@ export function App(): JSX.Element {
       window.clearInterval(intervalId);
     };
   }, [activeRunId, refreshRuns]);
+
+  const handleRunUpdate = useCallback(
+    (update: RunUpdateEvent): void => {
+      if (update.type === 'run-started') {
+        setSelectedRunId(update.runId);
+        void refreshRuns();
+        void refreshStepResults();
+        return;
+      }
+
+      if (update.type === 'step-started' || update.type === 'step-finished') {
+        if (update.runId === selectedRunId || update.runId === activeRunId) {
+          void refreshStepResults();
+        }
+        void refreshRuns();
+        return;
+      }
+
+      setActiveRunId((current) => (current === update.runId ? '' : current));
+      if (update.runId === selectedRunId || update.runId === activeRunId) {
+        void refreshStepResults();
+      }
+      void refreshRuns();
+      void refreshBrowserStates();
+
+      if (update.message) {
+        setMessage(update.message);
+      }
+    },
+    [activeRunId, refreshBrowserStates, refreshRuns, refreshStepResults, selectedRunId],
+  );
+
+  useEffect(() => {
+    const unsubscribe = window.qaApi.onRunUpdate((update) => {
+      handleRunUpdate(update);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [handleRunUpdate]);
+
+  const handleBrowserInstallUpdate = useCallback((update: BrowserInstallUpdate): void => {
+    setIsInstallStatusOpen(true);
+    setBrowserInstallProgress((previous) => ({
+      ...previous,
+      [update.browser]: {
+        phase: update.phase,
+        progress: update.progress,
+        message: update.message,
+        timestamp: update.timestamp,
+      },
+    }));
+
+    if (update.phase === 'completed') {
+      void refreshBrowserStates();
+    }
+  }, [refreshBrowserStates]);
+
+  useEffect(() => {
+    const unsubscribe = window.qaApi.onBrowserInstallUpdate((update) => {
+      handleBrowserInstallUpdate(update);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [handleBrowserInstallUpdate]);
 
   const loadConfig = useCallback(async (): Promise<void> => {
     const result = await window.qaApi.configGet();
@@ -727,9 +853,26 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (selectedBrowserState && !selectedBrowserState.installed) {
+      await installBrowser(browser);
+      const statusResult = await window.qaApi.runBrowserStatus();
+      if (!statusResult.ok) {
+        setMessage(statusResult.error.message);
+        return;
+      }
+
+      setBrowserStates(statusResult.data);
+      const current = statusResult.data.find((state) => state.browser === browser);
+      if (!current?.installed) {
+        setMessage(`Unable to install ${browser}. Check errors and retry.`);
+        return;
+      }
+    }
+
     const result = await window.qaApi.runStart({ testCaseId: selectedTestId, browser });
     if (!result.ok) {
       setMessage(result.error.message);
+      void refreshBrowserStates();
       return;
     }
 
@@ -737,6 +880,7 @@ export function App(): JSX.Element {
     setActiveRunId(result.data.id);
     setSelectedRunId(result.data.id);
     await refreshRuns();
+    await refreshStepResults();
   }
 
   async function cancelRun(): Promise<void> {
@@ -753,6 +897,53 @@ export function App(): JSX.Element {
     setMessage('Run cancelled immediately.');
     setActiveRunId('');
     await refreshRuns();
+    await refreshStepResults();
+  }
+
+  async function installBrowser(browserName: BrowserName): Promise<void> {
+    setIsInstallStatusOpen(true);
+    setBrowserInstallProgress((previous) => ({
+      ...previous,
+      [browserName]: {
+        phase: 'starting',
+        progress: 0,
+        message: `Preparing ${browserName} installation...`,
+        timestamp: new Date().toISOString(),
+      },
+    }));
+    setMessage(`Installing ${browserName} browser runtime...`);
+    const result = await window.qaApi.runInstallBrowser(browserName);
+    if (!result.ok) {
+      setMessage(result.error.message);
+      await refreshBrowserStates();
+      return;
+    }
+
+    setBrowserInstallProgress((previous) => ({
+      ...previous,
+      [browserName]: {
+        phase: 'completed',
+        progress: 100,
+        message: `${browserName} installed.`,
+        timestamp: new Date().toISOString(),
+      },
+    }));
+    setMessage(`${browserName} browser runtime installed.`);
+    await refreshBrowserStates();
+  }
+
+  async function installMissingBrowsers(): Promise<void> {
+    const missing = browserStates.filter((state) => !state.installed).map((state) => state.browser);
+    if (missing.length === 0) {
+      setMessage('All browser runtimes are already installed.');
+      return;
+    }
+
+    setIsInstallStatusOpen(true);
+    for (const browserName of missing) {
+      // Install sequentially to keep progress updates readable.
+      await installBrowser(browserName);
+    }
   }
 
   async function generateBugReport(): Promise<void> {
@@ -964,7 +1155,7 @@ export function App(): JSX.Element {
 
                     <p className="field-hint">
                       Enter one step per line. Supported patterns: Enter "value" in "field" field,
-                      Click "text", Expect assertion.
+                      Click "text" (or Click "text" after 1s), Go to "/path", Expect assertion, or Expect assertion within 30s.
                     </p>
                   </div>
                 </div>
@@ -1008,6 +1199,24 @@ export function App(): JSX.Element {
                       <option value="webkit">WebKit</option>
                     </select>
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => void installBrowser(browser)}
+                    disabled={selectedBrowserState?.installInProgress}
+                  >
+                    {selectedBrowserState?.installInProgress
+                      ? `Installing ${browser}...`
+                      : `Install ${browser}`}
+                  </button>
+                  <button type="button" onClick={() => void refreshBrowserStates()}>
+                    Refresh Browser Status
+                  </button>
+                  <button type="button" onClick={() => void installMissingBrowsers()}>
+                    Install Missing Browsers
+                  </button>
+                  <button type="button" onClick={() => setIsInstallStatusOpen((open) => !open)}>
+                    {isInstallStatusOpen ? 'Hide Install Status' : 'Show Install Status'}
+                  </button>
                   <button type="button" onClick={() => void startRun()} disabled={!selectedTestId}>
                     Start Run
                   </button>
@@ -1023,6 +1232,85 @@ export function App(): JSX.Element {
                   </button>
                 </div>
 
+                {browserStates.length > 0 ? (
+                  <ul className="browser-status-list">
+                    {browserStates.map((state) => (
+                      <li key={state.browser}>
+                        <span>{state.browser}</span>
+                        <strong className={state.installed ? 'status-pass' : 'status-fail'}>
+                          {state.installInProgress
+                            ? 'installing'
+                            : state.installed
+                              ? 'installed'
+                              : 'missing'}
+                        </strong>
+                        {state.lastError ? <small>{state.lastError}</small> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {isInstallStatusOpen ? (
+                  <section className="install-status-window">
+                    <div className="install-status-header">
+                      <h3>Browser Install Status</h3>
+                      <strong>{overallInstallProgress}%</strong>
+                    </div>
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{ width: `${overallInstallProgress}%` }} />
+                    </div>
+
+                    <ul className="install-status-list">
+                      {(['chromium', 'firefox', 'webkit'] as BrowserName[]).map((browserName) => {
+                        const browserState = browserStates.find((state) => state.browser === browserName);
+                        const progressState = browserInstallProgress[browserName];
+                        const isInProgress = browserState?.installInProgress ?? false;
+                        const progressValue =
+                          typeof progressState?.progress === 'number'
+                            ? progressState.progress
+                            : browserState?.installed
+                              ? 100
+                              : isInProgress
+                                ? 15
+                                : 0;
+
+                        const phaseLabel = progressState
+                          ? toInstallPhaseLabel(progressState.phase)
+                          : browserState?.installed
+                            ? 'Installed'
+                            : isInProgress
+                              ? 'Installing...'
+                              : 'Idle';
+                        const progressWidth =
+                          isInProgress && progressState?.progress === null
+                            ? 35
+                            : Math.max(0, Math.min(100, progressValue));
+
+                        return (
+                          <li key={browserName} className="install-status-item">
+                            <div className="install-status-row">
+                              <span>{browserName}</span>
+                              <strong>{phaseLabel}</strong>
+                            </div>
+                            <div className="progress-track">
+                              <div
+                                className={isInProgress && progressState?.progress === null ? 'progress-fill indeterminate' : 'progress-fill'}
+                                style={{ width: `${progressWidth}%` }}
+                              />
+                            </div>
+                            <small>
+                              {progressState?.message ??
+                                (browserState?.installed
+                                  ? 'Runtime already installed.'
+                                  : 'No install activity yet.')}
+                            </small>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ) : null}
+
                 <ul className="list">
                   {runs.map((run) => (
                     <li key={run.id}>
@@ -1033,7 +1321,8 @@ export function App(): JSX.Element {
                       >
                         <strong>{run.status.toUpperCase()}</strong>
                         <span>
-                          {run.browser} | {new Date(run.startedAt).toLocaleString()}
+                          {run.browser} | {new Date(run.startedAt).toLocaleString()} |{' '}
+                          {formatRunDuration(run)}
                         </span>
                       </button>
                     </li>
@@ -1041,16 +1330,19 @@ export function App(): JSX.Element {
                 </ul>
 
                 {stepResults.length > 0 ? (
-                  <div>
-                    <h3>Step Results</h3>
-                    <ul className="list">
+                  <div className="timeline-cards">
+                    <div className="timeline-cards-header">
+                      <h3>Step Timeline</h3>
+                      {selectedRun ? (
+                        <span className={`run-status-chip ${runStatusClassName(selectedRun.status)}`}>
+                          Run {selectedRun.status.toUpperCase()}
+                        </span>
+                      ) : null}
+                    </div>
+                    <ul className="step-card-list">
                       {stepResults.map((result) => (
                         <li key={result.id}>
-                          <code>{result.stepId}</code>
-                          <span>
-                            {result.status}
-                            {result.errorText ? ` | ${result.errorText}` : ''}
-                          </span>
+                          <StepResultCard result={result} />
                         </li>
                       ))}
                     </ul>
@@ -1083,6 +1375,87 @@ export function App(): JSX.Element {
         </section>
       </div>
     </main>
+  );
+}
+
+function StepResultCard({
+  result,
+}: {
+  result: StepResult;
+}): JSX.Element {
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState('');
+  const [isLoadingScreenshot, setIsLoadingScreenshot] = useState(false);
+  const [screenshotError, setScreenshotError] = useState('');
+
+  useEffect(() => {
+    if (!result.screenshotPath) {
+      setScreenshotDataUrl('');
+      setIsLoadingScreenshot(false);
+      setScreenshotError('');
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingScreenshot(true);
+    setScreenshotError('');
+
+    void (async () => {
+      const response = await window.qaApi.runGetScreenshotDataUrl(result.screenshotPath!);
+      if (cancelled) {
+        return;
+      }
+
+      if (!response.ok) {
+        setScreenshotDataUrl('');
+        setScreenshotError(response.error.message);
+        setIsLoadingScreenshot(false);
+        return;
+      }
+
+      setScreenshotDataUrl(response.data);
+      setScreenshotError('');
+      setIsLoadingScreenshot(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [result.screenshotPath]);
+
+  return (
+    <article className="step-card">
+      <div className="step-card-header">
+        <h4>
+          Step {result.stepOrder}: {result.stepRawText}
+        </h4>
+        <div className="step-card-statuses">
+          <span className={`status-pill ${statusClassName(result.status)}`}>{result.status.toUpperCase()}</span>
+        </div>
+      </div>
+
+      <div className="step-card-content">
+        <section className="step-card-block">
+          <h5>Screenshot Preview</h5>
+          {isLoadingScreenshot ? <p className="field-hint">Loading screenshot...</p> : null}
+          {!isLoadingScreenshot && screenshotError ? <p className="field-error">{screenshotError}</p> : null}
+          {!isLoadingScreenshot && !screenshotError && screenshotDataUrl ? (
+            <img
+              className="step-screenshot"
+              src={screenshotDataUrl}
+              alt={`Step ${result.stepOrder} screenshot`}
+            />
+          ) : null}
+          {!isLoadingScreenshot && !screenshotError && !screenshotDataUrl ? (
+            <p className="field-hint">No screenshot captured for this step.</p>
+          ) : null}
+        </section>
+
+        <section className="step-card-block">
+          <h5>Error Details</h5>
+          {result.errorText ? <pre className="error-panel">{result.errorText}</pre> : <p className="field-hint">No error recorded.</p>}
+        </section>
+      </div>
+    </article>
   );
 }
 
@@ -1121,6 +1494,67 @@ function formatBugReport(report: GeneratedBugReport): string {
     'Evidence:',
     ...report.evidence.map((item) => `- ${item}`),
   ].join('\n');
+}
+
+function formatRunDuration(run: Run): string {
+  const startedAt = Date.parse(run.startedAt);
+  const endedAt = Date.parse(run.endedAt ?? new Date().toISOString());
+  const durationMs = Math.max(0, endedAt - startedAt);
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function statusClassName(status: StepResult['status'] | 'installed' | 'missing'): string {
+  if (status === 'passed' || status === 'installed') {
+    return 'status-pass';
+  }
+
+  if (status === 'failed' || status === 'missing') {
+    return 'status-fail';
+  }
+
+  if (status === 'cancelled') {
+    return 'status-neutral';
+  }
+
+  return 'status-progress';
+}
+
+function runStatusClassName(status: Run['status']): string {
+  if (status === 'passed') {
+    return 'status-pass';
+  }
+
+  if (status === 'failed') {
+    return 'status-fail';
+  }
+
+  if (status === 'cancelled') {
+    return 'status-neutral';
+  }
+
+  return 'status-progress';
+}
+
+function toInstallPhaseLabel(phase: BrowserInstallPhase): string {
+  if (phase === 'starting') {
+    return 'Starting';
+  }
+  if (phase === 'downloading') {
+    return 'Downloading';
+  }
+  if (phase === 'installing') {
+    return 'Installing';
+  }
+  if (phase === 'verifying') {
+    return 'Verifying';
+  }
+  if (phase === 'completed') {
+    return 'Completed';
+  }
+  if (phase === 'failed') {
+    return 'Failed';
+  }
+  return 'Idle';
 }
 
 function toErrorMessage(error: unknown): string {

@@ -1,6 +1,8 @@
 import type {
   ApiResult,
   AppConfig,
+  BrowserInstallUpdate,
+  BrowserInstallState,
   CreateProjectInput,
   CreateTestInput,
   GenerateBugReportInput,
@@ -9,6 +11,7 @@ import type {
   GeneratedStep,
   Project,
   Run,
+  RunUpdateEvent,
   SampleSeedResult,
   StartRunInput,
   Step,
@@ -39,6 +42,11 @@ export const IPC_CHANNELS = {
   runStatus: 'run.status',
   runHistory: 'run.history',
   stepResults: 'run.stepResults',
+  runGetScreenshotDataUrl: 'run.getScreenshotDataUrl',
+  runBrowserStatus: 'run.browserStatus',
+  runInstallBrowser: 'run.installBrowser',
+  runUpdate: 'run.update',
+  runBrowserInstallUpdate: 'run.browserInstallUpdate',
   aiGenerateSteps: 'ai.generateSteps',
   aiGenerateBugReport: 'ai.generateBugReport',
 } as const;
@@ -66,6 +74,11 @@ export interface QaAssistantApi {
   runStatus: (runId: string) => Promise<ApiResult<Run | null>>;
   runHistory: (testCaseId: string) => Promise<ApiResult<Run[]>>;
   stepResults: (runId: string) => Promise<ApiResult<StepResult[]>>;
+  runGetScreenshotDataUrl: (screenshotPath: string) => Promise<ApiResult<string>>;
+  runBrowserStatus: () => Promise<ApiResult<BrowserInstallState[]>>;
+  runInstallBrowser: (browser: Run['browser']) => Promise<ApiResult<BrowserInstallState>>;
+  onRunUpdate: (listener: (event: RunUpdateEvent) => void) => () => void;
+  onBrowserInstallUpdate: (listener: (event: BrowserInstallUpdate) => void) => () => void;
 
   aiGenerateSteps: (input: GenerateStepsInput) => Promise<ApiResult<GeneratedStep[]>>;
   aiGenerateBugReport: (input: GenerateBugReportInput) => Promise<ApiResult<GeneratedBugReport>>;
