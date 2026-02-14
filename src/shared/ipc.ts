@@ -1,0 +1,64 @@
+import type {
+  ApiResult,
+  CreateProjectInput,
+  CreateTestInput,
+  GenerateBugReportInput,
+  GenerateStepsInput,
+  GeneratedBugReport,
+  GeneratedStep,
+  Project,
+  Run,
+  StartRunInput,
+  Step,
+  StepParseResult,
+  StepResult,
+  TestCase,
+  UpdateProjectInput,
+  UpdateTestInput,
+} from './types';
+
+export const IPC_CHANNELS = {
+  healthPing: 'app.healthPing',
+  projectCreate: 'project.create',
+  projectUpdate: 'project.update',
+  projectDelete: 'project.delete',
+  projectList: 'project.list',
+  testCreate: 'test.create',
+  testUpdate: 'test.update',
+  testDelete: 'test.delete',
+  testList: 'test.list',
+  stepList: 'step.list',
+  stepParse: 'step.parse',
+  runStart: 'run.start',
+  runCancel: 'run.cancel',
+  runStatus: 'run.status',
+  runHistory: 'run.history',
+  stepResults: 'run.stepResults',
+  aiGenerateSteps: 'ai.generateSteps',
+  aiGenerateBugReport: 'ai.generateBugReport',
+} as const;
+
+export interface QaAssistantApi {
+  healthPing: () => Promise<ApiResult<string>>;
+
+  projectCreate: (input: CreateProjectInput) => Promise<ApiResult<Project>>;
+  projectUpdate: (input: UpdateProjectInput) => Promise<ApiResult<Project>>;
+  projectDelete: (id: string) => Promise<ApiResult<boolean>>;
+  projectList: () => Promise<ApiResult<Project[]>>;
+
+  testCreate: (input: CreateTestInput) => Promise<ApiResult<TestCase>>;
+  testUpdate: (input: UpdateTestInput) => Promise<ApiResult<TestCase>>;
+  testDelete: (id: string) => Promise<ApiResult<boolean>>;
+  testList: (projectId: string) => Promise<ApiResult<TestCase[]>>;
+  stepList: (testCaseId: string) => Promise<ApiResult<Step[]>>;
+  stepParse: (rawText: string) => Promise<ApiResult<StepParseResult>>;
+
+  runStart: (input: StartRunInput) => Promise<ApiResult<Run>>;
+  runCancel: (runId: string) => Promise<ApiResult<boolean>>;
+  runStatus: (runId: string) => Promise<ApiResult<Run | null>>;
+  runHistory: (testCaseId: string) => Promise<ApiResult<Run[]>>;
+  stepResults: (runId: string) => Promise<ApiResult<StepResult[]>>;
+
+  aiGenerateSteps: (input: GenerateStepsInput) => Promise<ApiResult<GeneratedStep[]>>;
+  aiGenerateBugReport: (input: GenerateBugReportInput) => Promise<ApiResult<GeneratedBugReport>>;
+}
