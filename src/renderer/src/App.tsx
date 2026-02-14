@@ -20,7 +20,7 @@ interface ProjectFormState {
 interface TestFormState {
   id: string;
   title: string;
-  steps: string[];
+  stepsText: string;
 }
 
 type ProjectFormMode = 'create' | 'edit';
@@ -35,7 +35,7 @@ const DEFAULT_PROJECT_FORM: ProjectFormState = {
 const DEFAULT_TEST_FORM: TestFormState = {
   id: '',
   title: '',
-  steps: ['Click "Login"'],
+  stepsText: 'Click "Login"',
 };
 
 export function App(): JSX.Element {
@@ -89,6 +89,8 @@ export function App(): JSX.Element {
     () => runs.find((run) => run.id === selectedRunId) ?? null,
     [runs, selectedRunId],
   );
+
+  const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
 
   const refreshTestsTree = useCallback(
     async (projectRows: Project[], preferredProjectId: string, preferredTestId?: string): Promise<void> => {
@@ -238,7 +240,7 @@ export function App(): JSX.Element {
     setTestForm({
       id: selectedTest.id,
       title: selectedTest.title,
-      steps: stepRowsResult.data.map((step) => step.rawText),
+      stepsText: stepRowsResult.data.map((step) => step.rawText).join('\n'),
     });
   }, [selectedTest]);
 
@@ -276,7 +278,7 @@ export function App(): JSX.Element {
     stepValidationVersion.current = version;
     setIsValidatingSteps(true);
 
-    if (testForm.steps.length === 0) {
+    if (parsedSteps.length === 0) {
       setStepParsePreview([]);
       setIsValidatingSteps(false);
       return;
@@ -285,7 +287,7 @@ export function App(): JSX.Element {
     void (async () => {
       const results: StepParseResult[] = [];
 
-      for (const stepText of testForm.steps) {
+      for (const stepText of parsedSteps) {
         const rawStep = stepText.trim();
         if (!rawStep) {
           results.push({ ok: false, error: 'Step cannot be empty.' });
@@ -308,7 +310,7 @@ export function App(): JSX.Element {
       setStepParsePreview(results);
       setIsValidatingSteps(false);
     })();
-  }, [testForm.steps]);
+  }, [parsedSteps]);
 
   useEffect(() => {
     if (!activeRunId) {
@@ -412,7 +414,7 @@ export function App(): JSX.Element {
   const canSaveProject = !projectNameError && !projectBaseUrlError;
 
   const testTitleError = testForm.title.trim() ? null : 'Test title is required.';
-  const testStepsErrors = testForm.steps.map((stepText, index) => {
+  const testStepsErrors = parsedSteps.map((stepText, index) => {
     const rawStep = stepText.trim();
     if (!rawStep) {
       return 'Step cannot be empty.';
@@ -426,7 +428,7 @@ export function App(): JSX.Element {
     return parsed.ok ? null : parsed.error;
   });
 
-  const hasStepErrors = testStepsErrors.some(Boolean) || testForm.steps.length === 0;
+  const hasStepErrors = testStepsErrors.some(Boolean) || parsedSteps.length === 0;
   const canSaveTestCase =
     Boolean(selectedProjectId) &&
     !testTitleError &&
@@ -625,7 +627,7 @@ export function App(): JSX.Element {
       return;
     }
 
-    const cleanSteps = testForm.steps.map((stepText) => stepText.trim());
+    const cleanSteps = parseStepLines(testForm.stepsText);
 
     const result =
       isTestEditing && testForm.id
@@ -650,7 +652,7 @@ export function App(): JSX.Element {
     setTestForm({
       id: result.data.id,
       title: result.data.title,
-      steps: cleanSteps,
+      stepsText: cleanSteps.join('\n'),
     });
 
     await refreshSidebar(selectedProjectId, result.data.id);
@@ -678,46 +680,6 @@ export function App(): JSX.Element {
     setBugReportDraft('');
     await refreshSidebar(selectedProjectId);
     setMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
-  }
-
-  function addStepRow(): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: [...previous.steps, ''],
-    }));
-  }
-
-  function updateStepRow(index: number, value: string): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: previous.steps.map((step, stepIndex) => (stepIndex === index ? value : step)),
-    }));
-  }
-
-  function removeStepRow(index: number): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: previous.steps.filter((_, stepIndex) => stepIndex !== index),
-    }));
-  }
-
-  function moveStepRow(index: number, direction: -1 | 1): void {
-    setTestForm((previous) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= previous.steps.length) {
-        return previous;
-      }
-
-      const nextSteps = [...previous.steps];
-      const currentStep = nextSteps[index];
-      nextSteps[index] = nextSteps[nextIndex];
-      nextSteps[nextIndex] = currentStep;
-
-      return {
-        ...previous,
-        steps: nextSteps,
-      };
-    });
   }
 
   async function generateSteps(): Promise<void> {
@@ -754,7 +716,7 @@ export function App(): JSX.Element {
 
     setTestForm((previous) => ({
       ...previous,
-      steps: generatedSteps,
+      stepsText: generatedSteps.join('\n'),
     }));
     setMessage('Generated steps ready for review.');
   }
@@ -970,60 +932,39 @@ export function App(): JSX.Element {
                   </label>
 
                   <div>
-                    <div className="row">
-                      <strong>Steps</strong>
-                      <button type="button" onClick={() => addStepRow()}>
-                        Add Step
-                      </button>
-                    </div>
+                    <strong>Steps</strong>
+                    <textarea
+                      className="steps-textarea"
+                      rows={10}
+                      value={testForm.stepsText}
+                      onChange={(event) =>
+                        setTestForm((previous) => ({ ...previous, stepsText: event.target.value }))
+                      }
+                      placeholder={'Click "Login"\nEnter "qa.user@example.com" in "Email" field'}
+                    />
+                    {parsedSteps.length === 0 ? (
+                      <span className="field-error">At least one step is required.</span>
+                    ) : null}
+                    {parsedSteps.map((_, index) => {
+                      const parsed = stepParsePreview[index];
+                      const parseHint =
+                        parsed && parsed.ok
+                          ? `Step ${index + 1}: Parsed as ${parsed.action.type} (${parsed.source})`
+                          : `Step ${index + 1}: ${testStepsErrors[index] ?? 'Validation unavailable.'}`;
 
-                    <ol className="step-list">
-                      {testForm.steps.map((rawStep, index) => {
-                        const parsed = stepParsePreview[index];
-                        const parseHint =
-                          parsed && parsed.ok
-                            ? `Parsed as ${parsed.action.type} (${parsed.source})`
-                            : testStepsErrors[index];
-
-                        return (
-                          <li key={`${index}-${rawStep}`} className="step-item">
-                            <textarea
-                              rows={2}
-                              value={rawStep}
-                              onChange={(event) => updateStepRow(index, event.target.value)}
-                            />
-                            <div className="row">
-                              <button
-                                type="button"
-                                onClick={() => moveStepRow(index, -1)}
-                                disabled={index === 0}
-                              >
-                                Up
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveStepRow(index, 1)}
-                                disabled={index === testForm.steps.length - 1}
-                              >
-                                Down
-                              </button>
-                              <button type="button" onClick={() => removeStepRow(index)}>
-                                Delete
-                              </button>
-                            </div>
-                            {parseHint ? (
-                              <span className={parsed && parsed.ok ? 'field-hint' : 'field-error'}>
-                                {parseHint}
-                              </span>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                    </ol>
+                      return (
+                        <span
+                          key={`step-parse-${index}`}
+                          className={`step-parse-hint ${parsed && parsed.ok ? 'field-hint' : 'field-error'}`}
+                        >
+                          {parseHint}
+                        </span>
+                      );
+                    })}
 
                     <p className="field-hint">
-                      Supported patterns: Enter "value" in "field" field, Click "text", Expect
-                      assertion.
+                      Enter one step per line. Supported patterns: Enter "value" in "field" field,
+                      Click "text", Expect assertion.
                     </p>
                   </div>
                 </div>
@@ -1157,6 +1098,13 @@ function validateBaseUrl(baseUrl: string): string | null {
   } catch {
     return 'Base URL must be a valid URL including protocol (https://...).';
   }
+}
+
+function parseStepLines(stepsText: string): string[] {
+  return stepsText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => Boolean(line));
 }
 
 function formatBugReport(report: GeneratedBugReport): string {

@@ -210,6 +210,16 @@ textarea {
   width: 100%;
 }
 
+.steps-textarea {
+  min-height: 200px;
+  resize: vertical;
+}
+
+.step-parse-hint {
+  display: block;
+  margin-top: 4px;
+}
+
 button {
   border: 1px solid #98a2b3;
   border-radius: 8px;
