@@ -5,15 +5,10 @@ import type {
   GeneratedBugReport,
   Project,
   Run,
-  Step,
   StepParseResult,
   StepResult,
   TestCase,
 } from '@shared/types';
-import { HelloPage } from './pages/HelloPage';
-
-const TABS = ['hello', 'projects', 'tests', 'runs'] as const;
-type TabKey = (typeof TABS)[number];
 
 interface ProjectFormState {
   id: string;
@@ -28,9 +23,11 @@ interface TestFormState {
   steps: string[];
 }
 
+type ProjectFormMode = 'create' | 'edit';
+
 const DEFAULT_PROJECT_FORM: ProjectFormState = {
   id: '',
-  name: '',
+  name: 'New Project',
   baseUrl: 'https://example.com',
   envLabel: 'local',
 };
@@ -42,20 +39,19 @@ const DEFAULT_TEST_FORM: TestFormState = {
 };
 
 export function App(): JSX.Element {
-  const [tab, setTab] = useState<TabKey>('projects');
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [tests, setTests] = useState<TestCase[]>([]);
-  const [steps, setSteps] = useState<Step[]>([]);
+  const [testCasesByProject, setTestCasesByProject] = useState<Record<string, TestCase[]>>({});
   const [runs, setRuns] = useState<Run[]>([]);
   const [stepResults, setStepResults] = useState<StepResult[]>([]);
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [selectedTestId, setSelectedTestId] = useState<string>('');
-  const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedTestId, setSelectedTestId] = useState('');
+  const [selectedRunId, setSelectedRunId] = useState('');
 
-  const [isProjectEditing, setIsProjectEditing] = useState(false);
   const [projectForm, setProjectForm] = useState<ProjectFormState>(DEFAULT_PROJECT_FORM);
+  const [projectFormMode, setProjectFormMode] = useState<ProjectFormMode>('create');
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
 
   const [isTestEditing, setIsTestEditing] = useState(false);
   const [testForm, setTestForm] = useState<TestFormState>(DEFAULT_TEST_FORM);
@@ -66,8 +62,8 @@ export function App(): JSX.Element {
   const [activeRunId, setActiveRunId] = useState('');
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
+
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [healthStatus, setHealthStatus] = useState('');
   const [seedInProgress, setSeedInProgress] = useState(false);
 
   const [message, setMessage] = useState('');
@@ -79,9 +75,14 @@ export function App(): JSX.Element {
     [projects, selectedProjectId],
   );
 
+  const selectedProjectTests = useMemo(
+    () => (selectedProjectId ? testCasesByProject[selectedProjectId] ?? [] : []),
+    [selectedProjectId, testCasesByProject],
+  );
+
   const selectedTest = useMemo(
-    () => tests.find((testCase) => testCase.id === selectedTestId) ?? null,
-    [tests, selectedTestId],
+    () => selectedProjectTests.find((testCase) => testCase.id === selectedTestId) ?? null,
+    [selectedProjectTests, selectedTestId],
   );
 
   const selectedRun = useMemo(
@@ -89,63 +90,97 @@ export function App(): JSX.Element {
     [runs, selectedRunId],
   );
 
-  const refreshProjects = useCallback(async () => {
-    const result = await window.qaApi.projectList();
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
+  const refreshTestsTree = useCallback(
+    async (projectRows: Project[], preferredProjectId: string, preferredTestId?: string): Promise<void> => {
+      if (projectRows.length === 0) {
+        setTestCasesByProject({});
+        setSelectedTestId('');
+        return;
+      }
 
-    setProjects(result.data);
-    setProjectsLoaded(true);
-    if (result.data.length === 0) {
-      setSelectedProjectId('');
-      return;
-    }
+      const nextTree: Record<string, TestCase[]> = {};
 
-    if (!result.data.some((project) => project.id === selectedProjectId)) {
-      setSelectedProjectId(result.data[0].id);
-    }
-  }, [selectedProjectId]);
+      for (const project of projectRows) {
+        let result: Awaited<ReturnType<typeof window.qaApi.testList>>;
+        try {
+          result = await window.qaApi.testList(project.id);
+        } catch (error) {
+          setMessage(`Failed loading test cases for ${project.name}: ${toErrorMessage(error)}`);
+          nextTree[project.id] = [];
+          continue;
+        }
 
-  const refreshTests = useCallback(async () => {
-    if (!selectedProjectId) {
-      setTests([]);
-      setSelectedTestId('');
-      return;
-    }
+        if (!result.ok) {
+          setMessage(result.error.message);
+          nextTree[project.id] = [];
+          continue;
+        }
 
-    const result = await window.qaApi.testList(selectedProjectId);
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
+        nextTree[project.id] = result.data;
+      }
 
-    setTests(result.data);
-    if (result.data.length === 0) {
-      setSelectedTestId('');
-      return;
-    }
+      setTestCasesByProject(nextTree);
 
-    if (!result.data.find((test) => test.id === selectedTestId)) {
-      setSelectedTestId(result.data[0].id);
-    }
-  }, [selectedProjectId, selectedTestId]);
+      if (preferredTestId) {
+        const exists = Object.values(nextTree).some((tests) => tests.some((test) => test.id === preferredTestId));
+        if (exists) {
+          setSelectedTestId(preferredTestId);
+          return;
+        }
+      }
 
-  const refreshSteps = useCallback(async () => {
-    if (!selectedTestId) {
-      setSteps([]);
-      return;
-    }
+      const selectedStillExists = Object.values(nextTree).some((tests) =>
+        tests.some((test) => test.id === selectedTestId),
+      );
+      if (selectedStillExists) {
+        return;
+      }
 
-    const result = await window.qaApi.stepList(selectedTestId);
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
+      const preferredTests = nextTree[preferredProjectId] ?? [];
+      if (preferredTests.length > 0) {
+        setSelectedTestId(preferredTests[0].id);
+        return;
+      }
 
-    setSteps(result.data);
-  }, [selectedTestId]);
+      const firstTest = projectRows.flatMap((project) => nextTree[project.id] ?? [])[0];
+      setSelectedTestId(firstTest?.id ?? '');
+    },
+    [selectedTestId],
+  );
+
+  const refreshSidebar = useCallback(
+    async (preferredProjectId: string = selectedProjectId, preferredTestId?: string): Promise<void> => {
+      let result: Awaited<ReturnType<typeof window.qaApi.projectList>>;
+      try {
+        result = await window.qaApi.projectList();
+      } catch (error) {
+        setMessage(`Failed loading projects: ${toErrorMessage(error)}`);
+        setProjectsLoaded(true);
+        return;
+      }
+
+      if (!result.ok) {
+        setMessage(result.error.message);
+        setProjectsLoaded(true);
+        return;
+      }
+
+      const rows = result.data;
+      setProjects(rows);
+      setProjectsLoaded(true);
+
+      let nextProjectId = preferredProjectId;
+      if (rows.length === 0) {
+        nextProjectId = '';
+      } else if (!rows.some((project) => project.id === preferredProjectId)) {
+        nextProjectId = rows[0].id;
+      }
+
+      setSelectedProjectId(nextProjectId);
+      await refreshTestsTree(rows, nextProjectId, preferredTestId);
+    },
+    [refreshTestsTree, selectedProjectId],
+  );
 
   const refreshRuns = useCallback(async () => {
     if (!selectedTestId) {
@@ -186,22 +221,55 @@ export function App(): JSX.Element {
     setStepResults(result.data);
   }, [selectedRunId]);
 
-  useEffect(() => {
-    void refreshProjects();
-  }, [refreshProjects]);
+  const loadSelectedTestIntoForm = useCallback(async () => {
+    if (!selectedTest) {
+      setIsTestEditing(false);
+      setTestForm(DEFAULT_TEST_FORM);
+      return;
+    }
+
+    const stepRowsResult = await window.qaApi.stepList(selectedTest.id);
+    if (!stepRowsResult.ok) {
+      setMessage(stepRowsResult.error.message);
+      return;
+    }
+
+    setIsTestEditing(true);
+    setTestForm({
+      id: selectedTest.id,
+      title: selectedTest.title,
+      steps: stepRowsResult.data.map((step) => step.rawText),
+    });
+  }, [selectedTest]);
 
   useEffect(() => {
-    void refreshTests();
-  }, [refreshTests]);
+    void refreshSidebar();
+  }, [refreshSidebar]);
 
   useEffect(() => {
-    void refreshSteps();
+    if (!selectedProject || !isProjectFormOpen || projectFormMode !== 'edit') {
+      return;
+    }
+
+    setProjectForm({
+      id: selectedProject.id,
+      name: selectedProject.name,
+      baseUrl: selectedProject.baseUrl,
+      envLabel: selectedProject.envLabel,
+    });
+  }, [isProjectFormOpen, projectFormMode, selectedProjectId, selectedProject]);
+
+  useEffect(() => {
     void refreshRuns();
-  }, [refreshRuns, refreshSteps]);
+  }, [refreshRuns]);
 
   useEffect(() => {
     void refreshStepResults();
   }, [refreshStepResults]);
+
+  useEffect(() => {
+    void loadSelectedTestIntoForm();
+  }, [loadSelectedTestIntoForm]);
 
   useEffect(() => {
     const version = stepValidationVersion.current + 1;
@@ -267,6 +335,390 @@ export function App(): JSX.Element {
       window.clearInterval(intervalId);
     };
   }, [activeRunId, refreshRuns]);
+
+  const loadConfig = useCallback(async (): Promise<void> => {
+    const result = await window.qaApi.configGet();
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setAppConfig(result.data);
+    setBrowser(result.data.defaultBrowser);
+  }, []);
+
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
+
+  const seedSampleProject = useCallback(
+    async (mode: 'manual' | 'auto' = 'manual'): Promise<void> => {
+      if (seedInProgress) {
+        return;
+      }
+
+      setSeedInProgress(true);
+      const result = await window.qaApi.seedSampleProject();
+      setSeedInProgress(false);
+
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
+
+      await refreshSidebar(result.data.project.id, result.data.testCase.id);
+
+      if (mode === 'manual') {
+        if (!result.data.createdProject && !result.data.createdTestCase) {
+          setMessage('Sample project already exists.');
+          return;
+        }
+
+        setMessage(
+          `Sample seed complete. Created project: ${result.data.createdProject ? 'yes' : 'no'}, test: ${result.data.createdTestCase ? 'yes' : 'no'}.`,
+        );
+        return;
+      }
+
+      if (result.data.createdProject || result.data.createdTestCase) {
+        setMessage('Sample project seeded automatically.');
+      }
+    },
+    [refreshSidebar, seedInProgress],
+  );
+
+  useEffect(() => {
+    if (!appConfig?.enableSampleProjectSeed) {
+      autoSeedAttempted.current = false;
+      return;
+    }
+
+    if (!projectsLoaded || projects.length > 0 || seedInProgress || autoSeedAttempted.current) {
+      return;
+    }
+
+    autoSeedAttempted.current = true;
+    void seedSampleProject('auto');
+  }, [
+    appConfig?.enableSampleProjectSeed,
+    projects.length,
+    projectsLoaded,
+    seedInProgress,
+    seedSampleProject,
+  ]);
+
+  const projectNameError = projectForm.name.trim() ? null : 'Project name is required.';
+  const projectBaseUrlError = validateBaseUrl(projectForm.baseUrl);
+  const canSaveProject = !projectNameError && !projectBaseUrlError;
+
+  const testTitleError = testForm.title.trim() ? null : 'Test title is required.';
+  const testStepsErrors = testForm.steps.map((stepText, index) => {
+    const rawStep = stepText.trim();
+    if (!rawStep) {
+      return 'Step cannot be empty.';
+    }
+
+    const parsed = stepParsePreview[index];
+    if (!parsed) {
+      return isValidatingSteps ? 'Validating step...' : 'Validation unavailable.';
+    }
+
+    return parsed.ok ? null : parsed.error;
+  });
+
+  const hasStepErrors = testStepsErrors.some(Boolean) || testForm.steps.length === 0;
+  const canSaveTestCase =
+    Boolean(selectedProjectId) &&
+    !testTitleError &&
+    !hasStepErrors &&
+    !isValidatingSteps;
+
+  function selectProject(projectId: string): void {
+    setSelectedProjectId(projectId);
+
+    const testsForProject = testCasesByProject[projectId] ?? [];
+    if (!testsForProject.some((testCase) => testCase.id === selectedTestId)) {
+      setSelectedTestId(testsForProject[0]?.id ?? '');
+    }
+  }
+
+  function selectTest(projectId: string, testId: string): void {
+    setSelectedProjectId(projectId);
+    setSelectedTestId(testId);
+  }
+
+  function beginCreateProject(): void {
+    setProjectFormMode('create');
+    setProjectForm(DEFAULT_PROJECT_FORM);
+    setIsProjectFormOpen(true);
+  }
+
+  function beginEditSelectedProject(): void {
+    if (!selectedProject) {
+      setMessage('Select a project first.');
+      return;
+    }
+
+    setProjectFormMode('edit');
+    setProjectForm({
+      id: selectedProject.id,
+      name: selectedProject.name,
+      baseUrl: selectedProject.baseUrl,
+      envLabel: selectedProject.envLabel,
+    });
+    setIsProjectFormOpen(true);
+  }
+
+  function closeProjectForm(): void {
+    setIsProjectFormOpen(false);
+    setProjectFormMode('create');
+  }
+
+  async function createProject(): Promise<void> {
+    if (!canSaveProject) {
+      setMessage(projectNameError ?? projectBaseUrlError ?? 'Fix project validation errors.');
+      return;
+    }
+
+    const payload = {
+      name: projectForm.name.trim(),
+      baseUrl: projectForm.baseUrl.trim(),
+      envLabel: projectForm.envLabel.trim() || 'local',
+      metadata: {},
+    };
+
+    let result: Awaited<ReturnType<typeof window.qaApi.projectCreate>>;
+    try {
+      result = await window.qaApi.projectCreate(payload);
+    } catch (error) {
+      setMessage(`Create project failed: ${toErrorMessage(error)}`);
+      return;
+    }
+
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setProjects((previous) => {
+      const exists = previous.some((project) => project.id === result.data.id);
+      if (exists) {
+        return previous;
+      }
+
+      return [result.data, ...previous];
+    });
+    setTestCasesByProject((previous) => ({
+      ...previous,
+      [result.data.id]: previous[result.data.id] ?? [],
+    }));
+    setSelectedProjectId(result.data.id);
+    setSelectedTestId('');
+
+    setProjectForm({
+      id: result.data.id,
+      name: result.data.name,
+      baseUrl: result.data.baseUrl,
+      envLabel: result.data.envLabel,
+    });
+    setIsProjectFormOpen(false);
+    setProjectFormMode('create');
+
+    try {
+      await refreshSidebar(result.data.id);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unknown error';
+      setMessage(`Project created, but sidebar refresh failed: ${reason}`);
+      return;
+    }
+
+    setMessage('Project created.');
+  }
+
+  async function updateSelectedProject(): Promise<void> {
+    if (!selectedProject) {
+      setMessage('Select a project first.');
+      return;
+    }
+
+    if (!canSaveProject) {
+      setMessage(projectNameError ?? projectBaseUrlError ?? 'Fix project validation errors.');
+      return;
+    }
+
+    let result: Awaited<ReturnType<typeof window.qaApi.projectUpdate>>;
+    try {
+      result = await window.qaApi.projectUpdate({
+        id: selectedProject.id,
+        name: projectForm.name.trim(),
+        baseUrl: projectForm.baseUrl.trim(),
+        envLabel: projectForm.envLabel.trim() || 'local',
+        metadata: {},
+      });
+    } catch (error) {
+      setMessage(`Update project failed: ${toErrorMessage(error)}`);
+      return;
+    }
+
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setProjectForm({
+      id: result.data.id,
+      name: result.data.name,
+      baseUrl: result.data.baseUrl,
+      envLabel: result.data.envLabel,
+    });
+    setIsProjectFormOpen(false);
+    setProjectFormMode('create');
+    await refreshSidebar(result.data.id, selectedTestId || undefined);
+    setMessage('Project updated.');
+  }
+
+  async function deleteSelectedProject(): Promise<void> {
+    if (!selectedProjectId) {
+      setMessage('Select a project first.');
+      return;
+    }
+
+    if (!window.confirm('Delete this project and all related tests/runs?')) {
+      return;
+    }
+
+    let result: Awaited<ReturnType<typeof window.qaApi.projectDelete>>;
+    try {
+      result = await window.qaApi.projectDelete(selectedProjectId);
+    } catch (error) {
+      setMessage(`Delete project failed: ${toErrorMessage(error)}`);
+      return;
+    }
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    beginCreateProject();
+    setIsProjectFormOpen(false);
+    setSelectedRunId('');
+    setBugReport(null);
+    setBugReportDraft('');
+    await refreshSidebar();
+    setMessage(result.data ? 'Project deleted.' : 'Project was already deleted.');
+  }
+
+  function beginCreateTest(): void {
+    setSelectedTestId('');
+    setIsTestEditing(false);
+    setTestForm(DEFAULT_TEST_FORM);
+  }
+
+  async function saveTestCase(): Promise<void> {
+    if (!selectedProjectId) {
+      setMessage('Select a project first.');
+      return;
+    }
+
+    if (!canSaveTestCase) {
+      setMessage(testTitleError ?? 'Fix invalid steps before saving.');
+      return;
+    }
+
+    const cleanSteps = testForm.steps.map((stepText) => stepText.trim());
+
+    const result =
+      isTestEditing && testForm.id
+        ? await window.qaApi.testUpdate({
+            id: testForm.id,
+            projectId: selectedProjectId,
+            title: testForm.title.trim(),
+            steps: cleanSteps,
+          })
+        : await window.qaApi.testCreate({
+            projectId: selectedProjectId,
+            title: testForm.title.trim(),
+            steps: cleanSteps,
+          });
+
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setIsTestEditing(true);
+    setTestForm({
+      id: result.data.id,
+      title: result.data.title,
+      steps: cleanSteps,
+    });
+
+    await refreshSidebar(selectedProjectId, result.data.id);
+    setMessage(isTestEditing ? 'Test case updated.' : 'Test case created.');
+  }
+
+  async function deleteSelectedTest(): Promise<void> {
+    if (!selectedTestId) {
+      setMessage('Select a test case first.');
+      return;
+    }
+
+    if (!window.confirm('Delete this test case?')) {
+      return;
+    }
+
+    const result = await window.qaApi.testDelete(selectedTestId);
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setSelectedRunId('');
+    setBugReport(null);
+    setBugReportDraft('');
+    await refreshSidebar(selectedProjectId);
+    setMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
+  }
+
+  function addStepRow(): void {
+    setTestForm((previous) => ({
+      ...previous,
+      steps: [...previous.steps, ''],
+    }));
+  }
+
+  function updateStepRow(index: number, value: string): void {
+    setTestForm((previous) => ({
+      ...previous,
+      steps: previous.steps.map((step, stepIndex) => (stepIndex === index ? value : step)),
+    }));
+  }
+
+  function removeStepRow(index: number): void {
+    setTestForm((previous) => ({
+      ...previous,
+      steps: previous.steps.filter((_, stepIndex) => stepIndex !== index),
+    }));
+  }
+
+  function moveStepRow(index: number, direction: -1 | 1): void {
+    setTestForm((previous) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= previous.steps.length) {
+        return previous;
+      }
+
+      const nextSteps = [...previous.steps];
+      const currentStep = nextSteps[index];
+      nextSteps[index] = nextSteps[nextIndex];
+      nextSteps[nextIndex] = currentStep;
+
+      return {
+        ...previous,
+        steps: nextSteps,
+      };
+    });
+  }
 
   async function generateSteps(): Promise<void> {
     if (!selectedProject) {
@@ -363,356 +815,6 @@ export function App(): JSX.Element {
     setMessage('Bug report copied to clipboard.');
   }
 
-  const seedSampleProject = useCallback(
-    async (mode: 'manual' | 'auto' = 'manual'): Promise<void> => {
-      if (seedInProgress) {
-        return;
-      }
-
-      setSeedInProgress(true);
-      const result = await window.qaApi.seedSampleProject();
-      setSeedInProgress(false);
-
-      if (!result.ok) {
-        setMessage(result.error.message);
-        return;
-      }
-
-      setSelectedProjectId(result.data.project.id);
-      setSelectedTestId(result.data.testCase.id);
-      await refreshProjects();
-      await refreshTests();
-
-      const latestSteps = await window.qaApi.stepList(result.data.testCase.id);
-      if (latestSteps.ok) {
-        setSteps(latestSteps.data);
-      }
-
-      if (mode === 'manual') {
-        if (!result.data.createdProject && !result.data.createdTestCase) {
-          setMessage('Sample project already exists.');
-          return;
-        }
-
-        setMessage(
-          `Sample seed complete. Created project: ${result.data.createdProject ? 'yes' : 'no'}, test: ${result.data.createdTestCase ? 'yes' : 'no'}.`,
-        );
-        return;
-      }
-
-      if (result.data.createdProject || result.data.createdTestCase) {
-        setMessage('Sample project seeded automatically.');
-      }
-    },
-    [refreshProjects, refreshTests, seedInProgress],
-  );
-
-  const runHealthPing = useCallback(async (): Promise<void> => {
-    const result = await window.qaApi.healthPing();
-    if (!result.ok) {
-      setHealthStatus(`error: ${result.error.message}`);
-      setMessage(result.error.message);
-      return;
-    }
-
-    setHealthStatus(result.data);
-    setMessage(`IPC health ping successful: ${result.data}`);
-  }, []);
-
-  const loadConfig = useCallback(async (): Promise<void> => {
-    const result = await window.qaApi.configGet();
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    setAppConfig(result.data);
-    setBrowser(result.data.defaultBrowser);
-    setMessage('Config loaded from local appData.');
-  }, []);
-
-  const saveConfig = useCallback(async (): Promise<void> => {
-    if (!appConfig) {
-      setMessage('Load config before saving.');
-      return;
-    }
-
-    const result = await window.qaApi.configSet(appConfig);
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    setAppConfig(result.data);
-    setBrowser(result.data.defaultBrowser);
-    setMessage('Config saved to local appData.');
-  }, [appConfig]);
-
-  useEffect(() => {
-    void runHealthPing();
-    void loadConfig();
-  }, [loadConfig, runHealthPing]);
-
-  useEffect(() => {
-    if (!appConfig?.enableSampleProjectSeed) {
-      autoSeedAttempted.current = false;
-      return;
-    }
-
-    if (!projectsLoaded || projects.length > 0 || seedInProgress || autoSeedAttempted.current) {
-      return;
-    }
-
-    autoSeedAttempted.current = true;
-    void seedSampleProject('auto');
-  }, [
-    appConfig?.enableSampleProjectSeed,
-    projects.length,
-    projectsLoaded,
-    seedInProgress,
-    seedSampleProject,
-  ]);
-
-  const projectNameError = projectForm.name.trim() ? null : 'Project name is required.';
-  const projectBaseUrlError = validateBaseUrl(projectForm.baseUrl);
-  const canSaveProject = !projectNameError && !projectBaseUrlError;
-
-  const testTitleError = testForm.title.trim() ? null : 'Test title is required.';
-  const testStepsErrors = testForm.steps.map((stepText, index) => {
-    const rawStep = stepText.trim();
-    if (!rawStep) {
-      return 'Step cannot be empty.';
-    }
-
-    const parsed = stepParsePreview[index];
-    if (!parsed) {
-      return isValidatingSteps ? 'Validating step...' : 'Validation unavailable.';
-    }
-
-    return parsed.ok ? null : parsed.error;
-  });
-  const hasStepErrors = testStepsErrors.some(Boolean) || testForm.steps.length === 0;
-  const canSaveTestCase =
-    Boolean(selectedProjectId) &&
-    !testTitleError &&
-    !hasStepErrors &&
-    !isValidatingSteps;
-
-  function beginCreateProject(): void {
-    setIsProjectEditing(false);
-    setProjectForm(DEFAULT_PROJECT_FORM);
-  }
-
-  function beginEditSelectedProject(): void {
-    if (!selectedProject) {
-      setMessage('Select a project first.');
-      return;
-    }
-
-    setIsProjectEditing(true);
-    setProjectForm({
-      id: selectedProject.id,
-      name: selectedProject.name,
-      baseUrl: selectedProject.baseUrl,
-      envLabel: selectedProject.envLabel,
-    });
-  }
-
-  async function saveProject(): Promise<void> {
-    if (!canSaveProject) {
-      setMessage(projectNameError ?? projectBaseUrlError ?? 'Fix project validation errors.');
-      return;
-    }
-
-    const payload = {
-      name: projectForm.name.trim(),
-      baseUrl: projectForm.baseUrl.trim(),
-      envLabel: projectForm.envLabel.trim() || 'local',
-      metadata: {},
-    };
-
-    const result =
-      isProjectEditing && projectForm.id
-        ? await window.qaApi.projectUpdate({ id: projectForm.id, ...payload })
-        : await window.qaApi.projectCreate(payload);
-
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    setSelectedProjectId(result.data.id);
-    setIsProjectEditing(true);
-    setProjectForm({
-      id: result.data.id,
-      name: result.data.name,
-      baseUrl: result.data.baseUrl,
-      envLabel: result.data.envLabel,
-    });
-    setMessage(isProjectEditing ? 'Project updated.' : 'Project created.');
-    await refreshProjects();
-  }
-
-  async function deleteSelectedProject(): Promise<void> {
-    if (!selectedProjectId) {
-      setMessage('Select a project first.');
-      return;
-    }
-
-    if (!window.confirm('Delete this project and all related tests/runs?')) {
-      return;
-    }
-
-    const result = await window.qaApi.projectDelete(selectedProjectId);
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    beginCreateProject();
-    setSelectedProjectId('');
-    setSelectedTestId('');
-    setSelectedRunId('');
-    setMessage(result.data ? 'Project deleted.' : 'Project was already deleted.');
-    await refreshProjects();
-  }
-
-  function beginCreateTest(): void {
-    setIsTestEditing(false);
-    setTestForm(DEFAULT_TEST_FORM);
-  }
-
-  async function beginEditSelectedTest(): Promise<void> {
-    if (!selectedTest) {
-      setMessage('Select a test case first.');
-      return;
-    }
-
-    const stepRowsResult = await window.qaApi.stepList(selectedTest.id);
-    if (!stepRowsResult.ok) {
-      setMessage(stepRowsResult.error.message);
-      return;
-    }
-
-    setIsTestEditing(true);
-    setTestForm({
-      id: selectedTest.id,
-      title: selectedTest.title,
-      steps: stepRowsResult.data.map((step) => step.rawText),
-    });
-  }
-
-  async function saveTestCase(): Promise<void> {
-    if (!selectedProjectId) {
-      setMessage('Select a project first.');
-      return;
-    }
-
-    if (!canSaveTestCase) {
-      setMessage(testTitleError ?? 'Fix invalid steps before saving.');
-      return;
-    }
-
-    const cleanSteps = testForm.steps.map((stepText) => stepText.trim());
-
-    const result =
-      isTestEditing && testForm.id
-        ? await window.qaApi.testUpdate({
-            id: testForm.id,
-            projectId: selectedProjectId,
-            title: testForm.title.trim(),
-            steps: cleanSteps,
-          })
-        : await window.qaApi.testCreate({
-            projectId: selectedProjectId,
-            title: testForm.title.trim(),
-            steps: cleanSteps,
-          });
-
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    setSelectedTestId(result.data.id);
-    setIsTestEditing(true);
-    setTestForm({
-      id: result.data.id,
-      title: result.data.title,
-      steps: cleanSteps,
-    });
-    setMessage(isTestEditing ? 'Test case updated.' : 'Test case created.');
-    await refreshTests();
-
-    const latestSteps = await window.qaApi.stepList(result.data.id);
-    if (latestSteps.ok) {
-      setSteps(latestSteps.data);
-    }
-  }
-
-  async function deleteSelectedTest(): Promise<void> {
-    if (!selectedTestId) {
-      setMessage('Select a test case first.');
-      return;
-    }
-
-    if (!window.confirm('Delete this test case?')) {
-      return;
-    }
-
-    const result = await window.qaApi.testDelete(selectedTestId);
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    beginCreateTest();
-    setSelectedTestId('');
-    setSteps([]);
-    setMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
-    await refreshTests();
-  }
-
-  function addStepRow(): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: [...previous.steps, ''],
-    }));
-  }
-
-  function updateStepRow(index: number, value: string): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: previous.steps.map((step, stepIndex) => (stepIndex === index ? value : step)),
-    }));
-  }
-
-  function removeStepRow(index: number): void {
-    setTestForm((previous) => ({
-      ...previous,
-      steps: previous.steps.filter((_, stepIndex) => stepIndex !== index),
-    }));
-  }
-
-  function moveStepRow(index: number, direction: -1 | 1): void {
-    setTestForm((previous) => {
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= previous.steps.length) {
-        return previous;
-      }
-
-      const nextSteps = [...previous.steps];
-      const currentStep = nextSteps[index];
-      nextSteps[index] = nextSteps[nextIndex];
-      nextSteps[nextIndex] = currentStep;
-
-      return {
-        ...previous,
-        steps: nextSteps,
-      };
-    });
-  }
-
   return (
     <main className="shell">
       <header className="header">
@@ -720,299 +822,325 @@ export function App(): JSX.Element {
         <p>Local-first QA test builder with AI-assisted authoring.</p>
       </header>
 
-      <nav className="tabs">
-        {TABS.map((item) => (
-          <button
-            key={item}
-            className={tab === item ? 'tab tab-active' : 'tab'}
-            type="button"
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
-
       {message ? <p className="message">{message}</p> : null}
 
-      {tab === 'hello' ? (
-        <HelloPage
-          healthStatus={healthStatus}
-          config={appConfig}
-          seedInProgress={seedInProgress}
-          onPing={runHealthPing}
-          onLoadConfig={loadConfig}
-          onSaveConfig={saveConfig}
-          onSeedSampleProject={seedSampleProject}
-          onUpdateConfig={setAppConfig}
-        />
-      ) : null}
-
-      {tab === 'projects' ? (
-        <section className="panel">
-          <h2>Projects</h2>
-          <p>Create or edit local environments used for test authoring and execution.</p>
-          <div className="grid two">
-            <label>
-              Name
-              <input
-                value={projectForm.name}
-                onChange={(event) =>
-                  setProjectForm((previous) => ({ ...previous, name: event.target.value }))
-                }
-              />
-              {projectNameError ? <span className="field-error">{projectNameError}</span> : null}
-            </label>
-            <label>
-              Base URL
-              <input
-                value={projectForm.baseUrl}
-                onChange={(event) =>
-                  setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
-                }
-              />
-              {projectBaseUrlError ? (
-                <span className="field-error">{projectBaseUrlError}</span>
-              ) : (
-                <span className="field-hint">Include protocol, for example https://example.com</span>
-              )}
-            </label>
-            <label>
-              Environment
-              <input
-                value={projectForm.envLabel}
-                onChange={(event) =>
-                  setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="row">
-            <button type="button" onClick={() => void saveProject()} disabled={!canSaveProject}>
-              {isProjectEditing ? 'Save Project' : 'Create Project'}
-            </button>
-            <button type="button" onClick={() => beginEditSelectedProject()} disabled={!selectedProject}>
-              Edit Selected
-            </button>
+      <div className="workspace">
+        <aside className="panel sidebar">
+          <div className="sidebar-heading">
+            <h2>Projects</h2>
             <button type="button" onClick={() => beginCreateProject()}>
-              {isProjectEditing ? 'Cancel Edit' : 'Clear Form'}
-            </button>
-            <button type="button" onClick={() => void deleteSelectedProject()} disabled={!selectedProject}>
-              Delete Selected
+              New Project
             </button>
           </div>
 
-          <ul className="list">
-            {projects.map((project) => (
-              <li key={project.id}>
-                <button
-                  type="button"
-                  className={project.id === selectedProjectId ? 'select active' : 'select'}
-                  onClick={() => setSelectedProjectId(project.id)}
-                >
-                  <strong>{project.name}</strong>
-                  <span>
-                    {project.baseUrl} ({project.envLabel})
-                  </span>
-                </button>
-              </li>
-            ))}
+          <ul className="tree-list">
+            {projects.map((project) => {
+              const projectTests = testCasesByProject[project.id] ?? [];
+
+              return (
+                <li key={project.id} className="tree-project-item">
+                  <button
+                    type="button"
+                    className={project.id === selectedProjectId ? 'tree-project active' : 'tree-project'}
+                    onClick={() => selectProject(project.id)}
+                  >
+                    <strong>{project.name}</strong>
+                    <span>{project.envLabel}</span>
+                  </button>
+
+                  {projectTests.length > 0 ? (
+                    <ul className="tree-tests">
+                      {projectTests.map((testCase) => (
+                        <li key={testCase.id}>
+                          <button
+                            type="button"
+                            className={testCase.id === selectedTestId ? 'tree-test active' : 'tree-test'}
+                            onClick={() => selectTest(project.id, testCase.id)}
+                          >
+                            {testCase.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="field-hint tree-empty">No test cases</p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
-        </section>
-      ) : null}
 
-      {tab === 'tests' ? (
-        <section className="panel">
-          <h2>Tests</h2>
-          <p>Selected project: {selectedProject?.name ?? 'none'}</p>
-          <p>Saved steps for selected test: {steps.length}</p>
+          <section className="sidebar-settings">
+            {isProjectFormOpen ? (
+              <>
+                <h3>{projectFormMode === 'create' ? 'Create Project' : 'Edit Project'}</h3>
+                <label>
+                  Name
+                  <input
+                    value={projectForm.name}
+                    onChange={(event) =>
+                      setProjectForm((previous) => ({ ...previous, name: event.target.value }))
+                    }
+                  />
+                  {projectNameError ? <span className="field-error">{projectNameError}</span> : null}
+                </label>
 
-          <div className="grid one">
-            <label>
-              Test title
-              <input
-                value={testForm.title}
-                onChange={(event) =>
-                  setTestForm((previous) => ({ ...previous, title: event.target.value }))
-                }
-              />
-              {testTitleError ? <span className="field-error">{testTitleError}</span> : null}
-            </label>
+                <label>
+                  Base URL
+                  <input
+                    value={projectForm.baseUrl}
+                    onChange={(event) =>
+                      setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
+                    }
+                  />
+                  {projectBaseUrlError ? (
+                    <span className="field-error">{projectBaseUrlError}</span>
+                  ) : (
+                    <span className="field-hint">Include protocol, for example https://example.com</span>
+                  )}
+                </label>
 
-            <div>
-              <div className="row">
-                <strong>Steps</strong>
-                <button type="button" onClick={() => addStepRow()}>
-                  Add Step
-                </button>
-              </div>
+                <label>
+                  Environment
+                  <input
+                    value={projectForm.envLabel}
+                    onChange={(event) =>
+                      setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
+                    }
+                  />
+                </label>
 
-              <ol className="step-list">
-                {testForm.steps.map((rawStep, index) => {
-                  const parsed = stepParsePreview[index];
-                  const parseHint =
-                    parsed && parsed.ok
-                      ? `Parsed as ${parsed.action.type} (${parsed.source})`
-                      : testStepsErrors[index];
+                <div className="row">
+                  {projectFormMode === 'create' ? (
+                    <button type="button" onClick={() => void createProject()} disabled={!canSaveProject}>
+                      Create Project
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void updateSelectedProject()}
+                      disabled={!selectedProject || !canSaveProject}
+                    >
+                      Update Selected
+                    </button>
+                  )}
+                  <button type="button" onClick={() => closeProjectForm()}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>Project Actions</h3>
+                <p className="field-hint">Project form is hidden. Click New Project to create.</p>
+                <div className="row">
+                  <button type="button" onClick={() => beginEditSelectedProject()} disabled={!selectedProject}>
+                    Edit Selected
+                  </button>
+                  <button type="button" onClick={() => void deleteSelectedProject()} disabled={!selectedProject}>
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </aside>
 
-                  return (
-                    <li key={`${index}-${rawStep}`} className="step-item">
-                      <textarea
-                        rows={2}
-                        value={rawStep}
-                        onChange={(event) => updateStepRow(index, event.target.value)}
-                      />
-                      <div className="row">
-                        <button
-                          type="button"
-                          onClick={() => moveStepRow(index, -1)}
-                          disabled={index === 0}
-                        >
-                          Up
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveStepRow(index, 1)}
-                          disabled={index === testForm.steps.length - 1}
-                        >
-                          Down
-                        </button>
-                        <button type="button" onClick={() => removeStepRow(index)}>
-                          Delete
-                        </button>
-                      </div>
-                      {parseHint ? (
-                        <span className={parsed && parsed.ok ? 'field-hint' : 'field-error'}>
-                          {parseHint}
+        <section className="main-content">
+          {selectedProject ? (
+            <>
+              <section className="panel">
+                <div className="section-heading">
+                  <h2>Test Case Settings</h2>
+                  <p>
+                    Project: <strong>{selectedProject.name}</strong>
+                  </p>
+                </div>
+
+                <div className="grid one">
+                  <label>
+                    Test title
+                    <input
+                      value={testForm.title}
+                      onChange={(event) =>
+                        setTestForm((previous) => ({ ...previous, title: event.target.value }))
+                      }
+                    />
+                    {testTitleError ? <span className="field-error">{testTitleError}</span> : null}
+                  </label>
+
+                  <div>
+                    <div className="row">
+                      <strong>Steps</strong>
+                      <button type="button" onClick={() => addStepRow()}>
+                        Add Step
+                      </button>
+                    </div>
+
+                    <ol className="step-list">
+                      {testForm.steps.map((rawStep, index) => {
+                        const parsed = stepParsePreview[index];
+                        const parseHint =
+                          parsed && parsed.ok
+                            ? `Parsed as ${parsed.action.type} (${parsed.source})`
+                            : testStepsErrors[index];
+
+                        return (
+                          <li key={`${index}-${rawStep}`} className="step-item">
+                            <textarea
+                              rows={2}
+                              value={rawStep}
+                              onChange={(event) => updateStepRow(index, event.target.value)}
+                            />
+                            <div className="row">
+                              <button
+                                type="button"
+                                onClick={() => moveStepRow(index, -1)}
+                                disabled={index === 0}
+                              >
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveStepRow(index, 1)}
+                                disabled={index === testForm.steps.length - 1}
+                              >
+                                Down
+                              </button>
+                              <button type="button" onClick={() => removeStepRow(index)}>
+                                Delete
+                              </button>
+                            </div>
+                            {parseHint ? (
+                              <span className={parsed && parsed.ok ? 'field-hint' : 'field-error'}>
+                                {parseHint}
+                              </span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ol>
+
+                    <p className="field-hint">
+                      Supported patterns: Enter "value" in "field" field, Click "text", Expect
+                      assertion.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <button type="button" onClick={() => beginCreateTest()}>
+                    New Test
+                  </button>
+                  <button type="button" onClick={() => void generateSteps()}>
+                    Generate Steps (AI)
+                  </button>
+                  <button type="button" onClick={() => void saveTestCase()} disabled={!canSaveTestCase}>
+                    {isTestEditing ? 'Save Test Case' : 'Create Test Case'}
+                  </button>
+                  <button type="button" onClick={() => void deleteSelectedTest()} disabled={!selectedTest}>
+                    Delete Test Case
+                  </button>
+                </div>
+
+                {isValidatingSteps ? <p className="field-hint">Validating steps...</p> : null}
+              </section>
+
+              <section className="panel">
+                <div className="section-heading">
+                  <h2>Test Run Result</h2>
+                  <p>
+                    Selected test:{' '}
+                    <strong>{selectedTest ? selectedTest.title : 'None selected'}</strong>
+                  </p>
+                </div>
+
+                <div className="row">
+                  <label>
+                    Browser
+                    <select
+                      value={browser}
+                      onChange={(event) => setBrowser(event.target.value as BrowserName)}
+                    >
+                      <option value="chromium">Chromium</option>
+                      <option value="firefox">Firefox</option>
+                      <option value="webkit">WebKit</option>
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => void startRun()} disabled={!selectedTestId}>
+                    Start Run
+                  </button>
+                  <button type="button" onClick={() => void cancelRun()} disabled={!activeRunId}>
+                    Cancel Immediately
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void generateBugReport()}
+                    disabled={!selectedRun || selectedRun.status !== 'failed'}
+                  >
+                    Generate Bug Report
+                  </button>
+                </div>
+
+                <ul className="list">
+                  {runs.map((run) => (
+                    <li key={run.id}>
+                      <button
+                        type="button"
+                        className={run.id === selectedRunId ? 'select active' : 'select'}
+                        onClick={() => setSelectedRunId(run.id)}
+                      >
+                        <strong>{run.status.toUpperCase()}</strong>
+                        <span>
+                          {run.browser} | {new Date(run.startedAt).toLocaleString()}
                         </span>
-                      ) : null}
+                      </button>
                     </li>
-                  );
-                })}
-              </ol>
+                  ))}
+                </ul>
 
-              <p className="field-hint">
-                Supported patterns: Enter "value" in "field" field, Click "text", Expect assertion.
-              </p>
-            </div>
-          </div>
+                {stepResults.length > 0 ? (
+                  <div>
+                    <h3>Step Results</h3>
+                    <ul className="list">
+                      {stepResults.map((result) => (
+                        <li key={result.id}>
+                          <code>{result.stepId}</code>
+                          <span>
+                            {result.status}
+                            {result.errorText ? ` | ${result.errorText}` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
 
-          <div className="row">
-            <button type="button" onClick={() => void generateSteps()} disabled={!selectedProject}>
-              Generate Steps (AI)
-            </button>
-            <button type="button" onClick={() => beginCreateTest()}>
-              {isTestEditing ? 'Cancel Edit' : 'New Draft'}
-            </button>
-            <button type="button" onClick={() => void beginEditSelectedTest()} disabled={!selectedTest}>
-              Edit Selected
-            </button>
-            <button type="button" onClick={() => void saveTestCase()} disabled={!canSaveTestCase}>
-              {isTestEditing ? 'Save Test Case' : 'Create Test Case'}
-            </button>
-            <button type="button" onClick={() => void deleteSelectedTest()} disabled={!selectedTest}>
-              Delete Selected
-            </button>
-          </div>
-
-          {isValidatingSteps ? <p className="field-hint">Validating steps...</p> : null}
-
-          <ul className="list">
-            {tests.map((testCase) => (
-              <li key={testCase.id}>
-                <button
-                  type="button"
-                  className={testCase.id === selectedTestId ? 'select active' : 'select'}
-                  onClick={() => setSelectedTestId(testCase.id)}
-                >
-                  <strong>{testCase.title}</strong>
-                  <span>updated {new Date(testCase.updatedAt).toLocaleString()}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                {bugReport ? (
+                  <div>
+                    <h3>Bug Report Draft</h3>
+                    <textarea
+                      rows={14}
+                      value={bugReportDraft}
+                      onChange={(event) => setBugReportDraft(event.target.value)}
+                    />
+                    <button type="button" onClick={() => void copyBugReport()}>
+                      Copy to Clipboard
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            </>
+          ) : (
+            <section className="panel">
+              <div className="section-heading">
+                <h2>Get Started</h2>
+                <p>Create a project in the sidebar to begin test case setup and run results.</p>
+              </div>
+            </section>
+          )}
         </section>
-      ) : null}
-
-      {tab === 'runs' ? (
-        <section className="panel">
-          <h2>Runs</h2>
-          <p>Selected test ID: {selectedTestId || 'none'}</p>
-
-          <div className="row">
-            <label>
-              Browser
-              <select value={browser} onChange={(event) => setBrowser(event.target.value as BrowserName)}>
-                <option value="chromium">Chromium</option>
-                <option value="firefox">Firefox</option>
-                <option value="webkit">WebKit</option>
-              </select>
-            </label>
-            <button type="button" onClick={() => void startRun()}>
-              Start Run
-            </button>
-            <button type="button" onClick={() => void cancelRun()} disabled={!activeRunId}>
-              Cancel Immediately
-            </button>
-            <button
-              type="button"
-              onClick={() => void generateBugReport()}
-              disabled={!selectedRun || selectedRun.status !== 'failed'}
-            >
-              Generate Bug Report
-            </button>
-          </div>
-
-          <ul className="list">
-            {runs.map((run) => (
-              <li key={run.id}>
-                <button
-                  type="button"
-                  className={run.id === selectedRunId ? 'select active' : 'select'}
-                  onClick={() => setSelectedRunId(run.id)}
-                >
-                  <strong>{run.status.toUpperCase()}</strong>
-                  <span>
-                    {run.browser} | {new Date(run.startedAt).toLocaleString()}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          {stepResults.length > 0 ? (
-            <div>
-              <h3>Step Results</h3>
-              <ul className="list">
-                {stepResults.map((result) => (
-                  <li key={result.id}>
-                    <code>{result.stepId}</code>
-                    <span>
-                      {result.status}
-                      {result.errorText ? ` | ${result.errorText}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {bugReport ? (
-            <div>
-              <h3>Bug Report Draft</h3>
-              <textarea
-                rows={14}
-                value={bugReportDraft}
-                onChange={(event) => setBugReportDraft(event.target.value)}
-              />
-              <button type="button" onClick={() => void copyBugReport()}>
-                Copy to Clipboard
-              </button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      </div>
     </main>
   );
 }
@@ -1024,7 +1152,6 @@ function validateBaseUrl(baseUrl: string): string | null {
   }
 
   try {
-    // URL constructor enforces explicit protocol and host structure.
     void new URL(value);
     return null;
   } catch {
@@ -1046,4 +1173,8 @@ function formatBugReport(report: GeneratedBugReport): string {
     'Evidence:',
     ...report.evidence.map((item) => `- ${item}`),
   ].join('\n');
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
 }
