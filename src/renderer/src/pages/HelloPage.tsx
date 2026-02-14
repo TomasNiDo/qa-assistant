@@ -3,14 +3,25 @@ import type { AppConfig } from '@shared/types';
 interface HelloPageProps {
   healthStatus: string;
   config: AppConfig | null;
+  seedInProgress: boolean;
   onPing: () => Promise<void>;
   onLoadConfig: () => Promise<void>;
   onSaveConfig: () => Promise<void>;
+  onSeedSampleProject: () => Promise<void>;
   onUpdateConfig: (config: AppConfig) => void;
 }
 
 export function HelloPage(props: HelloPageProps): JSX.Element {
-  const { healthStatus, config, onPing, onLoadConfig, onSaveConfig, onUpdateConfig } = props;
+  const {
+    healthStatus,
+    config,
+    seedInProgress,
+    onPing,
+    onLoadConfig,
+    onSaveConfig,
+    onSeedSampleProject,
+    onUpdateConfig,
+  } = props;
 
   return (
     <section className="panel">
@@ -26,6 +37,9 @@ export function HelloPage(props: HelloPageProps): JSX.Element {
         </button>
         <button type="button" onClick={() => void onSaveConfig()} disabled={!config}>
           Save Config
+        </button>
+        <button type="button" onClick={() => void onSeedSampleProject()} disabled={seedInProgress}>
+          {seedInProgress ? 'Seeding...' : 'Seed Sample Project'}
         </button>
       </div>
 
@@ -74,6 +88,22 @@ export function HelloPage(props: HelloPageProps): JSX.Element {
                 onUpdateConfig({
                   ...config,
                   continueOnFailure: event.target.value === 'true',
+                })
+              }
+            >
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </label>
+
+          <label>
+            Enable Sample Seed
+            <select
+              value={String(config.enableSampleProjectSeed)}
+              onChange={(event) =>
+                onUpdateConfig({
+                  ...config,
+                  enableSampleProjectSeed: event.target.value === 'true',
                 })
               }
             >

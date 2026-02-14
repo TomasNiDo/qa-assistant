@@ -9,6 +9,9 @@ export function registerHandlers(services: Services): void {
   ipcMain.handle(IPC_CHANNELS.configSet, async (_event, input) =>
     wrap(() => services.configService.set(input)),
   );
+  ipcMain.handle(IPC_CHANNELS.seedSampleProject, async () =>
+    wrap(() => services.sampleSeedService.seedSampleProject()),
+  );
 
   ipcMain.handle(IPC_CHANNELS.projectCreate, async (_event, input) =>
     wrap(() => services.projectService.create(input)),

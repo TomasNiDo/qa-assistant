@@ -5,6 +5,7 @@ const api: QaAssistantApi = {
   healthPing: () => ipcRenderer.invoke(IPC_CHANNELS.healthPing),
   configGet: () => ipcRenderer.invoke(IPC_CHANNELS.configGet),
   configSet: (input) => ipcRenderer.invoke(IPC_CHANNELS.configSet, input),
+  seedSampleProject: () => ipcRenderer.invoke(IPC_CHANNELS.seedSampleProject),
 
   projectCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.projectCreate, input),
   projectUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.projectUpdate, input),

@@ -5,6 +5,7 @@ const DEFAULT_CONFIG: AppConfig = {
   defaultBrowser: 'chromium',
   stepTimeoutSeconds: 10,
   continueOnFailure: false,
+  enableSampleProjectSeed: false,
 };
 
 export class ConfigService {
@@ -53,5 +54,6 @@ function sanitizeConfig(input: Partial<AppConfig>): AppConfig {
     defaultBrowser,
     stepTimeoutSeconds,
     continueOnFailure: Boolean(input.continueOnFailure),
+    enableSampleProjectSeed: Boolean(input.enableSampleProjectSeed),
   };
 }

@@ -28,6 +28,8 @@ Current implementation includes:
 - `npm run dev`
 - `npm run build`
 - `npm run preview`
+- `npm run seed:sample`
+- `npm run test`
 - `npm run typecheck`
 - `npm run lint`
 

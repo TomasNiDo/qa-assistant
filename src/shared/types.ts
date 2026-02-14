@@ -95,6 +95,7 @@ export interface AppConfig {
   defaultBrowser: BrowserName;
   stepTimeoutSeconds: number;
   continueOnFailure: boolean;
+  enableSampleProjectSeed: boolean;
 }
 
 export interface ApiError {
@@ -118,4 +119,11 @@ export interface GeneratedBugReport {
   expectedResult: string;
   actualResult: string;
   evidence: string[];
+}
+
+export interface SampleSeedResult {
+  project: Project;
+  testCase: TestCase;
+  createdProject: boolean;
+  createdTestCase: boolean;
 }

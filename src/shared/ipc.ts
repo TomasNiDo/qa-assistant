@@ -9,6 +9,7 @@ import type {
   GeneratedStep,
   Project,
   Run,
+  SampleSeedResult,
   StartRunInput,
   Step,
   StepParseResult,
@@ -22,6 +23,7 @@ export const IPC_CHANNELS = {
   healthPing: 'app.healthPing',
   configGet: 'app.configGet',
   configSet: 'app.configSet',
+  seedSampleProject: 'seed.sampleProject',
   projectCreate: 'project.create',
   projectUpdate: 'project.update',
   projectDelete: 'project.delete',
@@ -45,6 +47,7 @@ export interface QaAssistantApi {
   healthPing: () => Promise<ApiResult<string>>;
   configGet: () => Promise<ApiResult<AppConfig>>;
   configSet: (input: AppConfig) => Promise<ApiResult<AppConfig>>;
+  seedSampleProject: () => Promise<ApiResult<SampleSeedResult>>;
 
   projectCreate: (input: CreateProjectInput) => Promise<ApiResult<Project>>;
   projectUpdate: (input: UpdateProjectInput) => Promise<ApiResult<Project>>;
