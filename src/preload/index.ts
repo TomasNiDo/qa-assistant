@@ -3,6 +3,8 @@ import { IPC_CHANNELS, type QaAssistantApi } from '@shared/ipc';
 
 const api: QaAssistantApi = {
   healthPing: () => ipcRenderer.invoke(IPC_CHANNELS.healthPing),
+  configGet: () => ipcRenderer.invoke(IPC_CHANNELS.configGet),
+  configSet: (input) => ipcRenderer.invoke(IPC_CHANNELS.configSet, input),
 
   projectCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.projectCreate, input),
   projectUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.projectUpdate, input),

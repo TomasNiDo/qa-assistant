@@ -5,6 +5,10 @@ import type { Services } from '../services/services';
 
 export function registerHandlers(services: Services): void {
   ipcMain.handle(IPC_CHANNELS.healthPing, async () => wrap(() => 'pong'));
+  ipcMain.handle(IPC_CHANNELS.configGet, async () => wrap(() => services.configService.get()));
+  ipcMain.handle(IPC_CHANNELS.configSet, async (_event, input) =>
+    wrap(() => services.configService.set(input)),
+  );
 
   ipcMain.handle(IPC_CHANNELS.projectCreate, async (_event, input) =>
     wrap(() => services.projectService.create(input)),
@@ -36,7 +40,9 @@ export function registerHandlers(services: Services): void {
     wrap(() => services.parserService.parse(rawText)),
   );
 
-  ipcMain.handle(IPC_CHANNELS.runStart, async (_event, input) => wrap(() => services.runService.start(input)));
+  ipcMain.handle(IPC_CHANNELS.runStart, async (_event, input) =>
+    wrap(() => services.runService.start(input)),
+  );
   ipcMain.handle(IPC_CHANNELS.runCancel, async (_event, runId) =>
     wrap(() => services.runService.cancel(runId)),
   );

@@ -1,5 +1,6 @@
 import type {
   ApiResult,
+  AppConfig,
   CreateProjectInput,
   CreateTestInput,
   GenerateBugReportInput,
@@ -19,6 +20,8 @@ import type {
 
 export const IPC_CHANNELS = {
   healthPing: 'app.healthPing',
+  configGet: 'app.configGet',
+  configSet: 'app.configSet',
   projectCreate: 'project.create',
   projectUpdate: 'project.update',
   projectDelete: 'project.delete',
@@ -40,6 +43,8 @@ export const IPC_CHANNELS = {
 
 export interface QaAssistantApi {
   healthPing: () => Promise<ApiResult<string>>;
+  configGet: () => Promise<ApiResult<AppConfig>>;
+  configSet: (input: AppConfig) => Promise<ApiResult<AppConfig>>;
 
   projectCreate: (input: CreateProjectInput) => Promise<ApiResult<Project>>;
   projectUpdate: (input: UpdateProjectInput) => Promise<ApiResult<Project>>;

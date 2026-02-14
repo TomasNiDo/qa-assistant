@@ -91,6 +91,12 @@ export interface GenerateBugReportInput {
   runId: string;
 }
 
+export interface AppConfig {
+  defaultBrowser: BrowserName;
+  stepTimeoutSeconds: number;
+  continueOnFailure: boolean;
+}
+
 export interface ApiError {
   message: string;
 }

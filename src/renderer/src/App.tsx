@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
+  AppConfig,
   BrowserName,
   GeneratedBugReport,
   Project,
@@ -9,8 +10,9 @@ import type {
   StepResult,
   TestCase,
 } from '@shared/types';
+import { HelloPage } from './pages/HelloPage';
 
-const TABS = ['projects', 'tests', 'runs'] as const;
+const TABS = ['hello', 'projects', 'tests', 'runs'] as const;
 type TabKey = (typeof TABS)[number];
 
 export function App(): JSX.Element {
@@ -37,6 +39,8 @@ export function App(): JSX.Element {
   const [activeRunId, setActiveRunId] = useState('');
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [healthStatus, setHealthStatus] = useState('');
 
   const [message, setMessage] = useState('');
 
@@ -308,6 +312,52 @@ export function App(): JSX.Element {
     setMessage('Bug report copied to clipboard.');
   }
 
+  const runHealthPing = useCallback(async (): Promise<void> => {
+    const result = await window.qaApi.healthPing();
+    if (!result.ok) {
+      setHealthStatus(`error: ${result.error.message}`);
+      setMessage(result.error.message);
+      return;
+    }
+
+    setHealthStatus(result.data);
+    setMessage(`IPC health ping successful: ${result.data}`);
+  }, []);
+
+  const loadConfig = useCallback(async (): Promise<void> => {
+    const result = await window.qaApi.configGet();
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setAppConfig(result.data);
+    setBrowser(result.data.defaultBrowser);
+    setMessage('Config loaded from local appData.');
+  }, []);
+
+  const saveConfig = useCallback(async (): Promise<void> => {
+    if (!appConfig) {
+      setMessage('Load config before saving.');
+      return;
+    }
+
+    const result = await window.qaApi.configSet(appConfig);
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setAppConfig(result.data);
+    setBrowser(result.data.defaultBrowser);
+    setMessage('Config saved to local appData.');
+  }, [appConfig]);
+
+  useEffect(() => {
+    void runHealthPing();
+    void loadConfig();
+  }, [loadConfig, runHealthPing]);
+
   return (
     <main className="shell">
       <header className="header">
@@ -329,6 +379,17 @@ export function App(): JSX.Element {
       </nav>
 
       {message ? <p className="message">{message}</p> : null}
+
+      {tab === 'hello' ? (
+        <HelloPage
+          healthStatus={healthStatus}
+          config={appConfig}
+          onPing={runHealthPing}
+          onLoadConfig={loadConfig}
+          onSaveConfig={saveConfig}
+          onUpdateConfig={setAppConfig}
+        />
+      ) : null}
 
       {tab === 'projects' ? (
         <section className="panel">

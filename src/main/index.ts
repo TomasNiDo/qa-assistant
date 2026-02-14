@@ -32,7 +32,7 @@ async function createWindow(): Promise<void> {
 app.whenReady().then(async () => {
   const paths = getAppPaths();
   const db = openDatabase(paths.dbFile);
-  const services = createServices(db, paths.artifacts);
+  const services = createServices(db, paths.artifacts, paths.configFile);
 
   registerHandlers(services);
   await createWindow();
