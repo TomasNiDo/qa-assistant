@@ -52,6 +52,25 @@ async function createWindow(): Promise<void> {
 app.whenReady().then(async () => {
   const paths = getAppPaths();
   const db = openDatabase(paths.dbFile);
+
+  if (process.env.QA_ASSISTANT_SMOKE_STARTUP === '1') {
+    const rows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all() as Array<{ name: string }>;
+    const tableNames = new Set(rows.map((row) => row.name));
+    const requiredTables = ['migrations', 'projects', 'test_cases', 'steps', 'runs', 'step_results'];
+
+    for (const tableName of requiredTables) {
+      if (!tableNames.has(tableName)) {
+        throw new Error(`Smoke startup missing required table: ${tableName}`);
+      }
+    }
+
+    db.close();
+    app.quit();
+    return;
+  }
+
   const services = createServices(db, paths.artifacts, paths.configFile);
 
   registerHandlers(services);

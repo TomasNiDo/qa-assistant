@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 export interface AppPaths {
   root: string;
@@ -23,6 +23,11 @@ export function getAppPaths(): AppPaths {
 }
 
 function resolveDataRoot(): string {
+  const overrideRoot = process.env.QA_ASSISTANT_DATA_ROOT?.trim();
+  if (overrideRoot) {
+    return resolve(overrideRoot);
+  }
+
   const appData = app.getPath('appData');
   const canonicalRoot = join(appData, 'qa-assistant');
   const userDataRoot = join(app.getPath('userData'), 'qa-assistant');

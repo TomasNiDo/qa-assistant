@@ -7,12 +7,14 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && npm run build:copy-migrations",
+    "build:copy-migrations": "node scripts/copy-main-migrations.cjs",
     "preview": "electron-vite preview",
     "postinstall": "npm run rebuild:native",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "seed:sample": "electron scripts/seed-sample.cjs",
     "test": "vitest run",
+    "test:smoke:build": "npm run build && node scripts/smoke-built-startup.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p src/renderer/tsconfig.json",
     "lint": "eslint . --ext .ts,.tsx"
   },

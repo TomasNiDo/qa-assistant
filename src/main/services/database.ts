@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface DatabaseContext {
   db: Database.Database;
@@ -22,7 +23,7 @@ function runMigrations(db: Database.Database): void {
     );
   `);
 
-  const migrationsDir = join(process.cwd(), 'src', 'main', 'db', 'migrations');
+  const migrationsDir = resolveMigrationsDir();
   const migrationFiles = readdirSync(migrationsDir)
     .filter((name) => name.endsWith('.sql'))
     .sort((a, b) => a.localeCompare(b));
@@ -50,4 +51,20 @@ function runMigrations(db: Database.Database): void {
       throw error;
     }
   }
+}
+
+function resolveMigrationsDir(): string {
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(moduleDir, 'db', 'migrations'),
+    join(moduleDir, '..', 'db', 'migrations'),
+    join(moduleDir, '..', '..', 'src', 'main', 'db', 'migrations'),
+  ];
+  const migrationsDir = candidates.find((candidate) => existsSync(candidate));
+
+  if (!migrationsDir) {
+    throw new Error(`Migration directory not found. Checked: ${candidates.join(', ')}`);
+  }
+
+  return migrationsDir;
 }
