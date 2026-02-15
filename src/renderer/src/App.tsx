@@ -72,6 +72,7 @@ export function App(): JSX.Element {
   const [testForm, setTestForm] = useState<TestFormState>(DEFAULT_TEST_FORM);
   const [stepParsePreview, setStepParsePreview] = useState<StepParseResult[]>([]);
   const [isValidatingSteps, setIsValidatingSteps] = useState(false);
+  const [isGeneratingSteps, setIsGeneratingSteps] = useState(false);
 
   const [browser, setBrowser] = useState<BrowserName>('chromium');
   const [browserStates, setBrowserStates] = useState<BrowserInstallState[]>([]);
@@ -83,6 +84,7 @@ export function App(): JSX.Element {
   const [activeRunContext, setActiveRunContext] = useState<ActiveRunContext | null>(null);
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
+  const [isGeneratingBugReport, setIsGeneratingBugReport] = useState(false);
 
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
 
@@ -837,6 +839,10 @@ export function App(): JSX.Element {
   }
 
   async function generateSteps(): Promise<void> {
+    if (isGeneratingSteps) {
+      return;
+    }
+
     if (!selectedProject) {
       setMessage('Create or select a project first.');
       return;
@@ -848,31 +854,38 @@ export function App(): JSX.Element {
       return;
     }
 
-    const result = await window.qaApi.aiGenerateSteps({
-      title: testTitle,
-      baseUrl: selectedProject.baseUrl,
-      metadataJson: selectedProject.metadataJson,
-    });
+    setIsGeneratingSteps(true);
+    try {
+      const result = await window.qaApi.aiGenerateSteps({
+        title: testTitle,
+        baseUrl: selectedProject.baseUrl,
+        metadataJson: selectedProject.metadataJson,
+      });
 
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
+
+      const generatedSteps = result.data
+        .map((step) => step.rawText.trim())
+        .filter((stepText) => Boolean(stepText));
+
+      if (generatedSteps.length === 0) {
+        setMessage('AI returned no steps. Try a more specific test title.');
+        return;
+      }
+
+      setTestForm((previous) => ({
+        ...previous,
+        stepsText: generatedSteps.join('\n'),
+      }));
+      setMessage('Generated steps ready for review.');
+    } catch (error) {
+      setMessage(`Generate steps failed: ${toErrorMessage(error)}`);
+    } finally {
+      setIsGeneratingSteps(false);
     }
-
-    const generatedSteps = result.data
-      .map((step) => step.rawText.trim())
-      .filter((stepText) => Boolean(stepText));
-
-    if (generatedSteps.length === 0) {
-      setMessage('AI returned no steps. Try a more specific test title.');
-      return;
-    }
-
-    setTestForm((previous) => ({
-      ...previous,
-      stepsText: generatedSteps.join('\n'),
-    }));
-    setMessage('Generated steps ready for review.');
   }
 
   async function startRun(): Promise<void> {
@@ -960,20 +973,31 @@ export function App(): JSX.Element {
   }
 
   async function generateBugReport(): Promise<void> {
+    if (isGeneratingBugReport) {
+      return;
+    }
+
     if (!selectedRunId) {
       setMessage('Select a failed run first.');
       return;
     }
 
-    const result = await window.qaApi.aiGenerateBugReport({ runId: selectedRunId });
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
+    setIsGeneratingBugReport(true);
+    try {
+      const result = await window.qaApi.aiGenerateBugReport({ runId: selectedRunId });
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
 
-    setBugReport(result.data);
-    setBugReportDraft(formatBugReport(result.data));
-    setMessage('Bug report generated.');
+      setBugReport(result.data);
+      setBugReportDraft(formatBugReport(result.data));
+      setMessage('Bug report generated.');
+    } catch (error) {
+      setMessage(`Generate bug report failed: ${toErrorMessage(error)}`);
+    } finally {
+      setIsGeneratingBugReport(false);
+    }
   }
 
   async function copyBugReport(): Promise<void> {
@@ -1499,8 +1523,38 @@ export function App(): JSX.Element {
                     <button type="button" className={mutedButtonClass} onClick={() => beginCreateTest()}>
                       New test case
                     </button>
-                    <button type="button" className={mutedButtonClass} onClick={() => void generateSteps()}>
-                      Generate steps (AI)
+                    <button
+                      type="button"
+                      className={mutedButtonClass}
+                      onClick={() => void generateSteps()}
+                      disabled={isGeneratingSteps}
+                      aria-busy={isGeneratingSteps}
+                    >
+                      {isGeneratingSteps ? (
+                        <>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="mr-1.5 h-4 w-4 animate-spin">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeOpacity="0.25"
+                              strokeWidth="3"
+                            />
+                            <path
+                              d="M12 3a9 9 0 0 1 9 9"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <span>Generating steps...</span>
+                        </>
+                      ) : (
+                        'Generate steps (AI)'
+                      )}
                     </button>
                     <button
                       type="button"
@@ -1565,9 +1619,34 @@ export function App(): JSX.Element {
                       type="button"
                       className={mutedButtonClass}
                       onClick={() => void generateBugReport()}
-                      disabled={!selectedRun || selectedRun.status !== 'failed'}
+                      disabled={!selectedRun || selectedRun.status !== 'failed' || isGeneratingBugReport}
+                      aria-busy={isGeneratingBugReport}
                     >
-                      Generate bug report
+                      {isGeneratingBugReport ? (
+                        <>
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="mr-1.5 h-4 w-4 animate-spin">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeOpacity="0.25"
+                              strokeWidth="3"
+                            />
+                            <path
+                              d="M12 3a9 9 0 0 1 9 9"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <span>Generating report...</span>
+                        </>
+                      ) : (
+                        'Generate bug report'
+                      )}
                     </button>
                     </div>
                   </div>

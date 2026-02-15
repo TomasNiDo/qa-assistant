@@ -48,10 +48,10 @@ This file tracks high-priority work from the latest whole-repo review.
 - Evidence:
   - `src/main/services/aiService.ts`
 - TODO:
-  - [ ] Add request timeout with `AbortController`.
-  - [ ] Add bounded retry/backoff for transient failures.
-  - [ ] Improve JSON extraction/validation for model output.
-  - [ ] Classify errors for better UI messaging.
+  - [x] Add request timeout with `AbortController`.
+  - [x] Add bounded retry/backoff for transient failures.
+  - [x] Improve JSON extraction/validation for model output.
+  - [x] Classify errors for better UI messaging.
 
 ### 5) Reduce screenshot memory pressure in renderer
 - Priority: `P2`
