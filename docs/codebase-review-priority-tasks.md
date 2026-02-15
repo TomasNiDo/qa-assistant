@@ -70,9 +70,9 @@ This file tracks high-priority work from the latest whole-repo review.
 - Evidence:
   - `src/renderer/src/App.tsx`
 - TODO:
-  - [ ] Split orchestration into domain hooks (`projects`, `tests`, `runs`, `bug-report`).
-  - [ ] Extract presentational sections into components.
-  - [ ] Add focused tests for extracted units.
+  - [x] Split orchestration into domain hooks (`projects`, `tests`, `runs`, `bug-report`).
+  - [x] Extract presentational sections into components.
+  - [x] Add focused tests for extracted units.
 
 ### 7) Harden Electron runtime security defaults
 - Priority: `P2`
