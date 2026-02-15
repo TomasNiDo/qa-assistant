@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import type {
+  ActiveRunContext,
   AppConfig,
   BrowserInstallPhase,
   BrowserInstallState,
@@ -79,6 +80,7 @@ export function App(): JSX.Element {
   >({});
   const [isBrowserStatesLoaded, setIsBrowserStatesLoaded] = useState(false);
   const [activeRunId, setActiveRunId] = useState('');
+  const [activeRunContext, setActiveRunContext] = useState<ActiveRunContext | null>(null);
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
 
@@ -116,6 +118,23 @@ export function App(): JSX.Element {
   );
 
   const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
+
+  const refreshActiveRunContext = useCallback(async () => {
+    let result: Awaited<ReturnType<typeof window.qaApi.runActiveContext>>;
+    try {
+      result = await window.qaApi.runActiveContext();
+    } catch (error) {
+      setMessage(`Failed loading active run context: ${toErrorMessage(error)}`);
+      return;
+    }
+
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    setActiveRunContext(result.data);
+  }, []);
 
   const refreshTestsTree = useCallback(
     async (projectRows: Project[], preferredProjectId: string, preferredTestId?: string): Promise<void> => {
@@ -202,8 +221,9 @@ export function App(): JSX.Element {
 
       setSelectedProjectId(nextProjectId);
       await refreshTestsTree(rows, nextProjectId, preferredTestId);
+      await refreshActiveRunContext();
     },
-    [refreshTestsTree, selectedProjectId],
+    [refreshActiveRunContext, refreshTestsTree, selectedProjectId],
   );
 
   const refreshRuns = useCallback(async () => {
@@ -326,6 +346,10 @@ export function App(): JSX.Element {
   }, [refreshBrowserStates]);
 
   useEffect(() => {
+    void refreshActiveRunContext();
+  }, [refreshActiveRunContext]);
+
+  useEffect(() => {
     void loadSelectedTestIntoForm();
   }, [loadSelectedTestIntoForm]);
 
@@ -375,7 +399,15 @@ export function App(): JSX.Element {
 
     const intervalId = window.setInterval(async () => {
       const status = await window.qaApi.runStatus(activeRunId);
-      if (!status.ok || !status.data) {
+      if (!status.ok) {
+        return;
+      }
+
+      if (!status.data) {
+        window.clearInterval(intervalId);
+        setActiveRunId('');
+        await refreshRuns();
+        await refreshActiveRunContext();
         return;
       }
 
@@ -387,12 +419,13 @@ export function App(): JSX.Element {
       window.clearInterval(intervalId);
       setActiveRunId('');
       await refreshRuns();
+      await refreshActiveRunContext();
     }, 1000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [activeRunId, refreshRuns]);
+  }, [activeRunId, refreshActiveRunContext, refreshRuns]);
 
   const handleRunUpdate = useCallback(
     (update: RunUpdateEvent): void => {
@@ -400,6 +433,7 @@ export function App(): JSX.Element {
         setSelectedRunId(update.runId);
         void refreshRuns();
         void refreshStepResults();
+        void refreshActiveRunContext();
         return;
       }
 
@@ -417,12 +451,20 @@ export function App(): JSX.Element {
       }
       void refreshRuns();
       void refreshBrowserStates();
+      void refreshActiveRunContext();
 
       if (update.message) {
         setMessage(update.message);
       }
     },
-    [activeRunId, refreshBrowserStates, refreshRuns, refreshStepResults, selectedRunId],
+    [
+      activeRunId,
+      refreshActiveRunContext,
+      refreshBrowserStates,
+      refreshRuns,
+      refreshStepResults,
+      selectedRunId,
+    ],
   );
 
   useEffect(() => {
@@ -684,6 +726,11 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (activeRunContext?.projectId === selectedProjectId) {
+      setMessage('Cannot delete this project while its run is active.');
+      return;
+    }
+
     if (!window.confirm('Delete this project and all related tests/runs?')) {
       return;
     }
@@ -706,6 +753,7 @@ export function App(): JSX.Element {
     setBugReport(null);
     setBugReportDraft('');
     await refreshSidebar();
+    await refreshActiveRunContext();
     setMessage(result.data ? 'Project deleted.' : 'Project was already deleted.');
   }
 
@@ -765,6 +813,11 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (activeRunContext?.testCaseId === selectedTestId) {
+      setMessage('Cannot delete this test case while it is running.');
+      return;
+    }
+
     if (!window.confirm('Delete this test case?')) {
       return;
     }
@@ -779,6 +832,7 @@ export function App(): JSX.Element {
     setBugReport(null);
     setBugReportDraft('');
     await refreshSidebar(selectedProjectId);
+    await refreshActiveRunContext();
     setMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
   }
 
@@ -855,6 +909,7 @@ export function App(): JSX.Element {
     setSelectedRunId(result.data.id);
     await refreshRuns();
     await refreshStepResults();
+    await refreshActiveRunContext();
   }
 
   async function cancelRun(): Promise<void> {
@@ -872,6 +927,7 @@ export function App(): JSX.Element {
     setActiveRunId('');
     await refreshRuns();
     await refreshStepResults();
+    await refreshActiveRunContext();
   }
 
   async function installBrowser(browserName: BrowserName): Promise<void> {
@@ -935,6 +991,10 @@ export function App(): JSX.Element {
   const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
   const selectedProjectName = selectedProject?.name ?? 'No project selected';
   const canStartRun = Boolean(selectedTestId);
+  const isSelectedProjectDeleteBlocked =
+    Boolean(selectedProjectId) && activeRunContext?.projectId === selectedProjectId;
+  const isSelectedTestDeleteBlocked =
+    Boolean(selectedTestId) && activeRunContext?.testCaseId === selectedTestId;
   const testCasePanelTitle = hasAtLeastOneTestCase ? 'Test case editor' : 'Setup first test case';
   const testCasePanelDescription = hasAtLeastOneTestCase
     ? 'Create a new test case or edit the selected one.'
@@ -1344,7 +1404,7 @@ export function App(): JSX.Element {
                           type="button"
                           className={dangerButtonClass}
                           onClick={() => void deleteSelectedProject()}
-                          disabled={!selectedProject}
+                          disabled={!selectedProject || isSelectedProjectDeleteBlocked}
                         >
                           Delete
                         </button>
@@ -1454,7 +1514,7 @@ export function App(): JSX.Element {
                       type="button"
                       className={dangerButtonClass}
                       onClick={() => void deleteSelectedTest()}
-                      disabled={!selectedTest}
+                      disabled={!selectedTest || isSelectedTestDeleteBlocked}
                     >
                       Delete test case
                     </button>

@@ -52,6 +52,9 @@ export function registerHandlers(services: Services): void {
   ipcMain.handle(IPC_CHANNELS.runStatus, async (_event, runId) =>
     wrap(() => services.runService.status(runId)),
   );
+  ipcMain.handle(IPC_CHANNELS.runActiveContext, async () =>
+    wrap(() => services.runService.activeContext()),
+  );
   ipcMain.handle(IPC_CHANNELS.runHistory, async (_event, testCaseId) =>
     wrap(() => services.runService.history(testCaseId)),
   );

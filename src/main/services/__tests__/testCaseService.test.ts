@@ -93,4 +93,28 @@ describe('TestCaseService', () => {
 
     expect(tests.list(project.id)).toHaveLength(0);
   });
+
+  it('blocks delete when the test case has a running run', () => {
+    db = createTestDb();
+    const projects = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = projects.create({
+      name: 'Auth',
+      baseUrl: 'https://example.com',
+    });
+    const testCase = tests.create({
+      projectId: project.id,
+      title: 'Login flow',
+      steps: ['Click "Sign in"', 'Expect dashboard visible'],
+    });
+
+    db.prepare(
+      `INSERT INTO runs (id, test_case_id, browser, status, started_at, ended_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('run-test-active', testCase.id, 'chromium', 'running', testCase.createdAt, null);
+
+    expect(() => tests.delete(testCase.id)).toThrow(
+      'Cannot delete test case while a run is in progress for this test case.',
+    );
+  });
 });

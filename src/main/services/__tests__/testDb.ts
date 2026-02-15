@@ -25,16 +25,27 @@ interface StepRow {
   action_json: string;
 }
 
+interface RunRow {
+  id: string;
+  test_case_id: string;
+  browser: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
 type Snapshot = {
   projects: ProjectRow[];
   testCases: TestCaseRow[];
   steps: StepRow[];
+  runs: RunRow[];
 };
 
 class FakeDatabase {
   private projects: ProjectRow[] = [];
   private testCases: TestCaseRow[] = [];
   private steps: StepRow[] = [];
+  private runs: RunRow[] = [];
 
   prepare(sql: string): {
     run: (...args: unknown[]) => { changes: number };
@@ -111,6 +122,7 @@ class FakeDatabase {
             .map((testCase) => testCase.id);
           this.testCases = this.testCases.filter((testCase) => testCase.project_id !== id);
           this.steps = this.steps.filter((step) => !remainingTestIds.includes(step.test_case_id));
+          this.runs = this.runs.filter((run) => !remainingTestIds.includes(run.test_case_id));
           return { changes: before - this.projects.length };
         },
         get: () => undefined,
@@ -210,6 +222,7 @@ class FakeDatabase {
           const before = this.testCases.length;
           this.testCases = this.testCases.filter((testCase) => testCase.id !== id);
           this.steps = this.steps.filter((step) => step.test_case_id !== id);
+          this.runs = this.runs.filter((run) => run.test_case_id !== id);
           return { changes: before - this.testCases.length };
         },
         get: () => undefined,
@@ -266,6 +279,94 @@ class FakeDatabase {
       };
     }
 
+    if (normalized.includes('INSERT INTO runs')) {
+      return {
+        run: (...args) => {
+          if (
+            args.length === 1 &&
+            typeof args[0] === 'object' &&
+            args[0] !== null &&
+            'id' in (args[0] as Record<string, unknown>)
+          ) {
+            const [run] = args as Array<{
+              id: string;
+              testCaseId: string;
+              browser: string;
+              status: string;
+              startedAt: string;
+              endedAt: string | null;
+            }>;
+
+            this.runs.push({
+              id: run.id,
+              test_case_id: run.testCaseId,
+              browser: run.browser,
+              status: run.status,
+              started_at: run.startedAt,
+              ended_at: run.endedAt,
+            });
+            return { changes: 1 };
+          }
+
+          const [id, testCaseId, browser, status, startedAt, endedAt] = args as [
+            string,
+            string,
+            string,
+            string,
+            string,
+            string | null,
+          ];
+          this.runs.push({
+            id,
+            test_case_id: testCaseId,
+            browser,
+            status,
+            started_at: startedAt,
+            ended_at: endedAt,
+          });
+          return { changes: 1 };
+        },
+        get: () => undefined,
+        all: () => [],
+      };
+    }
+
+    if (
+      normalized.includes('FROM runs WHERE test_case_id = ? AND status = \'running\' LIMIT 1')
+    ) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [testCaseId] = args as [string];
+          const run = this.runs.find((row) => row.test_case_id === testCaseId && row.status === 'running');
+          return run ? { id: run.id } : undefined;
+        },
+        all: () => [],
+      };
+    }
+
+    if (
+      normalized.includes('FROM runs') &&
+      normalized.includes('test_cases.id = runs.test_case_id') &&
+      normalized.includes('test_cases.project_id = ?') &&
+      normalized.includes("runs.status = 'running'")
+    ) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [projectId] = args as [string];
+          const testIds = this.testCases
+            .filter((row) => row.project_id === projectId)
+            .map((row) => row.id);
+          const run = this.runs.find(
+            (row) => row.status === 'running' && testIds.includes(row.test_case_id),
+          );
+          return run ? { id: run.id } : undefined;
+        },
+        all: () => [],
+      };
+    }
+
     if (normalized.includes('FROM steps WHERE test_case_id = ?')) {
       return {
         run: () => ({ changes: 0 }),
@@ -301,6 +402,7 @@ class FakeDatabase {
       projects: this.projects.map((row) => ({ ...row })),
       testCases: this.testCases.map((row) => ({ ...row })),
       steps: this.steps.map((row) => ({ ...row })),
+      runs: this.runs.map((row) => ({ ...row })),
     };
   }
 
@@ -308,6 +410,7 @@ class FakeDatabase {
     this.projects = snapshot.projects;
     this.testCases = snapshot.testCases;
     this.steps = snapshot.steps;
+    this.runs = snapshot.runs;
   }
 }
 

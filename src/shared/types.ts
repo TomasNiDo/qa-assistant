@@ -47,6 +47,12 @@ export interface Run {
   endedAt: string | null;
 }
 
+export interface ActiveRunContext {
+  runId: string;
+  testCaseId: string;
+  projectId: string;
+}
+
 export interface StepResult {
   id: string;
   runId: string;

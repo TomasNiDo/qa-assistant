@@ -63,6 +63,18 @@ export class TestCaseService {
   }
 
   delete(id: string): boolean {
+    const running = this.db
+      .prepare(
+        `SELECT id
+         FROM runs
+         WHERE test_case_id = ? AND status = 'running'
+         LIMIT 1`,
+      )
+      .get(id) as { id: string } | undefined;
+    if (running) {
+      throw new Error('Cannot delete test case while a run is in progress for this test case.');
+    }
+
     const result = this.db.prepare('DELETE FROM test_cases WHERE id = ?').run(id);
     return result.changes > 0;
   }

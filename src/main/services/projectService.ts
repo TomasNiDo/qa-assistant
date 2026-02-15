@@ -61,6 +61,19 @@ export class ProjectService {
   }
 
   delete(id: string): boolean {
+    const running = this.db
+      .prepare(
+        `SELECT runs.id
+         FROM runs
+         JOIN test_cases ON test_cases.id = runs.test_case_id
+         WHERE test_cases.project_id = ? AND runs.status = 'running'
+         LIMIT 1`,
+      )
+      .get(id) as { id: string } | undefined;
+    if (running) {
+      throw new Error('Cannot delete project while a run is in progress for this project.');
+    }
+
     const result = this.db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     return result.changes > 0;
   }

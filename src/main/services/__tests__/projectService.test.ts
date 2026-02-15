@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
 import { ProjectService } from '../projectService';
+import { TestCaseService } from '../testCaseService';
 import { createTestDb } from './testDb';
 
 describe('ProjectService', () => {
@@ -73,5 +74,28 @@ describe('ProjectService', () => {
 
     expect(service.delete(created.id)).toBe(true);
     expect(service.delete(created.id)).toBe(false);
+  });
+
+  it('blocks delete when the project has a running run', () => {
+    db = createTestDb();
+    const service = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = service.create({
+      name: 'Checkout',
+      baseUrl: 'https://example.com',
+    });
+    const testCase = tests.create({
+      projectId: project.id,
+      title: 'Checkout flow',
+      steps: ['Click "Checkout"'],
+    });
+    db.prepare(
+      `INSERT INTO runs (id, test_case_id, browser, status, started_at, ended_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run('run-project-active', testCase.id, 'chromium', 'running', project.createdAt, null);
+
+    expect(() => service.delete(project.id)).toThrow(
+      'Cannot delete project while a run is in progress for this project.',
+    );
   });
 });

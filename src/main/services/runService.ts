@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import type {
+  ActiveRunContext,
   AppConfig,
   BrowserInstallState,
   BrowserInstallUpdate,
@@ -23,6 +24,8 @@ import { nowIso } from './time';
 
 interface ActiveRun {
   runId: string;
+  testCaseId: string;
+  projectId: string;
   abortController: AbortController;
 }
 
@@ -33,6 +36,7 @@ interface ExecutionStep extends Step {
 interface RunContext {
   testTitle: string;
   projectName: string;
+  projectId: string;
   baseUrl: string;
 }
 
@@ -105,7 +109,12 @@ export class RunService {
     transaction(run, steps);
 
     const abortController = new AbortController();
-    this.activeRun = { runId: run.id, abortController };
+    this.activeRun = {
+      runId: run.id,
+      testCaseId: run.testCaseId,
+      projectId: context.projectId,
+      abortController,
+    };
 
     this.emitUpdate({
       runId: run.id,
@@ -171,6 +180,45 @@ export class RunService {
     };
   }
 
+  activeContext(): ActiveRunContext | null {
+    if (this.activeRun) {
+      return {
+        runId: this.activeRun.runId,
+        testCaseId: this.activeRun.testCaseId,
+        projectId: this.activeRun.projectId,
+      };
+    }
+
+    const row = this.db
+      .prepare(
+        `SELECT runs.id AS run_id,
+                runs.test_case_id,
+                test_cases.project_id
+         FROM runs
+         JOIN test_cases ON test_cases.id = runs.test_case_id
+         WHERE runs.status = 'running'
+         ORDER BY runs.started_at DESC
+         LIMIT 1`,
+      )
+      .get() as
+      | {
+          run_id: string;
+          test_case_id: string;
+          project_id: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      runId: row.run_id,
+      testCaseId: row.test_case_id,
+      projectId: row.project_id,
+    };
+  }
+
   history(testCaseId: string): Run[] {
     const rows = this.db
       .prepare(
@@ -210,9 +258,9 @@ export class RunService {
                 steps.step_order,
                 steps.raw_text
          FROM step_results
-         JOIN steps ON steps.id = step_results.step_id
+         LEFT JOIN steps ON steps.id = step_results.step_id
          WHERE step_results.run_id = ?
-         ORDER BY steps.step_order ASC`,
+         ORDER BY COALESCE(steps.step_order, 2147483647) ASC, step_results.id ASC`,
       )
       .all(runId) as Array<{
       id: string;
@@ -221,16 +269,16 @@ export class RunService {
       status: StepStatus;
       error_text: string | null;
       screenshot_path: string | null;
-      step_order: number;
-      raw_text: string;
+      step_order: number | null;
+      raw_text: string | null;
     }>;
 
     return rows.map((row) => ({
       id: row.id,
       runId: row.run_id,
       stepId: row.step_id,
-      stepOrder: row.step_order,
-      stepRawText: row.raw_text,
+      stepOrder: row.step_order ?? 0,
+      stepRawText: row.raw_text ?? '[missing step]',
       status: row.status,
       errorText: row.error_text,
       screenshotPath: row.screenshot_path,
@@ -281,7 +329,7 @@ export class RunService {
 
     try {
       await this.browserService.ensureInstalled(run.browser);
-      if (signal.aborted || this.isRunCancelled(run.id)) {
+      if (this.shouldStopRun(run.id, signal)) {
         return;
       }
 
@@ -291,7 +339,7 @@ export class RunService {
       await page.goto(context.baseUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
       for (const step of steps) {
-        if (signal.aborted || this.isRunCancelled(run.id)) {
+        if (this.shouldStopRun(run.id, signal)) {
           return;
         }
 
@@ -308,6 +356,9 @@ export class RunService {
 
           const screenshotPath = await this.captureStepScreenshot(page, run.id, step);
           const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
+          if (!stepResult) {
+            return;
+          }
 
           this.emitUpdate({
             runId: run.id,
@@ -318,7 +369,7 @@ export class RunService {
             stepResult,
           });
         } catch (error) {
-          if (signal.aborted || this.isRunCancelled(run.id) || isAbortLikeError(error)) {
+          if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
             return;
           }
 
@@ -334,6 +385,9 @@ export class RunService {
             errorText,
             screenshotPath,
           );
+          if (!stepResult) {
+            return;
+          }
 
           this.emitUpdate({
             runId: run.id,
@@ -352,7 +406,7 @@ export class RunService {
         }
       }
     } catch (error) {
-      if (signal.aborted || this.isRunCancelled(run.id)) {
+      if (this.shouldStopRun(run.id, signal)) {
         return;
       }
 
@@ -367,7 +421,7 @@ export class RunService {
       await browserContext?.close().catch(() => undefined);
       await browser?.close().catch(() => undefined);
 
-      if (signal.aborted || this.isRunCancelled(run.id)) {
+      if (this.shouldStopRun(run.id, signal)) {
         this.clearActiveRun(run.id);
       } else {
         const finalStatus: RunStatus = failed ? 'failed' : 'passed';
@@ -394,6 +448,7 @@ export class RunService {
       .prepare(
         `SELECT test_cases.title,
                 projects.name AS project_name,
+                projects.id AS project_id,
                 projects.base_url
          FROM test_cases
          JOIN projects ON projects.id = test_cases.project_id
@@ -403,6 +458,7 @@ export class RunService {
       | {
           title: string;
           project_name: string;
+          project_id: string;
           base_url: string;
         }
       | undefined;
@@ -414,6 +470,7 @@ export class RunService {
     return {
       testTitle: row.title,
       projectName: row.project_name,
+      projectId: row.project_id,
       baseUrl: row.base_url,
     };
   }
@@ -579,14 +636,17 @@ export class RunService {
     status: StepStatus,
     errorText: string | null,
     screenshotPath: string | null,
-  ): StepResult {
-    this.db
+  ): StepResult | null {
+    const updateResult = this.db
       .prepare(
         `UPDATE step_results
          SET status = ?, error_text = ?, screenshot_path = ?
          WHERE run_id = ? AND step_id = ?`,
       )
       .run(status, errorText, screenshotPath, runId, stepId);
+    if (updateResult.changes === 0) {
+      return null;
+    }
 
     const row = this.db
       .prepare(
@@ -599,7 +659,7 @@ export class RunService {
                 steps.step_order,
                 steps.raw_text
          FROM step_results
-         JOIN steps ON steps.id = step_results.step_id
+         LEFT JOIN steps ON steps.id = step_results.step_id
          WHERE step_results.run_id = ? AND step_results.step_id = ?`,
       )
       .get(runId, stepId) as {
@@ -609,16 +669,19 @@ export class RunService {
       status: StepStatus;
       error_text: string | null;
       screenshot_path: string | null;
-      step_order: number;
-      raw_text: string;
-    };
+      step_order: number | null;
+      raw_text: string | null;
+    } | undefined;
+    if (!row) {
+      return null;
+    }
 
     return {
       id: row.id,
       runId: row.run_id,
       stepId: row.step_id,
-      stepOrder: row.step_order,
-      stepRawText: row.raw_text,
+      stepOrder: row.step_order ?? 0,
+      stepRawText: row.raw_text ?? '[missing step]',
       status: row.status,
       errorText: row.error_text,
       screenshotPath: row.screenshot_path,
@@ -642,6 +705,9 @@ export class RunService {
     }
 
     const stepResult = this.updateStepResult(runId, row.step_id, 'failed', errorText, null);
+    if (!stepResult) {
+      return;
+    }
     this.emitUpdate({
       runId,
       type: 'step-finished',
@@ -669,8 +735,13 @@ export class RunService {
     }
   }
 
-  private isRunCancelled(runId: string): boolean {
-    return this.status(runId)?.status === 'cancelled';
+  private shouldStopRun(runId: string, signal: AbortSignal): boolean {
+    if (signal.aborted) {
+      return true;
+    }
+
+    const run = this.status(runId);
+    return !run || run.status === 'cancelled';
   }
 
   private emitUpdate(event: Omit<RunUpdateEvent, 'timestamp'>): void {

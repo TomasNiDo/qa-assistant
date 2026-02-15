@@ -3,6 +3,7 @@ import type {
   AppConfig,
   BrowserInstallUpdate,
   BrowserInstallState,
+  ActiveRunContext,
   CreateProjectInput,
   CreateTestInput,
   GenerateBugReportInput,
@@ -40,6 +41,7 @@ export const IPC_CHANNELS = {
   runStart: 'run.start',
   runCancel: 'run.cancel',
   runStatus: 'run.status',
+  runActiveContext: 'run.activeContext',
   runHistory: 'run.history',
   stepResults: 'run.stepResults',
   runGetScreenshotDataUrl: 'run.getScreenshotDataUrl',
@@ -72,6 +74,7 @@ export interface QaAssistantApi {
   runStart: (input: StartRunInput) => Promise<ApiResult<Run>>;
   runCancel: (runId: string) => Promise<ApiResult<boolean>>;
   runStatus: (runId: string) => Promise<ApiResult<Run | null>>;
+  runActiveContext: () => Promise<ApiResult<ActiveRunContext | null>>;
   runHistory: (testCaseId: string) => Promise<ApiResult<Run[]>>;
   stepResults: (runId: string) => Promise<ApiResult<StepResult[]>>;
   runGetScreenshotDataUrl: (screenshotPath: string) => Promise<ApiResult<string>>;

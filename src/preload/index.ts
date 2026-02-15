@@ -22,6 +22,7 @@ const api: QaAssistantApi = {
   runStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.runStart, input),
   runCancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.runCancel, runId),
   runStatus: (runId) => ipcRenderer.invoke(IPC_CHANNELS.runStatus, runId),
+  runActiveContext: () => ipcRenderer.invoke(IPC_CHANNELS.runActiveContext),
   runHistory: (testCaseId) => ipcRenderer.invoke(IPC_CHANNELS.runHistory, testCaseId),
   stepResults: (runId) => ipcRenderer.invoke(IPC_CHANNELS.stepResults, runId),
   runGetScreenshotDataUrl: (screenshotPath) =>
