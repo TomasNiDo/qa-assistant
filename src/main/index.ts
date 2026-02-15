@@ -1,4 +1,5 @@
 import { app, BrowserWindow, session } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +28,37 @@ function resolvePreloadPath(): string {
   }
 
   return match;
+}
+
+function setupAutoUpdater(): void {
+  if (!app.isPackaged || process.platform !== 'win32') {
+    return;
+  }
+
+  // Keep prerelease channels enabled while the app is on a beta version.
+  autoUpdater.allowPrerelease = app.getVersion().includes('-');
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('error', (error) => {
+    console.error('[auto-updater] Error while checking/applying updates:', error);
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.info(`[auto-updater] Update available: ${info.version}`);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.info('[auto-updater] No update available');
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.info(`[auto-updater] Update downloaded: ${info.version}. It will install on app quit.`);
+  });
+
+  void autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
+    console.error('[auto-updater] Failed to start update check:', error);
+  });
 }
 
 async function createWindow(): Promise<void> {
@@ -103,6 +135,7 @@ app.whenReady().then(async () => {
   const services = createServices(db, paths.artifacts, paths.configFile);
 
   registerHandlers(services);
+  setupAutoUpdater();
   services.runService.setRunUpdateEmitter((event) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(IPC_CHANNELS.runUpdate, event);
