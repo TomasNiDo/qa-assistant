@@ -174,10 +174,10 @@ export class RunService {
   history(testCaseId: string): Run[] {
     const rows = this.db
       .prepare(
-        `SELECT id, test_case_id, browser, status, started_at, ended_at
+         `SELECT id, test_case_id, browser, status, started_at, ended_at
          FROM runs
          WHERE test_case_id = ?
-         ORDER BY started_at DESC`,
+         ORDER BY started_at ASC`,
       )
       .all(testCaseId) as Array<{
       id: string;

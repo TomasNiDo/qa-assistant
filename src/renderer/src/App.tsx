@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   AppConfig,
   BrowserInstallPhase,
@@ -215,14 +216,18 @@ export function App(): JSX.Element {
       return;
     }
 
-    setRuns(result.data);
-    if (result.data.length === 0) {
+    const orderedRuns = [...result.data].sort(
+      (left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt),
+    );
+
+    setRuns(orderedRuns);
+    if (orderedRuns.length === 0) {
       setSelectedRunId('');
       return;
     }
 
-    if (!result.data.find((run) => run.id === selectedRunId)) {
-      setSelectedRunId(result.data[0].id);
+    if (!orderedRuns.find((run) => run.id === selectedRunId)) {
+      setSelectedRunId(orderedRuns[orderedRuns.length - 1].id);
     }
   }, [selectedRunId, selectedTestId]);
 
@@ -891,6 +896,11 @@ export function App(): JSX.Element {
     setMessage('Bug report copied to clipboard.');
   }
 
+  function closeBugReportDraft(): void {
+    setBugReport(null);
+    setBugReportDraft('');
+  }
+
   const hasInstalledBrowser = browserStates.some((state) => state.installed);
   const hasAtLeastOneProject = projects.length > 0;
   const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
@@ -911,7 +921,7 @@ export function App(): JSX.Element {
     'inline-flex items-center justify-center rounded-2xl border border-border/85 bg-secondary/52 px-3.5 py-2 text-sm font-semibold text-secondary-foreground transition duration-200 hover:bg-secondary/84 disabled:cursor-not-allowed disabled:opacity-50';
   const dangerButtonClass =
     'inline-flex items-center justify-center rounded-2xl border border-danger/70 bg-danger/12 px-3.5 py-2 text-sm font-semibold text-danger transition duration-200 hover:bg-danger/18 disabled:cursor-not-allowed disabled:opacity-50';
-  const installShellClass =
+  const onboardingShellClass =
     'mx-auto flex w-full max-w-[1540px] flex-col gap-5 min-h-[calc(100vh-2rem)] justify-center';
   const appShellClass = 'mx-auto flex w-full max-w-[1540px] flex-col gap-5';
 
@@ -920,6 +930,16 @@ export function App(): JSX.Element {
       setIsInstallStepConfirmed(false);
     }
   }, [hasInstalledBrowser]);
+
+  useEffect(() => {
+    if (activeScreen !== 'project') {
+      return;
+    }
+
+    setProjectFormMode('create');
+    setProjectForm(DEFAULT_PROJECT_FORM);
+    setIsProjectFormOpen(true);
+  }, [activeScreen]);
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-4 md:px-6 md:py-5">
@@ -951,7 +971,7 @@ export function App(): JSX.Element {
           </svg>
         )}
       </button>
-      <div className={activeScreen === 'install' ? installShellClass : appShellClass}>
+      <div className={activeScreen === 'main' ? appShellClass : onboardingShellClass}>
         {message ? (
           <p className="rounded-2xl border border-primary/35 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary shadow-[0_12px_30px_-24px_hsl(from_var(--primary)_h_s_l/0.95)]">
             {message}
@@ -1079,9 +1099,9 @@ export function App(): JSX.Element {
         ) : null}
 
         {activeScreen === 'project' ? (
-          <section className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <section className={panelClass}>
-              <div className="mb-3 flex items-center justify-between gap-2">
+          <section className="mx-auto w-full max-w-3xl">
+            <div className={panelClass}>
+              <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary/75">Step 2</p>
                   <h2 className="mt-1 text-xl font-bold text-foreground">Set up first project</h2>
@@ -1089,147 +1109,61 @@ export function App(): JSX.Element {
                     Create one project to unlock the main testing workspace.
                   </p>
                 </div>
-                <button type="button" className={primaryButtonClass} onClick={() => beginCreateProject()}>
-                  New project
-                </button>
+                <span className="inline-flex h-8 items-center rounded-full border border-warning/60 bg-warning/15 px-3 text-xs font-bold tracking-wide text-warning-foreground">
+                  Required
+                </span>
               </div>
 
-              {projects.length === 0 ? (
-                <p className="rounded-2xl border border-warning/60 bg-warning/15 px-3.5 py-2.5 text-sm font-medium text-warning-foreground">
-                  No projects yet. Add your first project to continue.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {projects.map((project) => {
-                    const projectTests = testCasesByProject[project.id] ?? [];
+              <div className="space-y-3.5">
+                <h3 className="text-sm font-bold tracking-wide text-foreground">Create project</h3>
 
-                    return (
-                      <li key={project.id} className="space-y-1.5">
-                        <button
-                          type="button"
-                          className={`w-full rounded-2xl border px-3.5 py-2.5 text-left text-sm transition ${
-                            project.id === selectedProjectId
-                              ? 'border-primary/60 bg-primary/12'
-                              : 'border-border/85 bg-background/48 hover:bg-secondary/75'
-                          }`}
-                          onClick={() => selectProject(project.id)}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <strong className="block truncate text-foreground">{project.name}</strong>
-                            <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                              {project.envLabel}
-                            </span>
-                          </div>
-                        </button>
+                <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Name
+                  <input
+                    className={fieldClass}
+                    value={projectForm.name}
+                    onChange={(event) => setProjectForm((previous) => ({ ...previous, name: event.target.value }))}
+                  />
+                  {projectNameError ? <span className="text-xs text-danger">{projectNameError}</span> : null}
+                </label>
 
-                        <p className="pl-3 text-xs text-muted-foreground">
-                          {projectTests.length} test case{projectTests.length === 1 ? '' : 's'}
-                        </p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
+                <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Base URL
+                  <input
+                    className={fieldClass}
+                    value={projectForm.baseUrl}
+                    onChange={(event) =>
+                      setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
+                    }
+                  />
+                  {projectBaseUrlError ? (
+                    <span className="text-xs text-danger">{projectBaseUrlError}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Include protocol (https://...)</span>
+                  )}
+                </label>
 
-            <aside className={panelClass}>
-              {isProjectFormOpen ? (
-                <div className="space-y-3.5">
-                  <h3 className="text-sm font-bold tracking-wide text-foreground">
-                    {projectFormMode === 'create' ? 'Create project' : 'Edit project'}
-                  </h3>
+                <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Environment
+                  <input
+                    className={fieldClass}
+                    value={projectForm.envLabel}
+                    onChange={(event) => setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))}
+                  />
+                </label>
 
-                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Name
-                    <input
-                      className={fieldClass}
-                      value={projectForm.name}
-                      onChange={(event) =>
-                        setProjectForm((previous) => ({ ...previous, name: event.target.value }))
-                      }
-                    />
-                    {projectNameError ? <span className="text-xs text-danger">{projectNameError}</span> : null}
-                  </label>
-
-                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Base URL
-                    <input
-                      className={fieldClass}
-                      value={projectForm.baseUrl}
-                      onChange={(event) =>
-                        setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
-                      }
-                    />
-                    {projectBaseUrlError ? (
-                      <span className="text-xs text-danger">{projectBaseUrlError}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Include protocol (https://...)</span>
-                    )}
-                  </label>
-
-                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Environment
-                    <input
-                      className={fieldClass}
-                      value={projectForm.envLabel}
-                      onChange={(event) =>
-                        setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
-                      }
-                    />
-                  </label>
-
-                  <div className="flex flex-wrap gap-2">
-                    {projectFormMode === 'create' ? (
-                      <button
-                        type="button"
-                        className={primaryButtonClass}
-                        onClick={() => void createProject()}
-                        disabled={!canSaveProject}
-                      >
-                        Create project
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className={primaryButtonClass}
-                        onClick={() => void updateSelectedProject()}
-                        disabled={!selectedProject || !canSaveProject}
-                      >
-                        Save changes
-                      </button>
-                    )}
-                    <button type="button" className={mutedButtonClass} onClick={() => closeProjectForm()}>
-                      Cancel
-                    </button>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={primaryButtonClass}
+                    onClick={() => void createProject()}
+                    disabled={!canSaveProject}
+                  >
+                    Create project
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold tracking-wide text-foreground">Project actions</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Selected project: <span className="font-medium text-foreground">{selectedProjectName}</span>
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={mutedButtonClass}
-                      onClick={() => beginEditSelectedProject()}
-                      disabled={!selectedProject}
-                    >
-                      Edit selected
-                    </button>
-                    <button
-                      type="button"
-                      className={dangerButtonClass}
-                      onClick={() => void deleteSelectedProject()}
-                      disabled={!selectedProject}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </aside>
+              </div>
+            </div>
           </section>
         ) : null}
 
@@ -1514,11 +1448,11 @@ export function App(): JSX.Element {
                         Selected test: {selectedTest ? selectedTest.title : 'None selected'}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      Browser
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Browser</p>
+                    <div className="flex flex-wrap items-center gap-2">
                       <select
-                        className={`${fieldClass} mt-1 min-w-[148px]`}
+                        className={`${fieldClass} w-[150px]`}
                         value={browser}
                         onChange={(event) => setBrowser(event.target.value as BrowserName)}
                       >
@@ -1526,7 +1460,6 @@ export function App(): JSX.Element {
                         <option value="firefox">Firefox</option>
                         <option value="webkit">WebKit</option>
                       </select>
-                    </label>
                     <button
                       type="button"
                       className={primaryButtonClass}
@@ -1551,6 +1484,7 @@ export function App(): JSX.Element {
                     >
                       Generate bug report
                     </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1603,7 +1537,12 @@ export function App(): JSX.Element {
 
                 {bugReport ? (
                   <div className="mt-4 space-y-2 rounded-2xl border border-border/80 bg-background/55 p-3.5">
-                    <h3 className="text-sm font-bold tracking-wide text-foreground">Bug report draft</h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold tracking-wide text-foreground">Bug report draft</h3>
+                      <button type="button" className={mutedButtonClass} onClick={() => closeBugReportDraft()}>
+                        Close
+                      </button>
+                    </div>
                     <textarea
                       className={`${fieldClass} min-h-[240px] resize-y font-mono text-xs`}
                       rows={14}
@@ -1631,12 +1570,16 @@ function StepResultCard({
   const [screenshotDataUrl, setScreenshotDataUrl] = useState('');
   const [isLoadingScreenshot, setIsLoadingScreenshot] = useState(false);
   const [screenshotError, setScreenshotError] = useState('');
+  const [isScreenshotViewerOpen, setIsScreenshotViewerOpen] = useState(false);
+  const [isCopyingImage, setIsCopyingImage] = useState(false);
+  const [copyImageStatus, setCopyImageStatus] = useState('');
 
   useEffect(() => {
     if (!result.screenshotPath) {
       setScreenshotDataUrl('');
       setIsLoadingScreenshot(false);
       setScreenshotError('');
+      setIsScreenshotViewerOpen(false);
       return;
     }
 
@@ -1667,7 +1610,54 @@ function StepResultCard({
     };
   }, [result.screenshotPath]);
 
+  useEffect(() => {
+    if (!isScreenshotViewerOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setIsScreenshotViewerOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isScreenshotViewerOpen]);
+
+  async function copyScreenshotImage(): Promise<void> {
+    if (!screenshotDataUrl || isCopyingImage) {
+      return;
+    }
+
+    setIsCopyingImage(true);
+    setCopyImageStatus('');
+
+    try {
+      const clipboard = navigator.clipboard;
+      const ClipboardItemCtor = (window as Window & { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
+
+      if (!clipboard?.write || !ClipboardItemCtor) {
+        throw new Error('Image copy is not supported in this environment.');
+      }
+
+      const response = await fetch(screenshotDataUrl);
+      const blob = await response.blob();
+      const mimeType = blob.type || 'image/png';
+      const clipboardItem = new ClipboardItemCtor({ [mimeType]: blob });
+      await clipboard.write([clipboardItem]);
+      setCopyImageStatus('Image copied.');
+    } catch (error) {
+      setCopyImageStatus(toErrorMessage(error));
+    } finally {
+      setIsCopyingImage(false);
+    }
+  }
+
   return (
+    <>
     <article className="rounded-2xl border border-border/80 bg-background/52 p-3.5 shadow-[0_20px_50px_-36px_hsl(198_93%_42%/0.75)]">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h4 className="text-sm font-bold text-foreground">
@@ -1686,11 +1676,20 @@ function StepResultCard({
           {isLoadingScreenshot ? <p className="text-xs text-muted-foreground">Loading screenshot...</p> : null}
           {!isLoadingScreenshot && screenshotError ? <p className="text-xs text-danger">{screenshotError}</p> : null}
           {!isLoadingScreenshot && !screenshotError && screenshotDataUrl ? (
-            <img
-              className="max-h-[320px] w-full rounded-lg border border-border bg-background object-contain"
-              src={screenshotDataUrl}
-              alt={`Step ${result.stepOrder} screenshot`}
-            />
+            <button
+              type="button"
+              className="group relative block w-full overflow-hidden rounded-lg border border-border bg-background"
+              onClick={() => setIsScreenshotViewerOpen(true)}
+            >
+              <img
+                className="max-h-[320px] w-full object-contain transition duration-200 group-hover:scale-[1.01]"
+                src={screenshotDataUrl}
+                alt={`Step ${result.stepOrder} screenshot`}
+              />
+              <span className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-border/90 bg-card/90 px-2 py-1 text-[11px] font-semibold text-foreground">
+                Click to expand
+              </span>
+            </button>
           ) : null}
           {!isLoadingScreenshot && !screenshotError && !screenshotDataUrl ? (
             <p className="text-xs text-muted-foreground">No screenshot captured for this step.</p>
@@ -1702,7 +1701,7 @@ function StepResultCard({
             Error details
           </h5>
           {result.errorText ? (
-            <pre className="max-h-[320px] overflow-auto rounded-lg border border-danger/45 bg-danger/8 p-2.5 font-mono text-xs text-danger">
+            <pre className="max-h-[320px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-danger/45 bg-danger/8 p-2.5 font-mono text-xs text-danger">
               {result.errorText}
             </pre>
           ) : (
@@ -1711,6 +1710,52 @@ function StepResultCard({
         </section>
       </div>
     </article>
+    {isScreenshotViewerOpen && screenshotDataUrl && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Step ${result.stepOrder} screenshot viewer`}
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            onClick={() => setIsScreenshotViewerOpen(false)}
+          >
+            <div className="relative max-h-[95vh] max-w-[95vw]" onClick={(event) => event.stopPropagation()}>
+              <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
+                {copyImageStatus ? (
+                  <span className="rounded-md border border-border/80 bg-card/92 px-2 py-1 text-[11px] font-medium text-foreground">
+                    {copyImageStatus}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center justify-center rounded-full border border-border/80 bg-card/92 px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void copyScreenshotImage()}
+                  disabled={isCopyingImage}
+                >
+                  {isCopyingImage ? 'Copying...' : 'Copy image'}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card/92 text-foreground transition hover:bg-secondary/85"
+                  onClick={() => setIsScreenshotViewerOpen(false)}
+                  aria-label="Close screenshot viewer"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <img
+                src={screenshotDataUrl}
+                alt={`Step ${result.stepOrder} screenshot full size`}
+                className="max-h-[95vh] max-w-[95vw] rounded-xl border border-border/80 bg-background object-contain shadow-2xl"
+              />
+            </div>
+          </div>,
+          document.body,
+        )
+      : null}
+    </>
   );
 }
 
