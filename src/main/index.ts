@@ -1,10 +1,11 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPC_CHANNELS } from '@shared/ipc';
 import dotenv from 'dotenv';
 import { registerHandlers } from './ipc/registerHandlers';
+import { buildRendererCsp, isAllowedNavigationUrl, validateRendererDevUrl } from './security';
 import { getAppPaths } from './services/appPaths';
 import { openDatabase } from './services/database';
 import { createServices } from './services/services';
@@ -30,6 +31,9 @@ function resolvePreloadPath(): string {
 
 async function createWindow(): Promise<void> {
   const preloadPath = resolvePreloadPath();
+  const rawRendererUrl = process.env.ELECTRON_RENDERER_URL?.trim();
+  const rendererDevUrl = rawRendererUrl ? validateRendererDevUrl(rawRendererUrl) : null;
+  const allowedDevOrigin = rendererDevUrl?.origin;
 
   const win = new BrowserWindow({
     width: 1280,
@@ -38,12 +42,27 @@ async function createWindow(): Promise<void> {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    await win.loadURL(process.env.ELECTRON_RENDERER_URL);
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedNavigationUrl(url, allowedDevOrigin)) {
+      event.preventDefault();
+    }
+  });
+  win.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+
+  if (rendererDevUrl) {
+    await win.loadURL(rendererDevUrl.toString());
   } else {
     await win.loadFile(join(__dirname, '../renderer/index.html'));
   }
@@ -70,6 +89,16 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+
+  const csp = buildRendererCsp();
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
+  });
 
   const services = createServices(db, paths.artifacts, paths.configFile);
 

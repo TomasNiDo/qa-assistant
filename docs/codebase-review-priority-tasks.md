@@ -81,9 +81,9 @@ This file tracks high-priority work from the latest whole-repo review.
   - `src/main/index.ts`
   - `src/renderer/index.html`
 - TODO:
-  - [ ] Re-evaluate `sandbox: false` and enable sandbox where feasible.
-  - [ ] Define and enforce a strict Content Security Policy.
-  - [ ] Confirm no remote content/script execution paths bypass preload boundary.
+  - [x] Re-evaluate `sandbox: false` and enable sandbox where feasible.
+  - [x] Define and enforce a strict Content Security Policy.
+  - [x] Confirm no remote content/script execution paths bypass preload boundary.
 
 ### 8) Expand tests for critical runtime paths
 - Priority: `P2`
