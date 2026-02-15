@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ToastContainer, toast } from 'react-toastify';
 import type {
   AppConfig,
   BrowserInstallPhase,
@@ -76,6 +77,7 @@ export function App(): JSX.Element {
   const [browserInstallProgress, setBrowserInstallProgress] = useState<
     Partial<Record<BrowserName, BrowserInstallProgressState>>
   >({});
+  const [isBrowserStatesLoaded, setIsBrowserStatesLoaded] = useState(false);
   const [activeRunId, setActiveRunId] = useState('');
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
@@ -84,8 +86,9 @@ export function App(): JSX.Element {
 
   const [message, setMessage] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [isInstallStepConfirmed, setIsInstallStepConfirmed] = useState(false);
   const stepValidationVersion = useRef(0);
+  const testFormLoadVersion = useRef(0);
+  const hasInitializedSidebar = useRef(false);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -247,16 +250,23 @@ export function App(): JSX.Element {
   }, [selectedRunId]);
 
   const refreshBrowserStates = useCallback(async () => {
-    const result = await window.qaApi.runBrowserStatus();
-    if (!result.ok) {
-      setMessage(result.error.message);
-      return;
-    }
+    try {
+      const result = await window.qaApi.runBrowserStatus();
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
 
-    setBrowserStates(result.data);
+      setBrowserStates(result.data);
+    } finally {
+      setIsBrowserStatesLoaded(true);
+    }
   }, []);
 
   const loadSelectedTestIntoForm = useCallback(async () => {
+    const currentLoadVersion = testFormLoadVersion.current + 1;
+    testFormLoadVersion.current = currentLoadVersion;
+
     if (!selectedTest) {
       setIsTestEditing(false);
       setTestForm(DEFAULT_TEST_FORM);
@@ -264,6 +274,10 @@ export function App(): JSX.Element {
     }
 
     const stepRowsResult = await window.qaApi.stepList(selectedTest.id);
+    if (currentLoadVersion !== testFormLoadVersion.current) {
+      return;
+    }
+
     if (!stepRowsResult.ok) {
       setMessage(stepRowsResult.error.message);
       return;
@@ -278,6 +292,11 @@ export function App(): JSX.Element {
   }, [selectedTest]);
 
   useEffect(() => {
+    if (hasInitializedSidebar.current) {
+      return;
+    }
+
+    hasInitializedSidebar.current = true;
     void refreshSidebar();
   }, [refreshSidebar]);
 
@@ -479,6 +498,15 @@ export function App(): JSX.Element {
     root.classList.toggle('dark', theme === 'dark');
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    toast(message);
+    setMessage('');
+  }, [message]);
 
   const projectNameError = projectForm.name.trim() ? null : 'Project name is required.';
   const projectBaseUrlError = validateBaseUrl(projectForm.baseUrl);
@@ -682,6 +710,7 @@ export function App(): JSX.Element {
   }
 
   function beginCreateTest(): void {
+    testFormLoadVersion.current += 1;
     setSelectedTestId('');
     setIsTestEditing(false);
     setTestForm(DEFAULT_TEST_FORM);
@@ -906,11 +935,17 @@ export function App(): JSX.Element {
   const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
   const selectedProjectName = selectedProject?.name ?? 'No project selected';
   const canStartRun = Boolean(selectedTestId);
-  const activeScreen: 'install' | 'project' | 'main' = !hasInstalledBrowser || !isInstallStepConfirmed
-    ? 'install'
-    : !hasAtLeastOneProject
-      ? 'project'
-      : 'main';
+  const testCasePanelTitle = hasAtLeastOneTestCase ? 'Test case editor' : 'Setup first test case';
+  const testCasePanelDescription = hasAtLeastOneTestCase
+    ? 'Create a new test case or edit the selected one.'
+    : 'Create your first test case below.';
+  const activeScreen: 'loading' | 'install' | 'project' | 'main' = !isBrowserStatesLoaded
+    ? 'loading'
+    : !hasInstalledBrowser
+      ? 'install'
+      : !hasAtLeastOneProject
+        ? 'project'
+        : 'main';
   const panelClass =
     'relative overflow-hidden rounded-3xl border border-border/75 bg-card/82 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl md:p-6';
   const fieldClass =
@@ -924,12 +959,6 @@ export function App(): JSX.Element {
   const onboardingShellClass =
     'mx-auto flex w-full max-w-[1540px] flex-col gap-5 min-h-[calc(100vh-2rem)] justify-center';
   const appShellClass = 'mx-auto flex w-full max-w-[1540px] flex-col gap-5';
-
-  useEffect(() => {
-    if (!hasInstalledBrowser) {
-      setIsInstallStepConfirmed(false);
-    }
-  }, [hasInstalledBrowser]);
 
   useEffect(() => {
     if (activeScreen !== 'project') {
@@ -972,10 +1001,15 @@ export function App(): JSX.Element {
         )}
       </button>
       <div className={activeScreen === 'main' ? appShellClass : onboardingShellClass}>
-        {message ? (
-          <p className="rounded-2xl border border-primary/35 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary shadow-[0_12px_30px_-24px_hsl(from_var(--primary)_h_s_l/0.95)]">
-            {message}
-          </p>
+        {activeScreen === 'loading' ? (
+          <section className="mx-auto w-full max-w-2xl">
+            <div className={panelClass}>
+              <h2 className="text-lg font-bold text-foreground">Loading workspace</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Checking local browser runtime status...
+              </p>
+            </div>
+          </section>
         ) : null}
 
         {activeScreen === 'install' ? (
@@ -999,15 +1033,6 @@ export function App(): JSX.Element {
                   >
                     {hasInstalledBrowser ? 'Ready to continue' : 'Required'}
                   </span>
-                  {hasInstalledBrowser ? (
-                    <button
-                      type="button"
-                      className={primaryButtonClass}
-                      onClick={() => setIsInstallStepConfirmed(true)}
-                    >
-                      Proceed
-                    </button>
-                  ) : null}
                 </div>
               </div>
 
@@ -1343,9 +1368,9 @@ export function App(): JSX.Element {
                 <section className={panelClass}>
                   <div className="mb-4 flex items-center justify-between gap-2">
                     <div>
-                      <h2 className="text-xl font-bold text-foreground">Setup first test case</h2>
+                      <h2 className="text-xl font-bold text-foreground">{testCasePanelTitle}</h2>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {hasAtLeastOneTestCase ? 'At least one test case exists.' : 'Create your first test case below.'}
+                        {testCasePanelDescription}
                     </p>
                   </div>
                   <span
@@ -1412,7 +1437,7 @@ export function App(): JSX.Element {
 
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={mutedButtonClass} onClick={() => beginCreateTest()}>
-                      New test
+                      New test case
                     </button>
                     <button type="button" className={mutedButtonClass} onClick={() => void generateSteps()}>
                       Generate steps (AI)
@@ -1559,6 +1584,16 @@ export function App(): JSX.Element {
           </div>
         ) : null}
       </div>
+      <ToastContainer
+        position="top-right"
+        autoClose={3200}
+        closeOnClick
+        newestOnTop
+        pauseOnHover
+        pauseOnFocusLoss={false}
+        draggable={false}
+        theme={theme}
+      />
     </main>
   );
 }
