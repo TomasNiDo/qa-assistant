@@ -11,6 +11,11 @@ import { createServices } from './services/services';
 
 dotenv.config();
 
+// Guard against accidental Node-mode Electron, which breaks helper processes.
+if (process.env.ELECTRON_RUN_AS_NODE) {
+  delete process.env.ELECTRON_RUN_AS_NODE;
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function resolvePreloadPath(): string {

@@ -63,6 +63,14 @@ export class BrowserService {
 
     const installTask = this.runInstall(browser)
       .then(() => {
+        const status = this.getStatus(browser);
+        if (!status.installed) {
+          const message = `${browser} install finished, but runtime executable was not found.`;
+          this.lastErrors.set(browser, message);
+          this.emitProgress(browser, 'failed', null, message);
+          throw new Error(message);
+        }
+
         this.lastErrors.delete(browser);
         this.emitProgress(browser, 'completed', 100, `${browser} installed.`);
       })
@@ -106,15 +114,30 @@ export class BrowserService {
 
   private runInstall(browser: BrowserName): Promise<void> {
     return new Promise((resolve, reject) => {
+      const env = {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+      };
       const child = spawn(process.execPath, [PLAYWRIGHT_CLI_PATH, 'install', browser], {
-        env: process.env,
+        env,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
+      const timeoutMs = 10 * 60 * 1000;
 
       let output = '';
       const stdoutState = { value: '' };
       const stderrState = { value: '' };
       let fallbackProgress = 3;
+      let settled = false;
+
+      const settle = (fn: () => void) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        fn();
+      };
 
       const consume = (text: string) => {
         for (const line of text.split(/\r?\n/)) {
@@ -153,11 +176,24 @@ export class BrowserService {
       child.stdout.on('data', onChunk(stdoutState));
       child.stderr.on('data', onChunk(stderrState));
 
+      const timeoutId = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+
+        child.kill('SIGKILL');
+        settle(() => {
+          reject(new Error(`Playwright install timed out after ${timeoutMs / 1000}s.`));
+        });
+      }, timeoutMs);
+
       child.once('error', (error) => {
-        reject(new Error(`Playwright browser install failed to start: ${error.message}`));
+        settle(() => {
+          reject(new Error(`Playwright browser install failed to start: ${error.message}`));
+        });
       });
 
-      child.once('exit', (code) => {
+      child.once('close', (code) => {
         if (stdoutState.value.trim()) {
           consume(stdoutState.value);
         }
@@ -165,13 +201,15 @@ export class BrowserService {
           consume(stderrState.value);
         }
 
-        if (code === 0) {
-          resolve();
-          return;
-        }
+        settle(() => {
+          if (code === 0) {
+            resolve();
+            return;
+          }
 
-        const details = output.trim();
-        reject(new Error(details || `Playwright install exited with code ${code ?? 'unknown'}.`));
+          const details = output.trim();
+          reject(new Error(details || `Playwright install exited with code ${code ?? 'unknown'}.`));
+        });
       });
     });
   }

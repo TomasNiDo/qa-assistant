@@ -49,9 +49,10 @@ const DEFAULT_TEST_FORM: TestFormState = {
   stepsText: 'Click "Login"',
 };
 
+const THEME_STORAGE_KEY = 'qa-assistant-theme';
+
 export function App(): JSX.Element {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [testCasesByProject, setTestCasesByProject] = useState<Record<string, TestCase[]>>({});
   const [runs, setRuns] = useState<Run[]>([]);
   const [stepResults, setStepResults] = useState<StepResult[]>([]);
@@ -74,17 +75,16 @@ export function App(): JSX.Element {
   const [browserInstallProgress, setBrowserInstallProgress] = useState<
     Partial<Record<BrowserName, BrowserInstallProgressState>>
   >({});
-  const [isInstallStatusOpen, setIsInstallStatusOpen] = useState(false);
   const [activeRunId, setActiveRunId] = useState('');
   const [bugReport, setBugReport] = useState<GeneratedBugReport | null>(null);
   const [bugReportDraft, setBugReportDraft] = useState('');
 
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [seedInProgress, setSeedInProgress] = useState(false);
 
   const [message, setMessage] = useState('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [isInstallStepConfirmed, setIsInstallStepConfirmed] = useState(false);
   const stepValidationVersion = useRef(0);
-  const autoSeedAttempted = useRef(false);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -110,29 +110,6 @@ export function App(): JSX.Element {
     () => browserStates.find((state) => state.browser === browser) ?? null,
     [browser, browserStates],
   );
-
-  const overallInstallProgress = useMemo(() => {
-    const browsers: BrowserName[] = ['chromium', 'firefox', 'webkit'];
-    const values = browsers.map((name) => {
-      const state = browserStates.find((row) => row.browser === name);
-      if (state?.installed) {
-        return 100;
-      }
-
-      const progress = browserInstallProgress[name]?.progress;
-      if (typeof progress === 'number') {
-        return progress;
-      }
-
-      if (state?.installInProgress) {
-        return 8;
-      }
-
-      return 0;
-    });
-
-    return Math.round(values.reduce((sum, current) => sum + current, 0) / values.length);
-  }, [browserInstallProgress, browserStates]);
 
   const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
 
@@ -201,19 +178,16 @@ export function App(): JSX.Element {
         result = await window.qaApi.projectList();
       } catch (error) {
         setMessage(`Failed loading projects: ${toErrorMessage(error)}`);
-        setProjectsLoaded(true);
         return;
       }
 
       if (!result.ok) {
         setMessage(result.error.message);
-        setProjectsLoaded(true);
         return;
       }
 
       const rows = result.data;
       setProjects(rows);
-      setProjectsLoaded(true);
 
       let nextProjectId = preferredProjectId;
       if (rows.length === 0) {
@@ -438,7 +412,6 @@ export function App(): JSX.Element {
   }, [handleRunUpdate]);
 
   const handleBrowserInstallUpdate = useCallback((update: BrowserInstallUpdate): void => {
-    setIsInstallStatusOpen(true);
     setBrowserInstallProgress((previous) => ({
       ...previous,
       [update.browser]: {
@@ -449,7 +422,7 @@ export function App(): JSX.Element {
       },
     }));
 
-    if (update.phase === 'completed') {
+    if (update.phase === 'completed' || update.phase === 'failed') {
       void refreshBrowserStates();
     }
   }, [refreshBrowserStates]);
@@ -479,61 +452,28 @@ export function App(): JSX.Element {
     void loadConfig();
   }, [loadConfig]);
 
-  const seedSampleProject = useCallback(
-    async (mode: 'manual' | 'auto' = 'manual'): Promise<void> => {
-      if (seedInProgress) {
-        return;
-      }
+  useEffect(() => {
+    const root = document.documentElement;
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 
-      setSeedInProgress(true);
-      const result = await window.qaApi.seedSampleProject();
-      setSeedInProgress(false);
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      root.classList.toggle('dark', storedTheme === 'dark');
+      setTheme(storedTheme);
+      return;
+    }
 
-      if (!result.ok) {
-        setMessage(result.error.message);
-        return;
-      }
-
-      await refreshSidebar(result.data.project.id, result.data.testCase.id);
-
-      if (mode === 'manual') {
-        if (!result.data.createdProject && !result.data.createdTestCase) {
-          setMessage('Sample project already exists.');
-          return;
-        }
-
-        setMessage(
-          `Sample seed complete. Created project: ${result.data.createdProject ? 'yes' : 'no'}, test: ${result.data.createdTestCase ? 'yes' : 'no'}.`,
-        );
-        return;
-      }
-
-      if (result.data.createdProject || result.data.createdTestCase) {
-        setMessage('Sample project seeded automatically.');
-      }
-    },
-    [refreshSidebar, seedInProgress],
-  );
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const nextTheme: 'light' | 'dark' = prefersDark ? 'dark' : 'light';
+    root.classList.toggle('dark', prefersDark);
+    setTheme(nextTheme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  }, []);
 
   useEffect(() => {
-    if (!appConfig?.enableSampleProjectSeed) {
-      autoSeedAttempted.current = false;
-      return;
-    }
-
-    if (!projectsLoaded || projects.length > 0 || seedInProgress || autoSeedAttempted.current) {
-      return;
-    }
-
-    autoSeedAttempted.current = true;
-    void seedSampleProject('auto');
-  }, [
-    appConfig?.enableSampleProjectSeed,
-    projects.length,
-    projectsLoaded,
-    seedInProgress,
-    seedSampleProject,
-  ]);
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   const projectNameError = projectForm.name.trim() ? null : 'Project name is required.';
   const projectBaseUrlError = validateBaseUrl(projectForm.baseUrl);
@@ -901,7 +841,6 @@ export function App(): JSX.Element {
   }
 
   async function installBrowser(browserName: BrowserName): Promise<void> {
-    setIsInstallStatusOpen(true);
     setBrowserInstallProgress((previous) => ({
       ...previous,
       [browserName]: {
@@ -911,7 +850,6 @@ export function App(): JSX.Element {
         timestamp: new Date().toISOString(),
       },
     }));
-    setMessage(`Installing ${browserName} browser runtime...`);
     const result = await window.qaApi.runInstallBrowser(browserName);
     if (!result.ok) {
       setMessage(result.error.message);
@@ -928,22 +866,7 @@ export function App(): JSX.Element {
         timestamp: new Date().toISOString(),
       },
     }));
-    setMessage(`${browserName} browser runtime installed.`);
     await refreshBrowserStates();
-  }
-
-  async function installMissingBrowsers(): Promise<void> {
-    const missing = browserStates.filter((state) => !state.installed).map((state) => state.browser);
-    if (missing.length === 0) {
-      setMessage('All browser runtimes are already installed.');
-      return;
-    }
-
-    setIsInstallStatusOpen(true);
-    for (const browserName of missing) {
-      // Install sequentially to keep progress updates readable.
-      await installBrowser(browserName);
-    }
   }
 
   async function generateBugReport(): Promise<void> {
@@ -968,164 +891,558 @@ export function App(): JSX.Element {
     setMessage('Bug report copied to clipboard.');
   }
 
+  const hasInstalledBrowser = browserStates.some((state) => state.installed);
+  const hasAtLeastOneProject = projects.length > 0;
+  const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
+  const selectedProjectName = selectedProject?.name ?? 'No project selected';
+  const canStartRun = Boolean(selectedTestId);
+  const activeScreen: 'install' | 'project' | 'main' = !hasInstalledBrowser || !isInstallStepConfirmed
+    ? 'install'
+    : !hasAtLeastOneProject
+      ? 'project'
+      : 'main';
+  const panelClass =
+    'relative overflow-hidden rounded-3xl border border-border/75 bg-card/82 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl md:p-6';
+  const fieldClass =
+    'w-full rounded-2xl border border-input/90 bg-background/56 px-4 py-2.5 text-sm text-foreground outline-none transition duration-200 placeholder:text-muted-foreground/65 focus:border-primary/70 focus:ring-4 focus:ring-ring/20';
+  const primaryButtonClass =
+    'inline-flex items-center justify-center rounded-2xl border border-primary/70 bg-gradient-to-b from-primary to-primary/85 px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-[0_16px_36px_-24px_hsl(198_93%_42%/0.85)] transition duration-200 hover:-translate-y-0.5 hover:brightness-105 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50';
+  const mutedButtonClass =
+    'inline-flex items-center justify-center rounded-2xl border border-border/85 bg-secondary/52 px-3.5 py-2 text-sm font-semibold text-secondary-foreground transition duration-200 hover:bg-secondary/84 disabled:cursor-not-allowed disabled:opacity-50';
+  const dangerButtonClass =
+    'inline-flex items-center justify-center rounded-2xl border border-danger/70 bg-danger/12 px-3.5 py-2 text-sm font-semibold text-danger transition duration-200 hover:bg-danger/18 disabled:cursor-not-allowed disabled:opacity-50';
+  const installShellClass =
+    'mx-auto flex w-full max-w-[1540px] flex-col gap-5 min-h-[calc(100vh-2rem)] justify-center';
+  const appShellClass = 'mx-auto flex w-full max-w-[1540px] flex-col gap-5';
+
+  useEffect(() => {
+    if (!hasInstalledBrowser) {
+      setIsInstallStepConfirmed(false);
+    }
+  }, [hasInstalledBrowser]);
+
   return (
-    <main className="shell">
-      <header className="header">
-        <h1>QA Assistant</h1>
-        <p>Local-first QA test builder with AI-assisted authoring.</p>
-      </header>
+    <main className="relative min-h-screen overflow-hidden px-4 py-4 md:px-6 md:py-5">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-28 top-8 h-72 w-72 rounded-full bg-primary/22 blur-3xl" />
+        <div className="absolute right-[-8rem] top-[-4rem] h-[20rem] w-[20rem] rounded-full bg-accent/16 blur-3xl" />
+        <div className="absolute bottom-[-10rem] left-1/2 h-[22rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+      </div>
+      <button
+        type="button"
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/88 text-foreground shadow-[0_14px_40px_-24px_hsl(from_var(--primary)_h_s_l/0.9)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:bg-secondary/75 md:right-6 md:top-5"
+        onClick={() => setTheme((previous) => (previous === 'dark' ? 'light' : 'dark'))}
+      >
+        {theme === 'dark' ? (
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+            <path
+              d="M12 4.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V5.25A.75.75 0 0 1 12 4.5Zm0 12.75a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V18a.75.75 0 0 1 .75-.75Zm7.5-5.25a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75Zm-12.75 0a.75.75 0 0 1-.75.75H4.5a.75.75 0 0 1 0-1.5H6a.75.75 0 0 1 .75.75Zm9.028-4.778a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Zm-9.616 9.616a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Zm11.736 1.06a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 1 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0Zm-9.616-9.616a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 0 1-1.06-1.06l1.06-1.06a.75.75 0 0 1 1.06 0ZM12 8.25a3.75 3.75 0 1 1 0 7.5a3.75 3.75 0 0 1 0-7.5Z"
+              fill="currentColor"
+            />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+            <path
+              d="M14.5 3.2a.75.75 0 0 1 .76.96a7.25 7.25 0 1 0 8.58 8.58a.75.75 0 0 1 .96.76A9.25 9.25 0 1 1 14.5 3.2Z"
+              fill="currentColor"
+            />
+          </svg>
+        )}
+      </button>
+      <div className={activeScreen === 'install' ? installShellClass : appShellClass}>
+        {message ? (
+          <p className="rounded-2xl border border-primary/35 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary shadow-[0_12px_30px_-24px_hsl(from_var(--primary)_h_s_l/0.95)]">
+            {message}
+          </p>
+        ) : null}
 
-      {message ? <p className="message">{message}</p> : null}
-
-      <div className="workspace">
-        <aside className="panel sidebar">
-          <div className="sidebar-heading">
-            <h2>Projects</h2>
-            <button type="button" onClick={() => beginCreateProject()}>
-              New Project
-            </button>
-          </div>
-
-          <ul className="tree-list">
-            {projects.map((project) => {
-              const projectTests = testCasesByProject[project.id] ?? [];
-
-              return (
-                <li key={project.id} className="tree-project-item">
-                  <button
-                    type="button"
-                    className={project.id === selectedProjectId ? 'tree-project active' : 'tree-project'}
-                    onClick={() => selectProject(project.id)}
-                  >
-                    <strong>{project.name}</strong>
-                    <span>{project.envLabel}</span>
-                  </button>
-
-                  {projectTests.length > 0 ? (
-                    <ul className="tree-tests">
-                      {projectTests.map((testCase) => (
-                        <li key={testCase.id}>
-                          <button
-                            type="button"
-                            className={testCase.id === selectedTestId ? 'tree-test active' : 'tree-test'}
-                            onClick={() => selectTest(project.id, testCase.id)}
-                          >
-                            {testCase.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="field-hint tree-empty">No test cases</p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          <section className="sidebar-settings">
-            {isProjectFormOpen ? (
-              <>
-                <h3>{projectFormMode === 'create' ? 'Create Project' : 'Edit Project'}</h3>
-                <label>
-                  Name
-                  <input
-                    value={projectForm.name}
-                    onChange={(event) =>
-                      setProjectForm((previous) => ({ ...previous, name: event.target.value }))
-                    }
-                  />
-                  {projectNameError ? <span className="field-error">{projectNameError}</span> : null}
-                </label>
-
-                <label>
-                  Base URL
-                  <input
-                    value={projectForm.baseUrl}
-                    onChange={(event) =>
-                      setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
-                    }
-                  />
-                  {projectBaseUrlError ? (
-                    <span className="field-error">{projectBaseUrlError}</span>
-                  ) : (
-                    <span className="field-hint">Include protocol, for example https://example.com</span>
-                  )}
-                </label>
-
-                <label>
-                  Environment
-                  <input
-                    value={projectForm.envLabel}
-                    onChange={(event) =>
-                      setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
-                    }
-                  />
-                </label>
-
-                <div className="row">
-                  {projectFormMode === 'create' ? (
-                    <button type="button" onClick={() => void createProject()} disabled={!canSaveProject}>
-                      Create Project
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void updateSelectedProject()}
-                      disabled={!selectedProject || !canSaveProject}
-                    >
-                      Update Selected
-                    </button>
-                  )}
-                  <button type="button" onClick={() => closeProjectForm()}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3>Project Actions</h3>
-                <p className="field-hint">Project form is hidden. Click New Project to create.</p>
-                <div className="row">
-                  <button type="button" onClick={() => beginEditSelectedProject()} disabled={!selectedProject}>
-                    Edit Selected
-                  </button>
-                  <button type="button" onClick={() => void deleteSelectedProject()} disabled={!selectedProject}>
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
-        </aside>
-
-        <section className="main-content">
-          {selectedProject ? (
-            <>
-              <section className="panel">
-                <div className="section-heading">
-                  <h2>Test Case Settings</h2>
-                  <p>
-                    Project: <strong>{selectedProject.name}</strong>
+        {activeScreen === 'install' ? (
+          <section className="mx-auto w-full max-w-4xl">
+            <div className={panelClass}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary/75">Step 1</p>
+                  <h2 className="mt-1 text-xl font-bold text-foreground">Install browsers</h2>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    You can continue after installing at least one browser runtime.
                   </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-bold tracking-wide ${
+                      hasInstalledBrowser
+                        ? 'border-success/60 bg-success/12 text-success'
+                        : 'border-warning/60 bg-warning/15 text-warning-foreground'
+                    }`}
+                  >
+                    {hasInstalledBrowser ? 'Ready to continue' : 'Required'}
+                  </span>
+                  {hasInstalledBrowser ? (
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      onClick={() => setIsInstallStepConfirmed(true)}
+                    >
+                      Proceed
+                    </button>
+                  ) : null}
+                </div>
+              </div>
 
-                <div className="grid one">
-                  <label>
+              <div className="grid gap-2">
+                {browserStates.length > 0 ? (
+                  browserStates.map((state) => {
+                    const progressState = browserInstallProgress[state.browser];
+                    const isInstalled = state.installed || progressState?.phase === 'completed';
+                    const hasActiveProgressPhase =
+                      progressState !== undefined &&
+                      progressState.phase !== 'idle' &&
+                      progressState.phase !== 'completed' &&
+                      progressState.phase !== 'failed';
+                    const isInstalling = !isInstalled && (state.installInProgress || hasActiveProgressPhase);
+                    const installPhase: BrowserInstallPhase = isInstalled
+                      ? 'completed'
+                      : progressState?.phase ?? (state.lastError
+                        ? 'failed'
+                        : isInstalling
+                          ? 'installing'
+                          : 'idle');
+                    const progressSuffix =
+                      isInstalled
+                        ? ' (100%)'
+                        : typeof progressState?.progress === 'number'
+                        ? ` (${Math.round(progressState.progress)}%)`
+                        : '';
+                    const runtimeMessage = state.lastError
+                      ? state.lastError
+                      : `Status: ${installPhase}${progressSuffix}`;
+
+                    return (
+                      <div
+                        key={state.browser}
+                        className="grid gap-2 rounded-2xl border border-border/85 bg-background/48 px-3.5 py-2.5 transition duration-200 hover:border-primary/30 hover:bg-background/66 sm:grid-cols-[110px_110px_minmax(0,1fr)_auto] sm:items-center"
+                      >
+                        <span className="text-sm font-semibold capitalize text-foreground">{state.browser}</span>
+                        <span
+                          className={`inline-flex h-6 min-w-[6rem] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold leading-none ${statusClassName(isInstalling ? 'installing' : isInstalled ? 'installed' : 'missing')}`}
+                        >
+                          {isInstalling ? 'installing' : isInstalled ? 'installed' : 'missing'}
+                        </span>
+                        <span className="truncate text-xs font-medium text-muted-foreground">{runtimeMessage}</span>
+                        {isInstalling ? (
+                          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/55 bg-primary/10 text-primary">
+                            <svg
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                              className="h-4 w-4 animate-spin"
+                            >
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="9"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeOpacity="0.25"
+                                strokeWidth="3"
+                              />
+                              <path
+                                d="M12 3a9 9 0 0 1 9 9"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </span>
+                        ) : isInstalled ? null : (
+                          <button
+                            type="button"
+                            className={primaryButtonClass}
+                            onClick={() => void installBrowser(state.browser)}
+                          >
+                            Install
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="rounded-xl border border-border bg-background/55 px-3 py-2 text-sm text-muted-foreground">
+                    Loading browser runtime status...
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeScreen === 'project' ? (
+          <section className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <section className={panelClass}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary/75">Step 2</p>
+                  <h2 className="mt-1 text-xl font-bold text-foreground">Set up first project</h2>
+                  <p className="mt-1.5 text-sm text-muted-foreground">
+                    Create one project to unlock the main testing workspace.
+                  </p>
+                </div>
+                <button type="button" className={primaryButtonClass} onClick={() => beginCreateProject()}>
+                  New project
+                </button>
+              </div>
+
+              {projects.length === 0 ? (
+                <p className="rounded-2xl border border-warning/60 bg-warning/15 px-3.5 py-2.5 text-sm font-medium text-warning-foreground">
+                  No projects yet. Add your first project to continue.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {projects.map((project) => {
+                    const projectTests = testCasesByProject[project.id] ?? [];
+
+                    return (
+                      <li key={project.id} className="space-y-1.5">
+                        <button
+                          type="button"
+                          className={`w-full rounded-2xl border px-3.5 py-2.5 text-left text-sm transition ${
+                            project.id === selectedProjectId
+                              ? 'border-primary/60 bg-primary/12'
+                              : 'border-border/85 bg-background/48 hover:bg-secondary/75'
+                          }`}
+                          onClick={() => selectProject(project.id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <strong className="block truncate text-foreground">{project.name}</strong>
+                            <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                              {project.envLabel}
+                            </span>
+                          </div>
+                        </button>
+
+                        <p className="pl-3 text-xs text-muted-foreground">
+                          {projectTests.length} test case{projectTests.length === 1 ? '' : 's'}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <aside className={panelClass}>
+              {isProjectFormOpen ? (
+                <div className="space-y-3.5">
+                  <h3 className="text-sm font-bold tracking-wide text-foreground">
+                    {projectFormMode === 'create' ? 'Create project' : 'Edit project'}
+                  </h3>
+
+                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Name
+                    <input
+                      className={fieldClass}
+                      value={projectForm.name}
+                      onChange={(event) =>
+                        setProjectForm((previous) => ({ ...previous, name: event.target.value }))
+                      }
+                    />
+                    {projectNameError ? <span className="text-xs text-danger">{projectNameError}</span> : null}
+                  </label>
+
+                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Base URL
+                    <input
+                      className={fieldClass}
+                      value={projectForm.baseUrl}
+                      onChange={(event) =>
+                        setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
+                      }
+                    />
+                    {projectBaseUrlError ? (
+                      <span className="text-xs text-danger">{projectBaseUrlError}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Include protocol (https://...)</span>
+                    )}
+                  </label>
+
+                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Environment
+                    <input
+                      className={fieldClass}
+                      value={projectForm.envLabel}
+                      onChange={(event) =>
+                        setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
+                      }
+                    />
+                  </label>
+
+                  <div className="flex flex-wrap gap-2">
+                    {projectFormMode === 'create' ? (
+                      <button
+                        type="button"
+                        className={primaryButtonClass}
+                        onClick={() => void createProject()}
+                        disabled={!canSaveProject}
+                      >
+                        Create project
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={primaryButtonClass}
+                        onClick={() => void updateSelectedProject()}
+                        disabled={!selectedProject || !canSaveProject}
+                      >
+                        Save changes
+                      </button>
+                    )}
+                    <button type="button" className={mutedButtonClass} onClick={() => closeProjectForm()}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold tracking-wide text-foreground">Project actions</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Selected project: <span className="font-medium text-foreground">{selectedProjectName}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={mutedButtonClass}
+                      onClick={() => beginEditSelectedProject()}
+                      disabled={!selectedProject}
+                    >
+                      Edit selected
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButtonClass}
+                      onClick={() => void deleteSelectedProject()}
+                      disabled={!selectedProject}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </aside>
+          </section>
+        ) : null}
+
+        {activeScreen === 'main' ? (
+          <div className="grid items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+            <aside className="xl:sticky xl:top-4">
+              <div className="flex flex-col gap-4">
+                <section className={panelClass}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="text-base font-bold tracking-wide text-foreground">Projects & tests</h2>
+                    <button type="button" className={primaryButtonClass} onClick={() => beginCreateProject()}>
+                      New Project
+                    </button>
+                  </div>
+
+                  <ul className="space-y-2">
+                    {projects.map((project) => {
+                      const projectTests = testCasesByProject[project.id] ?? [];
+
+                      return (
+                        <li key={project.id} className="space-y-1.5">
+                          <button
+                            type="button"
+                            className={`w-full rounded-2xl border px-3.5 py-2.5 text-left text-sm transition ${
+                              project.id === selectedProjectId
+                                ? 'border-primary/60 bg-primary/12'
+                                : 'border-border/85 bg-background/48 hover:bg-secondary/75'
+                            }`}
+                            onClick={() => selectProject(project.id)}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <strong className="block truncate text-foreground">{project.name}</strong>
+                              <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                                {project.envLabel}
+                              </span>
+                            </div>
+                          </button>
+
+                          {projectTests.length > 0 ? (
+                            <ul className="space-y-1 pl-3">
+                              {projectTests.map((testCase) => (
+                                <li key={testCase.id}>
+                                  <button
+                                    type="button"
+                                    className={`w-full rounded-xl border px-2.5 py-1.5 text-left text-xs font-medium transition ${
+                                      testCase.id === selectedTestId
+                                        ? 'border-primary/45 bg-primary/8 text-primary'
+                                        : 'border-border/80 bg-background/40 text-muted-foreground hover:bg-secondary/70'
+                                    }`}
+                                    onClick={() => selectTest(project.id, testCase.id)}
+                                  >
+                                    {testCase.title}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="pl-3 text-xs text-muted-foreground">No test cases in this project.</p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+
+                <section className={panelClass}>
+                  {isProjectFormOpen ? (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-bold tracking-wide text-foreground">
+                        {projectFormMode === 'create' ? 'Create project' : 'Edit project'}
+                      </h3>
+
+                      <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        Name
+                        <input
+                          className={fieldClass}
+                          value={projectForm.name}
+                          onChange={(event) =>
+                            setProjectForm((previous) => ({ ...previous, name: event.target.value }))
+                          }
+                        />
+                        {projectNameError ? <span className="text-xs text-danger">{projectNameError}</span> : null}
+                      </label>
+
+                      <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        Base URL
+                        <input
+                          className={fieldClass}
+                          value={projectForm.baseUrl}
+                          onChange={(event) =>
+                            setProjectForm((previous) => ({ ...previous, baseUrl: event.target.value }))
+                          }
+                        />
+                        {projectBaseUrlError ? (
+                          <span className="text-xs text-danger">{projectBaseUrlError}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Include protocol (https://...)</span>
+                        )}
+                      </label>
+
+                      <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        Environment
+                        <input
+                          className={fieldClass}
+                          value={projectForm.envLabel}
+                          onChange={(event) =>
+                            setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
+                          }
+                        />
+                      </label>
+
+                      <div className="flex flex-wrap gap-2">
+                        {projectFormMode === 'create' ? (
+                          <button
+                            type="button"
+                            className={primaryButtonClass}
+                            onClick={() => void createProject()}
+                            disabled={!canSaveProject}
+                          >
+                            Create project
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={primaryButtonClass}
+                            onClick={() => void updateSelectedProject()}
+                            disabled={!selectedProject || !canSaveProject}
+                          >
+                            Save changes
+                          </button>
+                        )}
+                        <button type="button" className={mutedButtonClass} onClick={() => closeProjectForm()}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-bold tracking-wide text-foreground">Project actions</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Selected project: <span className="font-medium text-foreground">{selectedProjectName}</span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={mutedButtonClass}
+                          onClick={() => beginEditSelectedProject()}
+                          disabled={!selectedProject}
+                        >
+                          Edit selected
+                        </button>
+                        <button
+                          type="button"
+                          className={dangerButtonClass}
+                          onClick={() => void deleteSelectedProject()}
+                          disabled={!selectedProject}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                <section className={panelClass}>
+                  <h3 className="text-sm font-bold tracking-wide text-foreground">Workspace defaults</h3>
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    <p>Default browser: {appConfig?.defaultBrowser ?? 'chromium'}</p>
+                    <p>Model target: gemini-2.5-flash</p>
+                    <p>Local DB only: enabled</p>
+                  </div>
+                </section>
+              </div>
+            </aside>
+
+            <section className="flex min-w-0 flex-col gap-4">
+                <section className={panelClass}>
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">Setup first test case</h2>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {hasAtLeastOneTestCase ? 'At least one test case exists.' : 'Create your first test case below.'}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      hasAtLeastOneTestCase
+                        ? 'border-success/60 bg-success/12 text-success'
+                        : 'border-primary/60 bg-primary/12 text-primary'
+                    }`}
+                  >
+                    {hasAtLeastOneTestCase ? 'Ready' : 'Pending'}
+                  </span>
+                </div>
+
+                <div className="grid gap-3">
+                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
                     Test title
                     <input
+                      className={fieldClass}
                       value={testForm.title}
                       onChange={(event) =>
                         setTestForm((previous) => ({ ...previous, title: event.target.value }))
                       }
+                      placeholder="Checkout succeeds with valid card"
                     />
-                    {testTitleError ? <span className="field-error">{testTitleError}</span> : null}
+                    {testTitleError ? <span className="text-xs text-danger">{testTitleError}</span> : null}
                   </label>
 
-                  <div>
-                    <strong>Steps</strong>
+                  <label className="block space-y-1.5 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Step script
                     <textarea
-                      className="steps-textarea"
+                      className={`${fieldClass} min-h-[220px] resize-y font-mono text-xs`}
                       rows={10}
                       value={testForm.stepsText}
                       onChange={(event) =>
@@ -1133,9 +1450,10 @@ export function App(): JSX.Element {
                       }
                       placeholder={'Click "Login"\nEnter "qa.user@example.com" in "Email" field'}
                     />
-                    {parsedSteps.length === 0 ? (
-                      <span className="field-error">At least one step is required.</span>
-                    ) : null}
+                  </label>
+
+                  <div className="space-y-1">
+                    {parsedSteps.length === 0 ? <p className="text-xs text-danger">At least one step is required.</p> : null}
                     {parsedSteps.map((_, index) => {
                       const parsed = stepParsePreview[index];
                       const parseHint =
@@ -1144,185 +1462,117 @@ export function App(): JSX.Element {
                           : `Step ${index + 1}: ${testStepsErrors[index] ?? 'Validation unavailable.'}`;
 
                       return (
-                        <span
+                        <p
                           key={`step-parse-${index}`}
-                          className={`step-parse-hint ${parsed && parsed.ok ? 'field-hint' : 'field-error'}`}
+                          className={`text-xs ${parsed && parsed.ok ? 'text-muted-foreground' : 'text-danger'}`}
                         >
                           {parseHint}
-                        </span>
+                        </p>
                       );
                     })}
-
-                    <p className="field-hint">
-                      Enter one step per line. Supported patterns: Enter "value" in "field" field,
-                      Click "text" (or Click "text" after 1s), Go to "/path", Expect assertion, or Expect assertion within 30s.
+                    <p className="text-xs text-muted-foreground">
+                      Supported patterns: Enter "value" in "field" field, Click "text" (or Click "text" after 1s),
+                      Go to "/path", Expect assertion, or Expect assertion within 30s.
                     </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={mutedButtonClass} onClick={() => beginCreateTest()}>
+                      New test
+                    </button>
+                    <button type="button" className={mutedButtonClass} onClick={() => void generateSteps()}>
+                      Generate steps (AI)
+                    </button>
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      onClick={() => void saveTestCase()}
+                      disabled={!canSaveTestCase}
+                    >
+                      {isTestEditing ? 'Save test case' : 'Create test case'}
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButtonClass}
+                      onClick={() => void deleteSelectedTest()}
+                      disabled={!selectedTest}
+                    >
+                      Delete test case
+                    </button>
+                  </div>
+
+                  {isValidatingSteps ? <p className="text-xs text-muted-foreground">Validating steps...</p> : null}
+                </div>
+              </section>
+
+                <section className={panelClass}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary/75">Run center</p>
+                      <h2 className="mt-1 text-xl font-bold text-foreground">Execute test and inspect timeline</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Selected test: {selectedTest ? selectedTest.title : 'None selected'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      Browser
+                      <select
+                        className={`${fieldClass} mt-1 min-w-[148px]`}
+                        value={browser}
+                        onChange={(event) => setBrowser(event.target.value as BrowserName)}
+                      >
+                        <option value="chromium">Chromium</option>
+                        <option value="firefox">Firefox</option>
+                        <option value="webkit">WebKit</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      onClick={() => void startRun()}
+                      disabled={!canStartRun}
+                    >
+                      Start run
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButtonClass}
+                      onClick={() => void cancelRun()}
+                      disabled={!activeRunId}
+                    >
+                      Cancel immediately
+                    </button>
+                    <button
+                      type="button"
+                      className={mutedButtonClass}
+                      onClick={() => void generateBugReport()}
+                      disabled={!selectedRun || selectedRun.status !== 'failed'}
+                    >
+                      Generate bug report
+                    </button>
                   </div>
                 </div>
 
-                <div className="row">
-                  <button type="button" onClick={() => beginCreateTest()}>
-                    New Test
-                  </button>
-                  <button type="button" onClick={() => void generateSteps()}>
-                    Generate Steps (AI)
-                  </button>
-                  <button type="button" onClick={() => void saveTestCase()} disabled={!canSaveTestCase}>
-                    {isTestEditing ? 'Save Test Case' : 'Create Test Case'}
-                  </button>
-                  <button type="button" onClick={() => void deleteSelectedTest()} disabled={!selectedTest}>
-                    Delete Test Case
-                  </button>
-                </div>
-
-                {isValidatingSteps ? <p className="field-hint">Validating steps...</p> : null}
-              </section>
-
-              <section className="panel">
-                <div className="section-heading">
-                  <h2>Test Run Result</h2>
-                  <p>
-                    Selected test:{' '}
-                    <strong>{selectedTest ? selectedTest.title : 'None selected'}</strong>
-                  </p>
-                </div>
-
-                <div className="row">
-                  <label>
-                    Browser
-                    <select
-                      value={browser}
-                      onChange={(event) => setBrowser(event.target.value as BrowserName)}
-                    >
-                      <option value="chromium">Chromium</option>
-                      <option value="firefox">Firefox</option>
-                      <option value="webkit">WebKit</option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => void installBrowser(browser)}
-                    disabled={selectedBrowserState?.installInProgress}
-                  >
-                    {selectedBrowserState?.installInProgress
-                      ? `Installing ${browser}...`
-                      : `Install ${browser}`}
-                  </button>
-                  <button type="button" onClick={() => void refreshBrowserStates()}>
-                    Refresh Browser Status
-                  </button>
-                  <button type="button" onClick={() => void installMissingBrowsers()}>
-                    Install Missing Browsers
-                  </button>
-                  <button type="button" onClick={() => setIsInstallStatusOpen((open) => !open)}>
-                    {isInstallStatusOpen ? 'Hide Install Status' : 'Show Install Status'}
-                  </button>
-                  <button type="button" onClick={() => void startRun()} disabled={!selectedTestId}>
-                    Start Run
-                  </button>
-                  <button type="button" onClick={() => void cancelRun()} disabled={!activeRunId}>
-                    Cancel Immediately
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void generateBugReport()}
-                    disabled={!selectedRun || selectedRun.status !== 'failed'}
-                  >
-                    Generate Bug Report
-                  </button>
-                </div>
-
-                {browserStates.length > 0 ? (
-                  <ul className="browser-status-list">
-                    {browserStates.map((state) => (
-                      <li key={state.browser}>
-                        <span>{state.browser}</span>
-                        <strong className={state.installed ? 'status-pass' : 'status-fail'}>
-                          {state.installInProgress
-                            ? 'installing'
-                            : state.installed
-                              ? 'installed'
-                              : 'missing'}
-                        </strong>
-                        {state.lastError ? <small>{state.lastError}</small> : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                {isInstallStatusOpen ? (
-                  <section className="install-status-window">
-                    <div className="install-status-header">
-                      <h3>Browser Install Status</h3>
-                      <strong>{overallInstallProgress}%</strong>
-                    </div>
-                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${overallInstallProgress}%` }} />
-                    </div>
-
-                    <ul className="install-status-list">
-                      {(['chromium', 'firefox', 'webkit'] as BrowserName[]).map((browserName) => {
-                        const browserState = browserStates.find((state) => state.browser === browserName);
-                        const progressState = browserInstallProgress[browserName];
-                        const isInProgress = browserState?.installInProgress ?? false;
-                        const progressValue =
-                          typeof progressState?.progress === 'number'
-                            ? progressState.progress
-                            : browserState?.installed
-                              ? 100
-                              : isInProgress
-                                ? 15
-                                : 0;
-
-                        const phaseLabel = progressState
-                          ? toInstallPhaseLabel(progressState.phase)
-                          : browserState?.installed
-                            ? 'Installed'
-                            : isInProgress
-                              ? 'Installing...'
-                              : 'Idle';
-                        const progressWidth =
-                          isInProgress && progressState?.progress === null
-                            ? 35
-                            : Math.max(0, Math.min(100, progressValue));
-
-                        return (
-                          <li key={browserName} className="install-status-item">
-                            <div className="install-status-row">
-                              <span>{browserName}</span>
-                              <strong>{phaseLabel}</strong>
-                            </div>
-                            <div className="progress-track">
-                              <div
-                                className={isInProgress && progressState?.progress === null ? 'progress-fill indeterminate' : 'progress-fill'}
-                                style={{ width: `${progressWidth}%` }}
-                              />
-                            </div>
-                            <small>
-                              {progressState?.message ??
-                                (browserState?.installed
-                                  ? 'Runtime already installed.'
-                                  : 'No install activity yet.')}
-                            </small>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                ) : null}
-
-                <ul className="list">
+                <ul className="grid gap-2">
                   {runs.map((run) => (
                     <li key={run.id}>
                       <button
                         type="button"
-                        className={run.id === selectedRunId ? 'select active' : 'select'}
+                        className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-left transition ${
+                          run.id === selectedRunId
+                            ? 'border-primary/55 bg-primary/12'
+                            : 'border-border/80 bg-background/50 hover:bg-secondary/70'
+                        }`}
                         onClick={() => setSelectedRunId(run.id)}
                       >
-                        <strong>{run.status.toUpperCase()}</strong>
-                        <span>
-                          {run.browser} | {new Date(run.startedAt).toLocaleString()} |{' '}
-                          {formatRunDuration(run)}
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${runStatusClassName(run.status)}`}
+                        >
+                          {run.status.toUpperCase()}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {run.browser} | {new Date(run.startedAt).toLocaleString()} | {formatRunDuration(run)}
                         </span>
                       </button>
                     </li>
@@ -1330,16 +1580,18 @@ export function App(): JSX.Element {
                 </ul>
 
                 {stepResults.length > 0 ? (
-                  <div className="timeline-cards">
-                    <div className="timeline-cards-header">
-                      <h3>Step Timeline</h3>
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-foreground">Step timeline</h3>
                       {selectedRun ? (
-                        <span className={`run-status-chip ${runStatusClassName(selectedRun.status)}`}>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${runStatusClassName(selectedRun.status)}`}
+                        >
                           Run {selectedRun.status.toUpperCase()}
                         </span>
                       ) : null}
                     </div>
-                    <ul className="step-card-list">
+                    <ul className="space-y-2">
                       {stepResults.map((result) => (
                         <li key={result.id}>
                           <StepResultCard result={result} />
@@ -1350,34 +1602,27 @@ export function App(): JSX.Element {
                 ) : null}
 
                 {bugReport ? (
-                  <div>
-                    <h3>Bug Report Draft</h3>
+                  <div className="mt-4 space-y-2 rounded-2xl border border-border/80 bg-background/55 p-3.5">
+                    <h3 className="text-sm font-bold tracking-wide text-foreground">Bug report draft</h3>
                     <textarea
+                      className={`${fieldClass} min-h-[240px] resize-y font-mono text-xs`}
                       rows={14}
                       value={bugReportDraft}
                       onChange={(event) => setBugReportDraft(event.target.value)}
                     />
-                    <button type="button" onClick={() => void copyBugReport()}>
-                      Copy to Clipboard
+                    <button type="button" className={mutedButtonClass} onClick={() => void copyBugReport()}>
+                      Copy to clipboard
                     </button>
                   </div>
                 ) : null}
               </section>
-            </>
-          ) : (
-            <section className="panel">
-              <div className="section-heading">
-                <h2>Get Started</h2>
-                <p>Create a project in the sidebar to begin test case setup and run results.</p>
-              </div>
             </section>
-          )}
-        </section>
+          </div>
+        ) : null}
       </div>
     </main>
   );
 }
-
 function StepResultCard({
   result,
 }: {
@@ -1423,36 +1668,46 @@ function StepResultCard({
   }, [result.screenshotPath]);
 
   return (
-    <article className="step-card">
-      <div className="step-card-header">
-        <h4>
+    <article className="rounded-2xl border border-border/80 bg-background/52 p-3.5 shadow-[0_20px_50px_-36px_hsl(198_93%_42%/0.75)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h4 className="text-sm font-bold text-foreground">
           Step {result.stepOrder}: {result.stepRawText}
         </h4>
-        <div className="step-card-statuses">
-          <span className={`status-pill ${statusClassName(result.status)}`}>{result.status.toUpperCase()}</span>
-        </div>
+        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClassName(result.status)}`}>
+          {result.status.toUpperCase()}
+        </span>
       </div>
 
-      <div className="step-card-content">
-        <section className="step-card-block">
-          <h5>Screenshot Preview</h5>
-          {isLoadingScreenshot ? <p className="field-hint">Loading screenshot...</p> : null}
-          {!isLoadingScreenshot && screenshotError ? <p className="field-error">{screenshotError}</p> : null}
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <section className="space-y-2">
+          <h5 className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+            Screenshot preview
+          </h5>
+          {isLoadingScreenshot ? <p className="text-xs text-muted-foreground">Loading screenshot...</p> : null}
+          {!isLoadingScreenshot && screenshotError ? <p className="text-xs text-danger">{screenshotError}</p> : null}
           {!isLoadingScreenshot && !screenshotError && screenshotDataUrl ? (
             <img
-              className="step-screenshot"
+              className="max-h-[320px] w-full rounded-lg border border-border bg-background object-contain"
               src={screenshotDataUrl}
               alt={`Step ${result.stepOrder} screenshot`}
             />
           ) : null}
           {!isLoadingScreenshot && !screenshotError && !screenshotDataUrl ? (
-            <p className="field-hint">No screenshot captured for this step.</p>
+            <p className="text-xs text-muted-foreground">No screenshot captured for this step.</p>
           ) : null}
         </section>
 
-        <section className="step-card-block">
-          <h5>Error Details</h5>
-          {result.errorText ? <pre className="error-panel">{result.errorText}</pre> : <p className="field-hint">No error recorded.</p>}
+        <section className="space-y-2">
+          <h5 className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+            Error details
+          </h5>
+          {result.errorText ? (
+            <pre className="max-h-[320px] overflow-auto rounded-lg border border-danger/45 bg-danger/8 p-2.5 font-mono text-xs text-danger">
+              {result.errorText}
+            </pre>
+          ) : (
+            <p className="text-xs text-muted-foreground">No error recorded.</p>
+          )}
         </section>
       </div>
     </article>
@@ -1503,58 +1758,40 @@ function formatRunDuration(run: Run): string {
   return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
-function statusClassName(status: StepResult['status'] | 'installed' | 'missing'): string {
+function statusClassName(status: StepResult['status'] | 'installed' | 'missing' | 'installing'): string {
   if (status === 'passed' || status === 'installed') {
-    return 'status-pass';
+    return 'border-success/60 bg-success/12 text-success';
+  }
+
+  if (status === 'installing') {
+    return 'border-primary/60 bg-primary/10 text-primary';
   }
 
   if (status === 'failed' || status === 'missing') {
-    return 'status-fail';
+    return 'border-danger/60 bg-danger/12 text-danger';
   }
 
   if (status === 'cancelled') {
-    return 'status-neutral';
+    return 'border-border bg-secondary/50 text-muted-foreground';
   }
 
-  return 'status-progress';
+  return 'border-primary/60 bg-primary/10 text-primary';
 }
 
 function runStatusClassName(status: Run['status']): string {
   if (status === 'passed') {
-    return 'status-pass';
+    return 'border-success/60 bg-success/12 text-success';
   }
 
   if (status === 'failed') {
-    return 'status-fail';
+    return 'border-danger/60 bg-danger/12 text-danger';
   }
 
   if (status === 'cancelled') {
-    return 'status-neutral';
+    return 'border-border bg-secondary/50 text-muted-foreground';
   }
 
-  return 'status-progress';
-}
-
-function toInstallPhaseLabel(phase: BrowserInstallPhase): string {
-  if (phase === 'starting') {
-    return 'Starting';
-  }
-  if (phase === 'downloading') {
-    return 'Downloading';
-  }
-  if (phase === 'installing') {
-    return 'Installing';
-  }
-  if (phase === 'verifying') {
-    return 'Verifying';
-  }
-  if (phase === 'completed') {
-    return 'Completed';
-  }
-  if (phase === 'failed') {
-    return 'Failed';
-  }
-  return 'Idle';
+  return 'border-primary/60 bg-primary/10 text-primary';
 }
 
 function toErrorMessage(error: unknown): string {
