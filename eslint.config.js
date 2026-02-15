@@ -22,7 +22,23 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['out/**', 'dist/**', 'node_modules/**'],
+    files: ['scripts/**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        require: 'readonly',
+        module: 'readonly',
+        __dirname: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    ignores: ['out/**', 'dist/**', 'node_modules/**', '.agents/**'],
   },
   prettier,
 );

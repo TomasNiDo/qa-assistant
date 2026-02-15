@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, process, console */
-
 const { app } = require('electron');
 const Database = require('better-sqlite3');
 const { existsSync, mkdirSync, readFileSync } = require('node:fs');

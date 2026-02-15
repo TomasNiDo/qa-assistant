@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 const { copyFileSync, existsSync, mkdirSync, readdirSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 

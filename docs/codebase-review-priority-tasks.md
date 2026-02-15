@@ -93,9 +93,9 @@ This file tracks high-priority work from the latest whole-repo review.
   - `src/main/services/runService.ts`
   - `src/main/services/database.ts`
 - TODO:
-  - [ ] Add real-SQLite integration tests for migration + CRUD constraints.
-  - [ ] Add run lifecycle tests (start, cancel, failure, continue-on-failure).
-  - [ ] Add IPC contract tests for validation and error shaping.
+  - [x] Add real-SQLite integration tests for migration + CRUD constraints.
+  - [x] Add run lifecycle tests (start, cancel, failure, continue-on-failure).
+  - [x] Add IPC contract tests for validation and error shaping.
 
 ## Suggested sequencing
 1. P1-1 Migrations

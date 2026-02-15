@@ -41,6 +41,14 @@ function createServicesMock() {
     startedAt: '2025-01-01T00:00:00.000Z',
     endedAt: null,
   }));
+  const runInstallBrowser = vi.fn(async (browser: 'chromium' | 'firefox' | 'webkit') => ({
+    browser,
+    installed: true,
+    installInProgress: false,
+    executablePath: null,
+    lastError: null,
+  }));
+  const aiGenerateSteps = vi.fn(async () => []);
 
   const services = {
     configService: {
@@ -119,16 +127,10 @@ function createServicesMock() {
       stepResults: vi.fn(() => []),
       getScreenshotDataUrl: vi.fn(() => 'data:image/png;base64,AAA'),
       browserStatuses: vi.fn(() => []),
-      installBrowser: vi.fn(async () => ({
-        browser: 'chromium',
-        installed: true,
-        installInProgress: false,
-        executablePath: null,
-        lastError: null,
-      })),
+      installBrowser: runInstallBrowser,
     },
     aiService: {
-      generateSteps: vi.fn(async () => []),
+      generateSteps: aiGenerateSteps,
       generateBugReport: vi.fn(async () => ({
         title: 'Bug title',
         environment: 'local | chromium | https://example.com',
@@ -144,6 +146,8 @@ function createServicesMock() {
     projectCreate,
     testCreate,
     runStart,
+    runInstallBrowser,
+    aiGenerateSteps,
   };
 
   return {
@@ -319,5 +323,78 @@ describe('registerHandlers IPC input validation', () => {
       testCaseId: 'test-1',
       browser: 'chromium',
     });
+  });
+
+  it('shapes sync service exceptions into ApiResult errors', async () => {
+    const { services, spies } = createServicesMock();
+    spies.projectCreate.mockImplementationOnce(() => {
+      throw new Error('project write failed');
+    });
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.projectCreate, {
+      name: 'Checkout',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'project write failed' },
+    });
+  });
+
+  it('shapes async service rejections into ApiResult errors', async () => {
+    const { services, spies } = createServicesMock();
+    spies.aiGenerateSteps.mockRejectedValueOnce(new Error('AI unavailable'));
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.aiGenerateSteps, {
+      title: 'Checkout flow',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'AI unavailable' },
+    });
+  });
+
+  it('validates async payloads before invoking services', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.aiGenerateSteps, {
+      title: 'Checkout flow',
+      baseUrl: 'example.com',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid ai.generateSteps payload: Base URL must be a valid URL including protocol (https://...).',
+        ),
+      },
+    });
+    expect(spies.aiGenerateSteps).not.toHaveBeenCalled();
+  });
+
+  it('accepts valid async payloads and forwards validated values', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.runInstallBrowser, 'firefox');
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        browser: 'firefox',
+        installed: true,
+        installInProgress: false,
+        executablePath: null,
+        lastError: null,
+      },
+    });
+    expect(spies.runInstallBrowser).toHaveBeenCalledWith('firefox');
   });
 });
