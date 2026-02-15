@@ -126,6 +126,7 @@ function createServicesMock() {
       history: vi.fn(() => []),
       stepResults: vi.fn(() => []),
       getScreenshotDataUrl: vi.fn(() => 'data:image/png;base64,AAA'),
+      getScreenshotThumbnailDataUrl: vi.fn(() => 'data:image/jpeg;base64,THUMB'),
       browserStatuses: vi.fn(() => []),
       installBrowser: runInstallBrowser,
     },
@@ -323,6 +324,44 @@ describe('registerHandlers IPC input validation', () => {
       testCaseId: 'test-1',
       browser: 'chromium',
     });
+  });
+
+  it('registers thumbnail screenshot handler and returns data for valid payloads', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const runService = services.runService as unknown as {
+      getScreenshotThumbnailDataUrl: ReturnType<typeof vi.fn>;
+    };
+
+    const result = await invoke(IPC_CHANNELS.runGetScreenshotThumbnailDataUrl, '  /tmp/shot.png  ');
+
+    expect(result).toEqual({
+      ok: true,
+      data: 'data:image/jpeg;base64,THUMB',
+    });
+    expect(runService.getScreenshotThumbnailDataUrl).toHaveBeenCalledWith('/tmp/shot.png');
+  });
+
+  it('validates thumbnail screenshot payloads before invoking service', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const runService = services.runService as unknown as {
+      getScreenshotThumbnailDataUrl: ReturnType<typeof vi.fn>;
+    };
+
+    const result = await invoke(IPC_CHANNELS.runGetScreenshotThumbnailDataUrl, '   ');
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid run.getScreenshotThumbnailDataUrl payload: Screenshot path is required.',
+        ),
+      },
+    });
+    expect(runService.getScreenshotThumbnailDataUrl).not.toHaveBeenCalled();
   });
 
   it('shapes sync service exceptions into ApiResult errors', async () => {

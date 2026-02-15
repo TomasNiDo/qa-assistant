@@ -11,6 +11,7 @@ import {
   projectUpdateInputSchema,
   runCancelIdSchema,
   runGetScreenshotPathSchema,
+  runGetScreenshotThumbnailPathSchema,
   runHistoryTestCaseIdSchema,
   runInstallBrowserSchema,
   runStartInputSchema,
@@ -144,6 +145,16 @@ export function registerHandlers(services: Services): void {
         'run.getScreenshotDataUrl payload',
       );
       return services.runService.getScreenshotDataUrl(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.runGetScreenshotThumbnailDataUrl, async (_event, screenshotPath) =>
+    wrap(() => {
+      const validated = parseIpcInput(
+        runGetScreenshotThumbnailPathSchema,
+        screenshotPath,
+        'run.getScreenshotThumbnailDataUrl payload',
+      );
+      return services.runService.getScreenshotThumbnailDataUrl(validated);
     }),
   );
   ipcMain.handle(IPC_CHANNELS.runBrowserStatus, async () =>

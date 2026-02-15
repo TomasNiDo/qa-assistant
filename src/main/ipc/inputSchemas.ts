@@ -89,6 +89,7 @@ export const runStatusIdSchema = idSchema;
 export const runHistoryTestCaseIdSchema = idSchema;
 export const stepResultsRunIdSchema = idSchema;
 export const runGetScreenshotPathSchema = nonEmptyTrimmedString('Screenshot path is required.');
+export const runGetScreenshotThumbnailPathSchema = runGetScreenshotPathSchema;
 export const runInstallBrowserSchema = browserSchema;
 
 export const aiGenerateStepsInputSchema = z

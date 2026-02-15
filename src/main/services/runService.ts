@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync } from 'node:fs';
-import { extname, join, normalize, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { extname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import type {
   ActiveRunContext,
@@ -39,6 +39,8 @@ interface RunContext {
   projectId: string;
   baseUrl: string;
 }
+
+const SCREENSHOT_THUMBNAIL_SUFFIX = '.thumb.jpg';
 
 export class RunService {
   private activeRun: ActiveRun | null = null;
@@ -286,21 +288,19 @@ export class RunService {
   }
 
   getScreenshotDataUrl(screenshotPath: string): string {
-    const normalizedInput = normalize(screenshotPath).trim();
-    if (!normalizedInput) {
-      throw new Error('Screenshot path is required.');
+    const absoluteScreenshotPath = this.resolveScreenshotPathInArtifacts(screenshotPath);
+    return this.toDataUrl(absoluteScreenshotPath);
+  }
+
+  getScreenshotThumbnailDataUrl(screenshotPath: string): string {
+    const absoluteScreenshotPath = this.resolveScreenshotPathInArtifacts(screenshotPath);
+    const thumbnailPath = this.toScreenshotThumbnailPath(absoluteScreenshotPath);
+
+    if (existsSync(thumbnailPath)) {
+      return this.toDataUrl(thumbnailPath);
     }
 
-    const absoluteArtifactsDir = resolve(this.artifactsDir);
-    const absoluteScreenshotPath = resolve(normalizedInput);
-    if (!absoluteScreenshotPath.startsWith(`${absoluteArtifactsDir}${process.platform === 'win32' ? '\\' : '/'}`) &&
-        absoluteScreenshotPath !== absoluteArtifactsDir) {
-      throw new Error('Screenshot path is outside artifacts directory.');
-    }
-
-    const bytes = readFileSync(absoluteScreenshotPath);
-    const mimeType = toImageMimeType(absoluteScreenshotPath);
-    return `data:${mimeType};base64,${bytes.toString('base64')}`;
+    return this.toDataUrl(absoluteScreenshotPath);
   }
 
   private async executeRun(
@@ -609,6 +609,7 @@ export class RunService {
 
     const screenshotPath = join(runDir, `${String(step.stepOrder).padStart(3, '0')}-${step.id}.png`);
     await page.screenshot({ path: screenshotPath, fullPage: true });
+    await this.captureStepThumbnailScreenshot(page, screenshotPath);
     return screenshotPath;
   }
 
@@ -621,6 +622,20 @@ export class RunService {
       return await this.captureStepScreenshot(page, runId, step);
     } catch {
       return null;
+    }
+  }
+
+  private async captureStepThumbnailScreenshot(page: Page, screenshotPath: string): Promise<void> {
+    try {
+      await page.screenshot({
+        path: this.toScreenshotThumbnailPath(screenshotPath),
+        fullPage: false,
+        type: 'jpeg',
+        quality: 60,
+        scale: 'css',
+      });
+    } catch {
+      // Preserve run progress even if thumbnail capture fails.
     }
   }
 
@@ -746,6 +761,43 @@ export class RunService {
 
   private emitUpdate(event: Omit<RunUpdateEvent, 'timestamp'>): void {
     this.emitRunUpdate({ ...event, timestamp: nowIso() });
+  }
+
+  private resolveScreenshotPathInArtifacts(screenshotPath: string): string {
+    const normalizedInput = normalize(screenshotPath).trim();
+    if (!normalizedInput) {
+      throw new Error('Screenshot path is required.');
+    }
+
+    const absoluteArtifactsDir = resolve(this.artifactsDir);
+    const absoluteScreenshotPath = resolve(normalizedInput);
+    const relativePath = relative(absoluteArtifactsDir, absoluteScreenshotPath);
+    const isOutsideArtifactsDir =
+      relativePath.length === 0 ||
+      relativePath.startsWith('..') ||
+      isAbsolute(relativePath);
+
+    if (isOutsideArtifactsDir) {
+      throw new Error('Screenshot path is outside artifacts directory.');
+    }
+
+    return absoluteScreenshotPath;
+  }
+
+  private toScreenshotThumbnailPath(screenshotPath: string): string {
+    if (screenshotPath.endsWith(SCREENSHOT_THUMBNAIL_SUFFIX)) {
+      return screenshotPath;
+    }
+
+    const extension = extname(screenshotPath);
+    const basePath = extension ? screenshotPath.slice(0, -extension.length) : screenshotPath;
+    return `${basePath}${SCREENSHOT_THUMBNAIL_SUFFIX}`;
+  }
+
+  private toDataUrl(filePath: string): string {
+    const bytes = readFileSync(filePath);
+    const mimeType = toImageMimeType(filePath);
+    return `data:${mimeType};base64,${bytes.toString('base64')}`;
   }
 }
 

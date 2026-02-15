@@ -27,6 +27,8 @@ const api: QaAssistantApi = {
   stepResults: (runId) => ipcRenderer.invoke(IPC_CHANNELS.stepResults, runId),
   runGetScreenshotDataUrl: (screenshotPath) =>
     ipcRenderer.invoke(IPC_CHANNELS.runGetScreenshotDataUrl, screenshotPath),
+  runGetScreenshotThumbnailDataUrl: (screenshotPath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.runGetScreenshotThumbnailDataUrl, screenshotPath),
   runBrowserStatus: () => ipcRenderer.invoke(IPC_CHANNELS.runBrowserStatus),
   runInstallBrowser: (browser) => ipcRenderer.invoke(IPC_CHANNELS.runInstallBrowser, browser),
   onRunUpdate: (listener) => {

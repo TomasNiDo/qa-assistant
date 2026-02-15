@@ -60,9 +60,9 @@ This file tracks high-priority work from the latest whole-repo review.
   - `src/main/services/runService.ts`
   - `src/renderer/src/App.tsx`
 - TODO:
-  - [ ] Add thumbnail generation and show thumbnails in list view.
-  - [ ] Lazy-load screenshot content only when row/panel is opened.
-  - [ ] Avoid eager base64 loading for all step cards.
+  - [x] Add thumbnail generation and show thumbnails in list view.
+  - [x] Lazy-load screenshot content only when row/panel is opened.
+  - [x] Avoid eager base64 loading for all step cards.
 
 ### 6) Decompose renderer App component
 - Priority: `P2`

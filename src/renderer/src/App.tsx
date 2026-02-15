@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import type {
@@ -16,6 +16,7 @@ import type {
   StepResult,
   TestCase,
 } from '@shared/types';
+import { loadFullScreenshot, loadThumbnailWithFallback } from './screenshotLoader';
 
 interface ProjectFormState {
   id: string;
@@ -53,6 +54,9 @@ const DEFAULT_TEST_FORM: TestFormState = {
 };
 
 const THEME_STORAGE_KEY = 'qa-assistant-theme';
+const SCREENSHOT_VIEWER_MIN_ZOOM = 0.5;
+const SCREENSHOT_VIEWER_MAX_ZOOM = 3;
+const SCREENSHOT_VIEWER_ZOOM_STEP = 0.2;
 
 export function App(): JSX.Element {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1741,57 +1745,153 @@ function StepResultCard({
 }: {
   result: StepResult;
 }): JSX.Element {
-  const [screenshotDataUrl, setScreenshotDataUrl] = useState('');
-  const [isLoadingScreenshot, setIsLoadingScreenshot] = useState(false);
-  const [screenshotError, setScreenshotError] = useState('');
+  const [thumbnailDataUrl, setThumbnailDataUrl] = useState('');
+  const [isLoadingThumbnail, setIsLoadingThumbnail] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState('');
+  const [fullScreenshotDataUrl, setFullScreenshotDataUrl] = useState('');
+  const [isLoadingFullScreenshot, setIsLoadingFullScreenshot] = useState(false);
+  const [fullScreenshotError, setFullScreenshotError] = useState('');
   const [isScreenshotViewerOpen, setIsScreenshotViewerOpen] = useState(false);
   const [isCopyingImage, setIsCopyingImage] = useState(false);
   const [copyImageStatus, setCopyImageStatus] = useState('');
+  const [viewerZoom, setViewerZoom] = useState(1);
+
+  const canZoom =
+    Boolean(fullScreenshotDataUrl) &&
+    !isLoadingFullScreenshot &&
+    !fullScreenshotError;
+  const zoomPercent = Math.round(viewerZoom * 100);
 
   useEffect(() => {
     if (!result.screenshotPath) {
-      setScreenshotDataUrl('');
-      setIsLoadingScreenshot(false);
-      setScreenshotError('');
+      setThumbnailDataUrl('');
+      setIsLoadingThumbnail(false);
+      setThumbnailError('');
+      setFullScreenshotDataUrl('');
+      setIsLoadingFullScreenshot(false);
+      setFullScreenshotError('');
       setIsScreenshotViewerOpen(false);
+      setViewerZoom(1);
       return;
     }
 
+    const screenshotPath = result.screenshotPath;
     let cancelled = false;
-    setIsLoadingScreenshot(true);
-    setScreenshotError('');
+    setIsLoadingThumbnail(true);
+    setThumbnailError('');
+    setFullScreenshotDataUrl('');
+    setIsLoadingFullScreenshot(false);
+    setFullScreenshotError('');
 
     void (async () => {
-      const response = await window.qaApi.runGetScreenshotDataUrl(result.screenshotPath!);
-      if (cancelled) {
-        return;
-      }
+      try {
+        const loaded = await loadThumbnailWithFallback(window.qaApi, screenshotPath, result.stepId);
+        if (cancelled) {
+          return;
+        }
 
-      if (!response.ok) {
-        setScreenshotDataUrl('');
-        setScreenshotError(response.error.message);
-        setIsLoadingScreenshot(false);
-        return;
-      }
+        if (!loaded.ok) {
+          setThumbnailDataUrl('');
+          setThumbnailError(loaded.message);
+          return;
+        }
 
-      setScreenshotDataUrl(response.data);
-      setScreenshotError('');
-      setIsLoadingScreenshot(false);
+        setThumbnailDataUrl(loaded.dataUrl);
+        setThumbnailError('');
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setThumbnailDataUrl('');
+        setThumbnailError(toErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingThumbnail(false);
+        }
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [result.screenshotPath]);
+  }, [result.screenshotPath, result.stepId]);
+
+  useEffect(() => {
+    if (!isScreenshotViewerOpen || !result.screenshotPath || fullScreenshotDataUrl) {
+      return;
+    }
+
+    const screenshotPath = result.screenshotPath;
+    let cancelled = false;
+    setIsLoadingFullScreenshot(true);
+    setFullScreenshotError('');
+
+    void (async () => {
+      try {
+        const loaded = await loadFullScreenshot(window.qaApi, screenshotPath);
+        if (cancelled) {
+          return;
+        }
+
+        if (!loaded.ok) {
+          setFullScreenshotDataUrl('');
+          setFullScreenshotError(loaded.message);
+          return;
+        }
+
+        setFullScreenshotDataUrl(loaded.dataUrl);
+        setFullScreenshotError('');
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setFullScreenshotDataUrl('');
+        setFullScreenshotError(toErrorMessage(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingFullScreenshot(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fullScreenshotDataUrl, isScreenshotViewerOpen, result.screenshotPath]);
 
   useEffect(() => {
     if (!isScreenshotViewerOpen) {
+      setFullScreenshotDataUrl('');
+      setIsLoadingFullScreenshot(false);
+      setFullScreenshotError('');
+      setCopyImageStatus('');
+      setViewerZoom(1);
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setIsScreenshotViewerOpen(false);
+        return;
+      }
+
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setViewerZoom((current) => clampViewerZoom(current + SCREENSHOT_VIEWER_ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        setViewerZoom((current) => clampViewerZoom(current - SCREENSHOT_VIEWER_ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === '0') {
+        event.preventDefault();
+        setViewerZoom(1);
       }
     };
 
@@ -1801,8 +1901,36 @@ function StepResultCard({
     };
   }, [isScreenshotViewerOpen]);
 
+  function zoomIn(): void {
+    setViewerZoom((current) => clampViewerZoom(current + SCREENSHOT_VIEWER_ZOOM_STEP));
+  }
+
+  function zoomOut(): void {
+    setViewerZoom((current) => clampViewerZoom(current - SCREENSHOT_VIEWER_ZOOM_STEP));
+  }
+
+  function resetZoom(): void {
+    setViewerZoom(1);
+  }
+
+  function handleViewerWheel(event: WheelEvent<HTMLDivElement>): void {
+    if (!canZoom) {
+      return;
+    }
+
+    const shouldZoom = event.ctrlKey || event.metaKey;
+    if (!shouldZoom) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const delta = event.deltaY < 0 ? SCREENSHOT_VIEWER_ZOOM_STEP : -SCREENSHOT_VIEWER_ZOOM_STEP;
+    setViewerZoom((current) => clampViewerZoom(current + delta));
+  }
+
   async function copyScreenshotImage(): Promise<void> {
-    if (!screenshotDataUrl || isCopyingImage) {
+    if (!fullScreenshotDataUrl || isCopyingImage) {
       return;
     }
 
@@ -1817,7 +1945,7 @@ function StepResultCard({
         throw new Error('Image copy is not supported in this environment.');
       }
 
-      const response = await fetch(screenshotDataUrl);
+      const response = await fetch(fullScreenshotDataUrl);
       const blob = await response.blob();
       const mimeType = blob.type || 'image/png';
       const clipboardItem = new ClipboardItemCtor({ [mimeType]: blob });
@@ -1847,25 +1975,26 @@ function StepResultCard({
           <h5 className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
             Screenshot preview
           </h5>
-          {isLoadingScreenshot ? <p className="text-xs text-muted-foreground">Loading screenshot...</p> : null}
-          {!isLoadingScreenshot && screenshotError ? <p className="text-xs text-danger">{screenshotError}</p> : null}
-          {!isLoadingScreenshot && !screenshotError && screenshotDataUrl ? (
+          {isLoadingThumbnail ? <p className="text-xs text-muted-foreground">Loading thumbnail...</p> : null}
+          {!isLoadingThumbnail && thumbnailError ? <p className="text-xs text-danger">{thumbnailError}</p> : null}
+          {!isLoadingThumbnail && !thumbnailError && thumbnailDataUrl ? (
             <button
               type="button"
               className="group relative block w-full overflow-hidden rounded-lg border border-border bg-background"
               onClick={() => setIsScreenshotViewerOpen(true)}
             >
               <img
-                className="max-h-[320px] w-full object-contain transition duration-200 group-hover:scale-[1.01]"
-                src={screenshotDataUrl}
-                alt={`Step ${result.stepOrder} screenshot`}
+                className="max-h-[220px] w-full object-contain transition duration-200 group-hover:scale-[1.01]"
+                src={thumbnailDataUrl}
+                alt={`Step ${result.stepOrder} screenshot thumbnail`}
+                loading="lazy"
               />
               <span className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-border/90 bg-card/90 px-2 py-1 text-[11px] font-semibold text-foreground">
-                Click to expand
+                Open full size
               </span>
             </button>
           ) : null}
-          {!isLoadingScreenshot && !screenshotError && !screenshotDataUrl ? (
+          {!isLoadingThumbnail && !thumbnailError && !thumbnailDataUrl ? (
             <p className="text-xs text-muted-foreground">No screenshot captured for this step.</p>
           ) : null}
         </section>
@@ -1884,7 +2013,7 @@ function StepResultCard({
         </section>
       </div>
     </article>
-    {isScreenshotViewerOpen && screenshotDataUrl && typeof document !== 'undefined'
+    {isScreenshotViewerOpen && typeof document !== 'undefined'
       ? createPortal(
           <div
             role="dialog"
@@ -1900,11 +2029,46 @@ function StepResultCard({
                     {copyImageStatus}
                   </span>
                 ) : null}
+                <div className="inline-flex h-9 items-center gap-1 rounded-full border border-border/80 bg-card/92 px-1.5">
+                  <button
+                    type="button"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/80 bg-card text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={zoomOut}
+                    disabled={!canZoom || viewerZoom <= SCREENSHOT_VIEWER_MIN_ZOOM}
+                    aria-label="Zoom out"
+                  >
+                    -
+                  </button>
+                  <span
+                    className="min-w-[54px] text-center text-[11px] font-semibold text-foreground"
+                    title="Use Ctrl/Cmd + wheel to zoom"
+                  >
+                    {zoomPercent}%
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/80 bg-card text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={zoomIn}
+                    disabled={!canZoom || viewerZoom >= SCREENSHOT_VIEWER_MAX_ZOOM}
+                    aria-label="Zoom in"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 items-center justify-center rounded-full border border-border/80 bg-card px-2 text-[11px] font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={resetZoom}
+                    disabled={!canZoom || viewerZoom === 1}
+                    aria-label="Reset zoom"
+                  >
+                    Reset
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="inline-flex h-9 items-center justify-center rounded-full border border-border/80 bg-card/92 px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={() => void copyScreenshotImage()}
-                  disabled={isCopyingImage}
+                  disabled={isCopyingImage || isLoadingFullScreenshot || !fullScreenshotDataUrl}
                 >
                   {isCopyingImage ? 'Copying...' : 'Copy image'}
                 </button>
@@ -1919,17 +2083,53 @@ function StepResultCard({
                   </svg>
                 </button>
               </div>
-              <img
-                src={screenshotDataUrl}
-                alt={`Step ${result.stepOrder} screenshot full size`}
-                className="max-h-[95vh] max-w-[95vw] rounded-xl border border-border/80 bg-background object-contain shadow-2xl"
-              />
+              <div className="flex min-h-[280px] min-w-[320px] items-center justify-center">
+                {isLoadingFullScreenshot ? (
+                  <p className="rounded-md border border-border/80 bg-card/92 px-3 py-2 text-xs font-medium text-foreground">
+                    Loading full screenshot...
+                  </p>
+                ) : null}
+                {!isLoadingFullScreenshot && fullScreenshotError ? (
+                  <div className="space-y-2">
+                    <p className="rounded-md border border-danger/45 bg-danger/12 px-3 py-2 text-xs font-medium text-danger">
+                      {fullScreenshotError}
+                    </p>
+                    {thumbnailDataUrl ? (
+                      <img
+                        src={thumbnailDataUrl}
+                        alt={`Step ${result.stepOrder} screenshot thumbnail fallback`}
+                        className="max-h-[95vh] max-w-[95vw] rounded-xl border border-border/80 bg-background object-contain shadow-2xl"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+                {!isLoadingFullScreenshot && !fullScreenshotError && fullScreenshotDataUrl ? (
+                  <div
+                    className="max-h-[95vh] max-w-[95vw] overflow-auto rounded-xl border border-border/80 bg-background shadow-2xl"
+                    onWheel={handleViewerWheel}
+                  >
+                    <img
+                      src={fullScreenshotDataUrl}
+                      alt={`Step ${result.stepOrder} screenshot full size`}
+                      className="mx-auto block h-auto max-w-none rounded-xl object-contain select-none"
+                      style={{ width: `${zoomPercent}%` }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>,
           document.body,
         )
       : null}
     </>
+  );
+}
+
+function clampViewerZoom(value: number): number {
+  return Math.min(
+    SCREENSHOT_VIEWER_MAX_ZOOM,
+    Math.max(SCREENSHOT_VIEWER_MIN_ZOOM, Number(value.toFixed(2))),
   );
 }
 
