@@ -20,6 +20,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       outDir: 'out/preload',
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+        },
+      },
     },
     resolve: {
       alias: {
@@ -38,6 +43,12 @@ export default defineConfig({
         '@shared': resolve('src/shared'),
       },
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react({
+        jsxRuntime: 'automatic',
+        jsxImportSource: 'react',
+      }),
+      tailwindcss(),
+    ],
   },
 });

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import pkg from 'electron-updater';
+const { autoUpdater } = pkg;
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,10 +19,34 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
   delete process.env.ELECTRON_RUN_AS_NODE;
 }
 
+// Suppress harmless DevTools Autofill warnings that appear in stderr.
+// These errors originate from Chrome DevTools trying to enable features not available in Electron.
+// They don't affect app functionality and cannot be suppressed via command-line switches.
+// See: https://github.com/electron/electron/issues/41614
+if (!app.isPackaged) {
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  process.stderr.write = ((chunk: string | Uint8Array, ...args: any[]): boolean => {
+    const message = typeof chunk === 'string' ? chunk : chunk.toString();
+    if (
+      message.includes("'Autofill.enable' wasn't found") ||
+      message.includes("'Autofill.setAddresses' wasn't found")
+    ) {
+      // Suppress these harmless DevTools warnings
+      return true;
+    }
+    return originalStderrWrite(chunk, ...args);
+  }) as typeof process.stderr.write;
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function resolvePreloadPath(): string {
-  const candidates = [join(__dirname, '../preload/index.mjs'), join(__dirname, '../preload/index.js')];
+  const candidates = [
+    join(__dirname, '../preload/index.js'),
+    join(__dirname, '../preload/index.cjs'),
+    join(__dirname, '../preload/index.mjs'),
+  ];
   const match = candidates.find((candidate) => existsSync(candidate));
   if (!match) {
     throw new Error(`Preload script not found. Checked: ${candidates.join(', ')}`);
@@ -61,10 +86,8 @@ function setupAutoUpdater(): void {
   });
 }
 
-async function createWindow(): Promise<void> {
+async function createWindow(rendererDevUrl: URL | null): Promise<void> {
   const preloadPath = resolvePreloadPath();
-  const rawRendererUrl = process.env.ELECTRON_RENDERER_URL?.trim();
-  const rendererDevUrl = rawRendererUrl ? validateRendererDevUrl(rawRendererUrl) : null;
   const allowedDevOrigin = rendererDevUrl?.origin;
 
   const win = new BrowserWindow({
@@ -103,6 +126,8 @@ async function createWindow(): Promise<void> {
 app.whenReady().then(async () => {
   const paths = getAppPaths();
   const db = openDatabase(paths.dbFile);
+  const rawRendererUrl = process.env.ELECTRON_RENDERER_URL?.trim();
+  const rendererDevUrl = rawRendererUrl ? validateRendererDevUrl(rawRendererUrl) : null;
 
   if (process.env.QA_ASSISTANT_SMOKE_STARTUP === '1') {
     const rows = db
@@ -122,7 +147,7 @@ app.whenReady().then(async () => {
     return;
   }
 
-  const csp = buildRendererCsp();
+  const csp = buildRendererCsp({ allowUnsafeInlineScripts: Boolean(rendererDevUrl) });
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -146,11 +171,11 @@ app.whenReady().then(async () => {
       win.webContents.send(IPC_CHANNELS.runBrowserInstallUpdate, event);
     }
   });
-  await createWindow();
+  await createWindow(rendererDevUrl);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
+      void createWindow(rendererDevUrl);
     }
   });
 });

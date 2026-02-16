@@ -1,4 +1,7 @@
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+type BuildRendererCspOptions = {
+  allowUnsafeInlineScripts?: boolean;
+};
 
 export function validateRendererDevUrl(rawUrl: string): URL {
   let parsed: URL;
@@ -35,10 +38,14 @@ export function isAllowedNavigationUrl(targetUrl: string, allowedDevOrigin?: str
   return parsed.protocol === 'file:';
 }
 
-export function buildRendererCsp(): string {
+export function buildRendererCsp(options: BuildRendererCspOptions = {}): string {
+  const scriptSrc = options.allowUnsafeInlineScripts
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self'";
+
   return [
     "default-src 'self'",
-    "script-src 'self'",
+    scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",

@@ -29,7 +29,13 @@ describe('security helpers', () => {
     const csp = buildRendererCsp();
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  it('allows inline scripts only when explicitly enabled for local dev', () => {
+    const csp = buildRendererCsp({ allowUnsafeInlineScripts: true });
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
   });
 });
