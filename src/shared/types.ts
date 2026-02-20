@@ -4,7 +4,26 @@ export type ParsedAction =
   | { type: 'enter'; target: string; value: string }
   | { type: 'click'; target: string; delaySeconds?: number }
   | { type: 'navigate'; target: string }
-  | { type: 'expect'; assertion: string; timeoutSeconds?: number };
+  | { type: 'expect'; assertion: string; timeoutSeconds?: number }
+  | { type: 'select'; target: string; value: string }
+  | { type: 'setChecked'; target: string; checked: boolean }
+  | { type: 'hover'; target: string }
+  | { type: 'press'; key: string; target?: string }
+  | { type: 'upload'; target: string; filePaths: string[] }
+  | { type: 'dialog'; action: 'accept' | 'dismiss'; promptText?: string }
+  | {
+      type: 'waitForRequest';
+      urlPattern: string;
+      method?: string;
+      status?: number;
+      triggerClickTarget?: string;
+      timeoutSeconds?: number;
+    }
+  | {
+      type: 'download';
+      triggerClickTarget: string;
+      timeoutSeconds?: number;
+    };
 
 export type StepParseResult =
   | { ok: true; action: ParsedAction; source: 'strict' | 'fallback' }

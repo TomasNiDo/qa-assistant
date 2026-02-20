@@ -21,6 +21,9 @@ interface Deferred<T> {
 interface BrowserRuntimeOptions {
   expectOutcomes?: ExpectOutcome[];
   ensureInstalledGate?: Deferred<void>;
+  requestResponses?: Array<{ url: string; method: string; status: number }>;
+  dialogActions?: Array<'accept' | 'dismiss'>;
+  downloadFailures?: Array<string | null>;
 }
 
 function createDeferred<T>(): Deferred<T> {
@@ -64,21 +67,50 @@ class FakeLocator {
       throw new Error('Timeout while waiting for expected text');
     }
   }
+
+  async selectOption(): Promise<void> {
+    this.page.assertOpen();
+  }
+
+  async check(): Promise<void> {
+    this.page.assertOpen();
+  }
+
+  async uncheck(): Promise<void> {
+    this.page.assertOpen();
+  }
+
+  async hover(): Promise<void> {
+    this.page.assertOpen();
+  }
+
+  async setInputFiles(): Promise<void> {
+    this.page.assertOpen();
+  }
 }
 
 class FakePage {
   private closed = false;
   private readonly expectOutcomes: ExpectOutcome[];
+  private readonly requestResponses: Array<{ url: string; method: string; status: number }>;
+  private readonly dialogActions: Array<'accept' | 'dismiss'>;
+  private readonly downloadFailures: Array<string | null>;
   private currentUrl = 'about:blank';
 
   public readonly keyboard = {
     type: async (): Promise<void> => {
       this.assertOpen();
     },
+    press: async (): Promise<void> => {
+      this.assertOpen();
+    },
   };
 
-  constructor(expectOutcomes: ExpectOutcome[]) {
-    this.expectOutcomes = [...expectOutcomes];
+  constructor(options: BrowserRuntimeOptions) {
+    this.expectOutcomes = [...(options.expectOutcomes ?? [])];
+    this.requestResponses = [...(options.requestResponses ?? [])];
+    this.dialogActions = [...(options.dialogActions ?? [])];
+    this.downloadFailures = [...(options.downloadFailures ?? [])];
   }
 
   url(): string {
@@ -104,6 +136,67 @@ class FakePage {
 
   getByText(): FakeLocator {
     return new FakeLocator(this, true);
+  }
+
+  locator(): FakeLocator {
+    return new FakeLocator(this, false);
+  }
+
+  async waitForEvent(event: 'dialog' | 'download'): Promise<{
+    accept?: (promptText?: string) => Promise<void>;
+    dismiss?: () => Promise<void>;
+    failure?: () => Promise<string | null>;
+  }> {
+    this.assertOpen();
+
+    if (event === 'dialog') {
+      const dialogAction = this.dialogActions.shift() ?? 'accept';
+      return {
+        accept: async (): Promise<void> => {
+          this.assertOpen();
+          if (dialogAction !== 'accept') {
+            throw new Error('Dialog expected dismiss, got accept');
+          }
+        },
+        dismiss: async (): Promise<void> => {
+          this.assertOpen();
+          if (dialogAction !== 'dismiss') {
+            throw new Error('Dialog expected accept, got dismiss');
+          }
+        },
+      };
+    }
+
+    const failure = this.downloadFailures.shift() ?? null;
+    return {
+      failure: async (): Promise<string | null> => failure,
+    };
+  }
+
+  async waitForResponse(
+    predicate: (response: {
+      url: () => string;
+      status: () => number;
+      request: () => { method: () => string };
+    }) => boolean,
+  ): Promise<void> {
+    this.assertOpen();
+
+    for (const response of this.requestResponses) {
+      const candidate = {
+        url: (): string => response.url,
+        status: (): number => response.status,
+        request: (): { method: () => string } => ({
+          method: (): string => response.method,
+        }),
+      };
+
+      if (predicate(candidate)) {
+        return;
+      }
+    }
+
+    throw new Error('Timed out waiting for network request');
   }
 
   async screenshot(options: { path: string }): Promise<void> {
@@ -159,7 +252,7 @@ function createBrowserServiceStub(options: BrowserRuntimeOptions): BrowserServic
     executablePath: '/tmp/chromium',
     lastError: null,
   };
-  const page = new FakePage(options.expectOutcomes ?? []);
+  const page = new FakePage(options);
 
   return {
     setInstallUpdateEmitter: () => undefined,
@@ -336,5 +429,46 @@ describe('RunService integration', () => {
     expect(terminal.status).toBe('failed');
     expect(results.map((result) => result.status)).toEqual(['failed', 'passed']);
     expect(results[1].errorText).toBeNull();
+  });
+
+  it('executes expanded action types successfully', async () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const { testCaseId } = seedTestCase(db, [
+      'Select "Business" from "Plan type" dropdown',
+      'Check "Remember me" checkbox',
+      'Hover over "Profile"',
+      'Press "Enter" in "Search" field',
+      'Upload file "fixtures/avatar.png" to "Avatar" input',
+      'Accept browser dialog',
+      'Wait for request "GET **/api/profile" and expect status "200"',
+      'Wait for download after clicking "Export CSV"',
+    ]);
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({
+        requestResponses: [
+          {
+            url: 'https://example.com/api/profile',
+            method: 'GET',
+            status: 200,
+          },
+        ],
+        dialogActions: ['accept'],
+        downloadFailures: [null],
+      }),
+      () => config(),
+    );
+
+    const run = service.start({ testCaseId, browser: 'chromium' });
+    const terminal = await waitForTerminalRun(service, run.id);
+    const results = service.stepResults(run.id);
+
+    expect(terminal.status).toBe('passed');
+    expect(results).toHaveLength(8);
+    expect(results.every((result) => result.status === 'passed')).toBe(true);
   });
 });

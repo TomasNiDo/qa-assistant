@@ -1,5 +1,7 @@
 import type { BrowserInstallPhase, BrowserInstallState, BrowserName } from '@shared/types';
 import type { BrowserInstallProgressState } from '../types';
+// Import React to help Vite's React plugin detect this as a React component file
+import 'react';
 import { panelClass, primaryButtonClass } from '../uiClasses';
 import { statusClassName } from '../utils';
 

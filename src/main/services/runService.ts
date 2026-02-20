@@ -528,10 +528,56 @@ export class RunService {
       return;
     }
 
-    const expectTimeoutMs = action.timeoutSeconds
+    if (action.type === 'expect') {
+      const expectTimeoutMs = action.timeoutSeconds
+        ? Math.max(1000, Math.min(600_000, Math.round(action.timeoutSeconds * 1000)))
+        : timeoutMs;
+      await this.performExpect(page, action.assertion, expectTimeoutMs);
+      return;
+    }
+
+    if (action.type === 'select') {
+      await this.performSelect(page, action.target, action.value, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'setChecked') {
+      await this.performSetChecked(page, action.target, action.checked, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'hover') {
+      await this.performHover(page, action.target, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'press') {
+      await this.performPress(page, action.key, action.target, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'upload') {
+      await this.performUpload(page, action.target, action.filePaths, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'dialog') {
+      await this.performDialog(page, action.action, action.promptText, timeoutMs);
+      return;
+    }
+
+    if (action.type === 'waitForRequest') {
+      const requestTimeoutMs = action.timeoutSeconds
+        ? Math.max(1000, Math.min(600_000, Math.round(action.timeoutSeconds * 1000)))
+        : timeoutMs;
+      await this.performWaitForRequest(page, action, requestTimeoutMs);
+      return;
+    }
+
+    const downloadTimeoutMs = action.timeoutSeconds
       ? Math.max(1000, Math.min(600_000, Math.round(action.timeoutSeconds * 1000)))
       : timeoutMs;
-    await this.performExpect(page, action.assertion, expectTimeoutMs);
+    await this.performDownload(page, action.triggerClickTarget, downloadTimeoutMs);
   }
 
   private async performEnter(
@@ -568,8 +614,12 @@ export class RunService {
   private async performClick(page: Page, target: string, timeoutMs: number): Promise<void> {
     const textMatcher = new RegExp(escapeRegExp(target), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+    const selectorAttempts = buildElementSelectorCandidates(target).map(
+      (selector) => () => page.locator(selector).first().click({ timeout: attemptTimeout }),
+    );
 
     const attempts: Array<() => Promise<void>> = [
+      ...selectorAttempts,
       () => page.getByRole('button', { name: textMatcher }).first().click({ timeout: attemptTimeout }),
       () => page.getByRole('link', { name: textMatcher }).first().click({ timeout: attemptTimeout }),
       () => page.getByRole('menuitem', { name: textMatcher }).first().click({ timeout: attemptTimeout }),
@@ -586,6 +636,233 @@ export class RunService {
     }
 
     throw new Error(`Unable to locate clickable target "${target}".`);
+  }
+
+  private async performSelect(
+    page: Page,
+    target: string,
+    value: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    const targetMatcher = new RegExp(escapeRegExp(target), 'i');
+    const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+
+    const attempts: Array<() => Promise<unknown>> = [
+      () =>
+        page
+          .getByLabel(targetMatcher)
+          .first()
+          .selectOption({ label: value }, { timeout: attemptTimeout }),
+      () =>
+        page
+          .getByRole('combobox', { name: targetMatcher })
+          .first()
+          .selectOption({ label: value }, { timeout: attemptTimeout }),
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        await attempt();
+        return;
+      } catch {
+        // Continue through selector fallbacks.
+      }
+    }
+
+    throw new Error(`Unable to select "${value}" from "${target}" dropdown.`);
+  }
+
+  private async performSetChecked(
+    page: Page,
+    target: string,
+    checked: boolean,
+    timeoutMs: number,
+  ): Promise<void> {
+    const targetMatcher = new RegExp(escapeRegExp(target), 'i');
+    const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+
+    const attempts: Array<() => Promise<void>> = [
+      async () => {
+        const locator = page.getByLabel(targetMatcher).first();
+        if (checked) {
+          await locator.check({ timeout: attemptTimeout });
+        } else {
+          await locator.uncheck({ timeout: attemptTimeout });
+        }
+      },
+      async () => {
+        const locator = page.getByRole('checkbox', { name: targetMatcher }).first();
+        if (checked) {
+          await locator.check({ timeout: attemptTimeout });
+        } else {
+          await locator.uncheck({ timeout: attemptTimeout });
+        }
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        await attempt();
+        return;
+      } catch {
+        // Continue through selector fallbacks.
+      }
+    }
+
+    throw new Error(`Unable to locate checkbox "${target}".`);
+  }
+
+  private async performHover(page: Page, target: string, timeoutMs: number): Promise<void> {
+    const textMatcher = new RegExp(escapeRegExp(target), 'i');
+    const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+
+    const attempts: Array<() => Promise<void>> = [
+      () => page.getByRole('button', { name: textMatcher }).first().hover({ timeout: attemptTimeout }),
+      () => page.getByRole('link', { name: textMatcher }).first().hover({ timeout: attemptTimeout }),
+      () => page.getByText(textMatcher).first().hover({ timeout: attemptTimeout }),
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        await attempt();
+        return;
+      } catch {
+        // Continue through selector fallbacks.
+      }
+    }
+
+    throw new Error(`Unable to locate hover target "${target}".`);
+  }
+
+  private async performPress(
+    page: Page,
+    key: string,
+    target: string | undefined,
+    timeoutMs: number,
+  ): Promise<void> {
+    if (target) {
+      const targetMatcher = new RegExp(escapeRegExp(target), 'i');
+      const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+      const focusAttempts: Array<() => Promise<void>> = [
+        () => page.getByLabel(targetMatcher).first().click({ timeout: attemptTimeout }),
+        () => page.getByRole('textbox', { name: targetMatcher }).first().click({ timeout: attemptTimeout }),
+        () => page.getByPlaceholder(targetMatcher).first().click({ timeout: attemptTimeout }),
+        () => page.getByText(targetMatcher).first().click({ timeout: attemptTimeout }),
+      ];
+
+      let focused = false;
+      for (const attempt of focusAttempts) {
+        try {
+          await attempt();
+          focused = true;
+          break;
+        } catch {
+          // Continue through selector fallbacks.
+        }
+      }
+
+      if (!focused) {
+        throw new Error(`Unable to focus target "${target}" before pressing "${key}".`);
+      }
+    }
+
+    await page.keyboard.press(key);
+  }
+
+  private async performUpload(
+    page: Page,
+    target: string,
+    filePaths: string[],
+    timeoutMs: number,
+  ): Promise<void> {
+    const targetMatcher = new RegExp(escapeRegExp(target), 'i');
+    const resolvedPaths = filePaths.map((filePath) => resolve(filePath));
+    const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
+
+    const attempts: Array<() => Promise<void>> = [
+      () => page.getByLabel(targetMatcher).first().setInputFiles(resolvedPaths, { timeout: attemptTimeout }),
+      () =>
+        page
+          .getByRole('button', { name: targetMatcher })
+          .first()
+          .setInputFiles(resolvedPaths, { timeout: attemptTimeout }),
+      () =>
+        page
+          .locator('input[type="file"]')
+          .first()
+          .setInputFiles(resolvedPaths, { timeout: attemptTimeout }),
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        await attempt();
+        return;
+      } catch {
+        // Continue through selector fallbacks.
+      }
+    }
+
+    throw new Error(`Unable to locate file input "${target}".`);
+  }
+
+  private async performDialog(
+    page: Page,
+    action: 'accept' | 'dismiss',
+    promptText: string | undefined,
+    timeoutMs: number,
+  ): Promise<void> {
+    const dialog = await page.waitForEvent('dialog', { timeout: timeoutMs });
+    if (action === 'accept') {
+      await dialog.accept(promptText);
+      return;
+    }
+
+    await dialog.dismiss();
+  }
+
+  private async performWaitForRequest(
+    page: Page,
+    action: Extract<ParsedAction, { type: 'waitForRequest' }>,
+    timeoutMs: number,
+  ): Promise<void> {
+    const predicate = (response: {
+      url: () => string;
+      status: () => number;
+      request: () => { method: () => string };
+    }): boolean => {
+      const urlMatches = matchesUrlPattern(response.url(), action.urlPattern);
+      const methodMatches = action.method
+        ? response.request().method().toUpperCase() === action.method.toUpperCase()
+        : true;
+      const statusMatches = action.status ? response.status() === action.status : true;
+      return urlMatches && methodMatches && statusMatches;
+    };
+
+    if (action.triggerClickTarget) {
+      await Promise.all([
+        page.waitForResponse(predicate, { timeout: timeoutMs }),
+        this.performClick(page, action.triggerClickTarget, timeoutMs),
+      ]);
+      return;
+    }
+
+    await page.waitForResponse(predicate, { timeout: timeoutMs });
+  }
+
+  private async performDownload(
+    page: Page,
+    triggerClickTarget: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: timeoutMs }),
+      this.performClick(page, triggerClickTarget, timeoutMs),
+    ]);
+
+    const failure = await download.failure();
+    if (failure) {
+      throw new Error(`Download failed: ${failure}`);
+    }
   }
 
   private async performExpect(page: Page, assertion: string, timeoutMs: number): Promise<void> {
@@ -804,6 +1081,7 @@ export class RunService {
 function parseActionJson(actionJson: string, rawText: string, stepOrder: number): ParsedAction {
   try {
     const parsed = JSON.parse(actionJson) as ParsedAction;
+    const reparsed = parseStep(rawText);
 
     if (parsed.type === 'enter' && typeof parsed.target === 'string' && typeof parsed.value === 'string') {
       return parsed;
@@ -812,7 +1090,6 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
     if (parsed.type === 'click' && typeof parsed.target === 'string') {
       let target = parsed.target;
       let delaySeconds = parsed.delaySeconds;
-      const reparsed = parseStep(rawText);
 
       if (reparsed.ok && reparsed.action.type === 'click') {
         target = reparsed.action.target;
@@ -831,7 +1108,6 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
     }
 
     if (parsed.type === 'navigate' && typeof parsed.target === 'string') {
-      const reparsed = parseStep(rawText);
       const target =
         reparsed.ok && reparsed.action.type === 'navigate'
           ? reparsed.action.target
@@ -843,7 +1119,6 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
     if (parsed.type === 'expect' && typeof parsed.assertion === 'string') {
       let assertion = parsed.assertion;
       let timeoutSeconds = parsed.timeoutSeconds;
-      const reparsed = parseStep(rawText);
 
       if (reparsed.ok && reparsed.action.type === 'expect') {
         assertion = reparsed.action.assertion;
@@ -859,6 +1134,95 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       return timeoutSeconds !== undefined
         ? { type: 'expect', assertion, timeoutSeconds }
         : { type: 'expect', assertion };
+    }
+
+    if (parsed.type === 'select' && typeof parsed.target === 'string' && typeof parsed.value === 'string') {
+      if (reparsed.ok && reparsed.action.type === 'select') {
+        return reparsed.action;
+      }
+      return parsed;
+    }
+
+    if (
+      parsed.type === 'setChecked' &&
+      typeof parsed.target === 'string' &&
+      typeof parsed.checked === 'boolean'
+    ) {
+      if (reparsed.ok && reparsed.action.type === 'setChecked') {
+        return reparsed.action;
+      }
+      return parsed;
+    }
+
+    if (parsed.type === 'hover' && typeof parsed.target === 'string') {
+      if (reparsed.ok && reparsed.action.type === 'hover') {
+        return reparsed.action;
+      }
+      return parsed;
+    }
+
+    if (parsed.type === 'press' && typeof parsed.key === 'string') {
+      if (parsed.target !== undefined && typeof parsed.target !== 'string') {
+        throw new Error('Invalid press target.');
+      }
+      if (reparsed.ok && reparsed.action.type === 'press') {
+        return reparsed.action;
+      }
+      return parsed.target ? { type: 'press', key: parsed.key, target: parsed.target } : parsed;
+    }
+
+    if (parsed.type === 'upload' && typeof parsed.target === 'string' && Array.isArray(parsed.filePaths)) {
+      if (
+        parsed.filePaths.length === 0 ||
+        parsed.filePaths.some((item) => typeof item !== 'string' || item.trim().length === 0)
+      ) {
+        throw new Error('Invalid upload file paths.');
+      }
+      if (reparsed.ok && reparsed.action.type === 'upload') {
+        return reparsed.action;
+      }
+      return { type: 'upload', target: parsed.target, filePaths: parsed.filePaths };
+    }
+
+    if (parsed.type === 'dialog' && (parsed.action === 'accept' || parsed.action === 'dismiss')) {
+      if (parsed.promptText !== undefined && typeof parsed.promptText !== 'string') {
+        throw new Error('Invalid dialog prompt text.');
+      }
+      if (reparsed.ok && reparsed.action.type === 'dialog') {
+        return reparsed.action;
+      }
+      return parsed.promptText
+        ? { type: 'dialog', action: parsed.action, promptText: parsed.promptText }
+        : { type: 'dialog', action: parsed.action };
+    }
+
+    if (parsed.type === 'waitForRequest' && typeof parsed.urlPattern === 'string') {
+      if (parsed.method !== undefined && typeof parsed.method !== 'string') {
+        throw new Error('Invalid request method.');
+      }
+      if (parsed.status !== undefined && (!Number.isInteger(parsed.status) || parsed.status < 100 || parsed.status > 599)) {
+        throw new Error('Invalid request status code.');
+      }
+      if (parsed.triggerClickTarget !== undefined && typeof parsed.triggerClickTarget !== 'string') {
+        throw new Error('Invalid request click target.');
+      }
+      if (parsed.timeoutSeconds !== undefined && (!Number.isFinite(parsed.timeoutSeconds) || parsed.timeoutSeconds <= 0)) {
+        throw new Error('Invalid request timeout.');
+      }
+      if (reparsed.ok && reparsed.action.type === 'waitForRequest') {
+        return reparsed.action;
+      }
+      return parsed;
+    }
+
+    if (parsed.type === 'download' && typeof parsed.triggerClickTarget === 'string') {
+      if (parsed.timeoutSeconds !== undefined && (!Number.isFinite(parsed.timeoutSeconds) || parsed.timeoutSeconds <= 0)) {
+        throw new Error('Invalid download timeout.');
+      }
+      if (reparsed.ok && reparsed.action.type === 'download') {
+        return reparsed.action;
+      }
+      return parsed;
     }
   } catch {
     // Validated below.
@@ -928,6 +1292,84 @@ function resolveNavigationTarget(target: string, currentUrl: string, baseUrl: st
 
   const fallbackBase = /^https?:\/\//i.test(currentUrl) ? currentUrl : baseUrl;
   return new URL(value, fallbackBase).toString();
+}
+
+function matchesUrlPattern(url: string, pattern: string): boolean {
+  const normalizedPattern = pattern.trim();
+  if (!normalizedPattern) {
+    return false;
+  }
+
+  if (!normalizedPattern.includes('*')) {
+    return url.includes(normalizedPattern);
+  }
+
+  const escaped = normalizedPattern
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '<<<DOUBLE_WILDCARD>>>')
+    .replace(/\*/g, '[^\\s]*')
+    .replace(/<<<DOUBLE_WILDCARD>>>/g, '.*');
+  const regex = new RegExp(`^${escaped}$`, 'i');
+  return regex.test(url);
+}
+
+function buildElementSelectorCandidates(target: string): string[] {
+  const normalized = target.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  if (normalized.startsWith('.')) {
+    const className = normalized.slice(1).trim();
+    if (!className) {
+      return [];
+    }
+
+    const selectors = [`[class~="${escapeAttributeValue(className)}"]`];
+    if (isSimpleCssClass(className)) {
+      selectors.unshift(`.${className}`);
+    }
+
+    return selectors;
+  }
+
+  if (normalized.startsWith('#')) {
+    const idValue = normalized.slice(1).trim();
+    if (!idValue) {
+      return [];
+    }
+
+    const selectors = [`[id="${escapeAttributeValue(idValue)}"]`];
+    if (isSimpleCssId(idValue)) {
+      selectors.push(`#${idValue}`);
+    }
+
+    return selectors;
+  }
+
+  const selectors = [
+    `[data-testid="${escapeAttributeValue(normalized)}"]`,
+    `[data-test-id="${escapeAttributeValue(normalized)}"]`,
+    `[id="${escapeAttributeValue(normalized)}"]`,
+  ];
+
+  if (isSimpleCssId(normalized)) {
+    selectors.push(`#${normalized}`);
+  }
+
+  return selectors;
+}
+
+function escapeAttributeValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function isSimpleCssId(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9:_-]*$/.test(value);
+}
+
+function isSimpleCssClass(value: string): boolean {
+  return /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(value);
 }
 
 function toImageMimeType(filePath: string): string {
