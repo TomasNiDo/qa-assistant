@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QA Assistant Step Writing Guide</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b1220;
+        --card: #111b2e;
+        --card-2: #15233a;
+        --text: #e6edf7;
+        --muted: #9fb1cf;
+        --line: #2c4063;
+        --accent: #54b6ff;
+        --ok: #2fd49f;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f8ff;
+          --card: #ffffff;
+          --card-2: #f8fbff;
+          --text: #0f1d34;
+          --muted: #4a5f82;
+          --line: #d4def0;
+          --accent: #005fcc;
+          --ok: #007a55;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background: radial-gradient(circle at top left, rgba(84, 182, 255, 0.15), transparent 42%), var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      h2 {
+        margin: 24px 0 8px;
+        font-size: 20px;
+      }
+
+      h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--card), var(--card-2));
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 8px;
+      }
+
+      .step-card {
+        margin-top: 12px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(84, 182, 255, 0.05);
+      }
+
+      .meta {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--ok);
+        margin-bottom: 8px;
+      }
+
+      .syntax {
+        margin: 10px 0;
+      }
+
+      .syntax code {
+        display: inline-block;
+      }
+
+      .examples {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      .examples li {
+        margin-bottom: 6px;
+      }
+
+      .tip {
+        border-left: 4px solid var(--accent);
+        padding: 10px 12px;
+        margin-top: 10px;
+        background: rgba(84, 182, 255, 0.08);
+        border-radius: 8px;
+      }
+
+      ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      code {
+        color: var(--text);
+        background: rgba(84, 182, 255, 0.12);
+        border: 1px solid rgba(84, 182, 255, 0.25);
+        border-radius: 6px;
+        padding: 1px 6px;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>QA Assistant Step Writing Guide</h1>
+      <p>
+        Write one step per line. Use quotes around values and targets. For the most reliable runs, use strict
+        grammar formats shown below.
+      </p>
+
+      <section class="card">
+        <h2>Quick Rules</h2>
+        <ul>
+          <li>Use one action per step line.</li>
+          <li>Prefer strict syntax instead of free-form natural language.</li>
+          <li>Use full or absolute file paths for uploads when possible.</li>
+          <li>For element selectors, use class or ID forms when text matching is unstable.</li>
+          <li>Use timeouts on network/assertion/download steps if the action is slow.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Core Step Types</h2>
+
+        <article class="step-card">
+          <span class="meta">Enter Text</span>
+          <h3>Fill an input field</h3>
+          <p>Use this to type values into forms such as login, search, checkout, OTP, and profile fields.</p>
+          <p class="syntax"><code>Enter "&lt;value&gt;" in "&lt;field&gt;" field</code></p>
+          <ul class="examples">
+            <li><code>Enter "john@example.com" in "Email" field</code></li>
+            <li><code>Enter "123456" in "OTP" field</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Click</span>
+          <h3>Click buttons, links, menu items, or text targets</h3>
+          <p>Use delayed clicks when UI transitions or animations need a short pause first.</p>
+          <p class="syntax">
+            <code>Click "&lt;text&gt;"</code> or <code>Click "&lt;text&gt;" button after 2 sec</code>
+          </p>
+          <ul class="examples">
+            <li><code>Click "Sign in"</code></li>
+            <li><code>Click "Continue" button after 1 sec</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Navigate</span>
+          <h3>Move to a path or URL</h3>
+          <p>Supports absolute URLs and project-relative paths.</p>
+          <p class="syntax">
+            <code>Go to &lt;path-or-url&gt;</code> or <code>Redirect to &lt;path&gt; url</code>
+          </p>
+          <ul class="examples">
+            <li><code>Go to /checkout</code></li>
+            <li><code>Go to https://example.com/help</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Expect</span>
+          <h3>Assert visible text</h3>
+          <p>Add timeout clauses for slower pages to avoid premature failures.</p>
+          <p class="syntax"><code>Expect &lt;assertion&gt;</code> with optional <code>within 45s</code></p>
+          <ul class="examples">
+            <li><code>Expect dashboard is visible</code></li>
+            <li><code>Expect "Order placed" within 45s</code></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 16px">
+        <h2>Selector-Based Click Targeting</h2>
+        <p>Use these formats when text-based clicking is unstable or ambiguous.</p>
+
+        <article class="step-card">
+          <span class="meta">Class Selector</span>
+          <h3>Target by class name</h3>
+          <p class="syntax"><code>Click element with '&lt;className&gt;' class</code></p>
+          <ul class="examples">
+            <li><code>Click element with 'btn-finish' class</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">ID Selector</span>
+          <h3>Target by ID</h3>
+          <p class="syntax"><code>Click element with this ID '&lt;elementId&gt;'</code></p>
+          <ul class="examples">
+            <li><code>Click element with this ID 'submitButton'</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Identifier</span>
+          <h3>Target generic identifier</h3>
+          <p class="syntax"><code>Click element with '&lt;identifier&gt;'</code></p>
+          <ul class="examples">
+            <li><code>Click element with 'btn-finish'</code></li>
+          </ul>
+        </article>
+
+        <div class="tip">
+          <strong>Lookup behavior:</strong> class and ID forms are treated as selectors. Generic identifiers are
+          attempted in this order: <code>data-testid</code>, <code>data-test-id</code>, <code>id</code>, then
+          button/link/menu/text.
+        </div>
+      </section>
+
+      <section class="card" style="margin-top: 16px">
+        <h2>Advanced Step Types</h2>
+
+        <article class="step-card">
+          <span class="meta">Select Dropdown</span>
+          <p class="syntax"><code>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown</code></p>
+          <ul class="examples">
+            <li><code>Select "United States" from "Country" dropdown</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Checkbox</span>
+          <p class="syntax"><code>Check "&lt;label&gt;" checkbox</code> or <code>Uncheck "&lt;label&gt;" checkbox</code></p>
+          <ul class="examples">
+            <li><code>Check "Remember me" checkbox</code></li>
+            <li><code>Uncheck "Subscribe to newsletter" checkbox</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Hover</span>
+          <p class="syntax"><code>Hover over "&lt;target&gt;"</code></p>
+          <ul class="examples">
+            <li><code>Hover over "Profile"</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Keyboard</span>
+          <p class="syntax"><code>Press "&lt;key&gt;"</code> optionally <code>in "&lt;field&gt;" field</code></p>
+          <ul class="examples">
+            <li><code>Press "Control+K"</code></li>
+            <li><code>Press "Enter" in "Search" field</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Upload</span>
+          <p class="syntax"><code>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input</code></p>
+          <ul class="examples">
+            <li><code>Upload file "C:/fixtures/invoice.pdf" to "Receipt" input</code></li>
+            <li><code>Upload files "C:/a.png,C:/b.png" to "Attachments" input</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Browser Dialog</span>
+          <p class="syntax"><code>Accept browser dialog</code> or <code>Dismiss browser dialog</code></p>
+          <p class="syntax"><code>Enter "&lt;text&gt;" in prompt dialog and accept</code></p>
+          <ul class="examples">
+            <li><code>Enter "CONFIRM" in prompt dialog and accept</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Wait For Request</span>
+          <p class="syntax">
+            <code>Wait for request "&lt;METHOD pattern&gt;" and expect status "200"</code>
+          </p>
+          <p class="syntax">
+            <code>Wait for request "&lt;pattern&gt;" after clicking "&lt;target&gt;" within 10s</code>
+          </p>
+          <ul class="examples">
+            <li><code>Wait for request "POST **/api/login" and expect status "200"</code></li>
+            <li><code>Wait for request "**/api/profile" after clicking "Load profile" within 10s</code></li>
+          </ul>
+        </article>
+
+        <article class="step-card">
+          <span class="meta">Wait For Download</span>
+          <p class="syntax"><code>Wait for download after clicking "&lt;target&gt;"</code></p>
+          <ul class="examples">
+            <li><code>Wait for download after clicking "Export CSV" within 15s</code></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 16px">
+        <h2>Natural-Language Fallback and Troubleshooting</h2>
+        <p>
+          The parser accepts many natural phrasings (such as <code>Tap the continue button</code>,
+          <code>Visit /orders</code>, <code>Type 123456 into OTP field</code>), but strict syntax is more
+          deterministic.
+        </p>
+        <ul>
+          <li>If parse preview fails, convert the step to one of the strict formats above.</li>
+          <li>If click targets are unstable, switch to class/ID selector forms.</li>
+          <li>If assertions or network waits fail intermittently, add explicit timeout clauses.</li>
+          <li>If upload fails, verify the file path exists on the machine running the app.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

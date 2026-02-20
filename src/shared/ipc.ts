@@ -48,6 +48,7 @@ export const IPC_CHANNELS = {
   runGetScreenshotThumbnailDataUrl: 'run.getScreenshotThumbnailDataUrl',
   runBrowserStatus: 'run.browserStatus',
   runInstallBrowser: 'run.installBrowser',
+  openStepDocs: 'docs.openStepDocs',
   runUpdate: 'run.update',
   runBrowserInstallUpdate: 'run.browserInstallUpdate',
   aiGenerateSteps: 'ai.generateSteps',
@@ -82,6 +83,7 @@ export interface QaAssistantApi {
   runGetScreenshotThumbnailDataUrl: (screenshotPath: string) => Promise<ApiResult<string>>;
   runBrowserStatus: () => Promise<ApiResult<BrowserInstallState[]>>;
   runInstallBrowser: (browser: Run['browser']) => Promise<ApiResult<BrowserInstallState>>;
+  openStepDocs: () => Promise<ApiResult<boolean>>;
   onRunUpdate: (listener: (event: RunUpdateEvent) => void) => () => void;
   onBrowserInstallUpdate: (listener: (event: BrowserInstallUpdate) => void) => () => void;
 

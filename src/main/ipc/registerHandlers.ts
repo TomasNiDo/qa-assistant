@@ -1,6 +1,10 @@
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { IPC_CHANNELS } from '@shared/ipc';
 import type { ApiResult } from '@shared/types';
+import { validateRendererDevUrl } from '../security';
 import {
   aiGenerateBugReportInputSchema,
   aiGenerateStepsInputSchema,
@@ -25,6 +29,8 @@ import {
   testUpdateInputSchema,
 } from './inputSchemas';
 import type { Services } from '../services/services';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function registerHandlers(services: Services): void {
   ipcMain.handle(IPC_CHANNELS.healthPing, async () => wrap(() => 'pong'));
@@ -170,6 +176,12 @@ export function registerHandlers(services: Services): void {
       return services.runService.installBrowser(validated);
     }),
   );
+  ipcMain.handle(IPC_CHANNELS.openStepDocs, async () =>
+    wrapAsync(async () => {
+      await shell.openExternal(resolveStepDocsUrl());
+      return true;
+    }),
+  );
 
   ipcMain.handle(IPC_CHANNELS.aiGenerateSteps, async (_event, input) =>
     wrapAsync(() => {
@@ -211,4 +223,24 @@ async function wrapAsync<T>(fn: () => Promise<T>): Promise<ApiResult<T>> {
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+function resolveStepDocsUrl(): string {
+  const rawRendererUrl = process.env.ELECTRON_RENDERER_URL?.trim();
+  if (rawRendererUrl) {
+    const rendererDevUrl = validateRendererDevUrl(rawRendererUrl);
+    return new URL('/step-guide.html', rendererDevUrl).toString();
+  }
+
+  const candidates = [
+    resolve(__dirname, '../../renderer/step-guide.html'),
+    resolve(process.cwd(), 'out/renderer/step-guide.html'),
+    resolve(process.cwd(), 'src/renderer/public/step-guide.html'),
+  ];
+  const docsPath = candidates.find((candidate) => existsSync(candidate));
+  if (!docsPath) {
+    throw new Error(`Step guide not found. Checked: ${candidates.join(', ')}`);
+  }
+
+  return pathToFileURL(docsPath).toString();
 }

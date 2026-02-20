@@ -3,13 +3,17 @@ import { IPC_CHANNELS } from '@shared/ipc';
 import { registerHandlers } from './registerHandlers';
 import type { Services } from '../services/services';
 
-const { ipcMainHandleMock } = vi.hoisted(() => ({
+const { ipcMainHandleMock, shellOpenExternalMock } = vi.hoisted(() => ({
   ipcMainHandleMock: vi.fn(),
+  shellOpenExternalMock: vi.fn(async () => undefined),
 }));
 
 vi.mock('electron', () => ({
   ipcMain: {
     handle: ipcMainHandleMock,
+  },
+  shell: {
+    openExternal: shellOpenExternalMock,
   },
 }));
 
@@ -174,6 +178,8 @@ async function invoke(channel: string, payload?: unknown): Promise<unknown> {
 describe('registerHandlers IPC input validation', () => {
   beforeEach(() => {
     ipcMainHandleMock.mockReset();
+    shellOpenExternalMock.mockReset();
+    shellOpenExternalMock.mockResolvedValue(undefined);
   });
 
   it('rejects blank project name payloads', async () => {
@@ -435,5 +441,32 @@ describe('registerHandlers IPC input validation', () => {
       },
     });
     expect(spies.runInstallBrowser).toHaveBeenCalledWith('firefox');
+  });
+
+  it('opens step docs in default browser', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.openStepDocs);
+
+    expect(result).toEqual({
+      ok: true,
+      data: true,
+    });
+    expect(shellOpenExternalMock).toHaveBeenCalledTimes(1);
+    expect(shellOpenExternalMock).toHaveBeenCalledWith(expect.stringContaining('step-guide.html'));
+  });
+
+  it('returns API errors when opening step docs fails', async () => {
+    const { services } = createServicesMock();
+    shellOpenExternalMock.mockRejectedValueOnce(new Error('browser open failed'));
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.openStepDocs);
+
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'browser open failed' },
+    });
   });
 });

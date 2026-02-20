@@ -14,7 +14,7 @@ import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
 import { useThemePreference } from './app/hooks/useThemePreference';
-import { appShellClass, onboardingShellClass } from './app/uiClasses';
+import { appShellClass, mutedButtonClass, onboardingShellClass } from './app/uiClasses';
 
 export function App(): JSX.Element {
   const [message, setMessage] = useState('');
@@ -253,6 +253,16 @@ export function App(): JSX.Element {
     await generateBugReport(selectedRunId);
   }, [generateBugReport, selectedRunId]);
 
+  const handleOpenStepDocs = useCallback(async (): Promise<void> => {
+    const result = await window.qaApi.openStepDocs();
+    if (!result.ok) {
+      onMessage(`Unable to open step docs: ${result.error.message}`);
+      return;
+    }
+
+    onMessage('Opened step writing docs in your default browser.');
+  }, [onMessage]);
+
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-4 md:px-6 md:py-5">
       <div className="pointer-events-none absolute inset-0">
@@ -262,6 +272,15 @@ export function App(): JSX.Element {
       </div>
 
       <ThemeToggle theme={theme} onToggle={() => setTheme((previous) => (previous === 'dark' ? 'light' : 'dark'))} />
+      <button
+        type="button"
+        className={`${mutedButtonClass} fixed bottom-4 left-4 z-50 bg-card/92 shadow-[var(--shadow-soft)] backdrop-blur-xl`}
+        onClick={() => {
+          void handleOpenStepDocs();
+        }}
+      >
+        Step Docs
+      </button>
 
       <div className={activeScreen === 'main' ? appShellClass : onboardingShellClass}>
         {activeScreen === 'loading' ? <LoadingScreen /> : null}
