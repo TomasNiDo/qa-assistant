@@ -3967,6 +3967,317 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "yas4G",
+      "x": 3580,
+      "y": 0,
+      "name": "App Empty State Screen",
+      "clip": true,
+      "width": 1280,
+      "height": 800,
+      "fill": "#0b0d12",
+      "children": [
+        {
+          "type": "frame",
+          "id": "kUJci",
+          "name": "Sidebar",
+          "width": 314,
+          "height": "fill_container",
+          "fill": "#0d1117",
+          "layout": "vertical",
+          "padding": [
+            10,
+            12
+          ],
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "wG9Tl",
+              "name": "topArea",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 14,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XhyyX",
+                  "name": "windowDots",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Nz7Tr",
+                      "name": "dotRed",
+                      "width": 10,
+                      "height": 10,
+                      "fill": "#ff5f56",
+                      "cornerRadius": 999
+                    },
+                    {
+                      "type": "frame",
+                      "id": "rRNqr",
+                      "name": "dotYellow",
+                      "width": 10,
+                      "height": 10,
+                      "fill": "#ffbd2e",
+                      "cornerRadius": 999
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Nhj6N",
+                      "name": "dotGreen",
+                      "width": 10,
+                      "height": 10,
+                      "fill": "#27c93f",
+                      "cornerRadius": 999
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c2O00",
+                  "name": "quickRow",
+                  "width": "fill_container",
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "5pJgo",
+                      "name": "newProjectBtn",
+                      "gap": 8,
+                      "padding": [
+                        2,
+                        0
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "cNqWN",
+                          "name": "newProjIcon",
+                          "width": 13,
+                          "height": 13,
+                          "iconFontName": "square-pen",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9fb0c8"
+                        },
+                        {
+                          "type": "text",
+                          "id": "WQp3S",
+                          "name": "newProjText",
+                          "fill": "#e6edf7",
+                          "content": "New project",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wQstX",
+                      "name": "quickIcons",
+                      "gap": 10,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "T4Kwy",
+                          "name": "docIcon",
+                          "width": 13,
+                          "height": 13,
+                          "iconFontName": "file-text",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9fb0c8"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "uP6CN",
+                          "name": "settingsIcon",
+                          "width": 13,
+                          "height": 13,
+                          "iconFontName": "settings",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9fb0c8"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "P5kMZ",
+                  "name": "projLabel",
+                  "fill": "#8b96a5",
+                  "content": "Projects",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "7NFu6",
+                  "name": "emptyProjects",
+                  "fill": "#6f7d91",
+                  "content": "No projects yet",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "JKwNs",
+              "name": "version",
+              "fill": "#5f6b7c",
+              "content": "v0.6.0",
+              "fontFamily": "Inter",
+              "fontSize": 10,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "9ma6Q",
+          "name": "Main Empty State",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#0b0d12",
+          "layout": "vertical",
+          "gap": 18,
+          "padding": 28,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "mO7mX",
+              "name": "emptyHero",
+              "width": 620,
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "LfwkA",
+                  "name": "heroIcon",
+                  "width": 52,
+                  "height": 52,
+                  "fill": "#112436",
+                  "cornerRadius": 999,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#1a4f7a"
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "S1K8N",
+                  "name": "heroTitle",
+                  "fill": "#e8eff9",
+                  "content": "Welcome to QA Assistant",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "WjDDH",
+                  "name": "heroSubtitle",
+                  "fill": "#8fa0b8",
+                  "content": "Create your first project to start writing and running automated test cases.",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Fbh1e",
+                  "name": "ctaRow",
+                  "gap": 10,
+                  "padding": [
+                    6,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "bYI89",
+                      "name": "createProjectBtn",
+                      "fill": "#1f6feb",
+                      "cornerRadius": 999,
+                      "padding": [
+                        9,
+                        14
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "pjg8m",
+                          "name": "ctaPrimaryTxt",
+                          "fill": "#eef5ff",
+                          "content": "Create first project",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NOaXh",
+              "name": "hintCard",
+              "width": 620,
+              "fill": "#0f1622",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 6,
+              "padding": [
+                12,
+                14
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zmmCm",
+                  "name": "hintLine1",
+                  "fill": "#9db0c7",
+                  "content": "Tip: Add your staging URL when creating a project.",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "njTYj",
+                  "name": "hintLine2",
+                  "fill": "#7f92aa",
+                  "content": "Next: Add test cases, choose browser, then run.",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
