@@ -1,6 +1,6 @@
 {
   "name": "qa-assistant",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.1-beta.2",
   "private": true,
   "description": "Local AI-powered QA Assistant desktop app",
   "main": "out/main/index.js",
