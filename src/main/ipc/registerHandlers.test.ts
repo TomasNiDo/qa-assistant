@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { IPC_CHANNELS } from '@shared/ipc';
 import { registerHandlers } from './registerHandlers';
 import type { Services } from '../services/services';
@@ -455,6 +459,37 @@ describe('registerHandlers IPC input validation', () => {
     });
     expect(shellOpenExternalMock).toHaveBeenCalledTimes(1);
     expect(shellOpenExternalMock).toHaveBeenCalledWith(expect.stringContaining('step-guide.html'));
+  });
+
+  it('prefers docs from process.resourcesPath when available', async () => {
+    const { services } = createServicesMock();
+    const docsDir = mkdtempSync(join(tmpdir(), 'qa-assistant-docs-'));
+    const docsPath = join(docsDir, 'step-guide.html');
+    const previousResourcesPath = (process as NodeJS.Process & { resourcesPath?: string })
+      .resourcesPath;
+    writeFileSync(docsPath, '<!doctype html><title>Step Guide</title>', 'utf8');
+
+    (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath = docsDir;
+
+    try {
+      registerHandlers(services);
+
+      const result = await invoke(IPC_CHANNELS.openStepDocs);
+
+      expect(result).toEqual({
+        ok: true,
+        data: true,
+      });
+      expect(shellOpenExternalMock).toHaveBeenCalledWith(pathToFileURL(docsPath).toString());
+    } finally {
+      if (previousResourcesPath === undefined) {
+        Reflect.deleteProperty(process as unknown as Record<string, unknown>, 'resourcesPath');
+      } else {
+        (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath =
+          previousResourcesPath;
+      }
+      rmSync(docsDir, { force: true, recursive: true });
+    }
   });
 
   it('returns API errors when opening step docs fails', async () => {

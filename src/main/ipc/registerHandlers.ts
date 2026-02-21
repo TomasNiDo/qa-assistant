@@ -232,7 +232,9 @@ function resolveStepDocsUrl(): string {
     return new URL('/step-guide.html', rendererDevUrl).toString();
   }
 
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
   const candidates = [
+    ...(resourcesPath ? [resolve(resourcesPath, 'step-guide.html')] : []),
     resolve(__dirname, '../../renderer/step-guide.html'),
     resolve(process.cwd(), 'out/renderer/step-guide.html'),
     resolve(process.cwd(), 'src/renderer/public/step-guide.html'),
