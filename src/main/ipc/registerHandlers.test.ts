@@ -461,6 +461,32 @@ describe('registerHandlers IPC input validation', () => {
     expect(shellOpenExternalMock).toHaveBeenCalledWith(expect.stringContaining('step-guide.html'));
   });
 
+  it('installs downloaded updates when install callback is configured', async () => {
+    const { services } = createServicesMock();
+    const installUpdateNow = vi.fn(() => true);
+    registerHandlers(services, { installUpdateNow });
+
+    const result = await invoke(IPC_CHANNELS.installUpdateNow);
+
+    expect(result).toEqual({
+      ok: true,
+      data: true,
+    });
+    expect(installUpdateNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns error when in-app update install is unavailable', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.installUpdateNow);
+
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'In-app update install is unavailable in this build.' },
+    });
+  });
+
   it('prefers docs from process.resourcesPath when available', async () => {
     const { services } = createServicesMock();
     const docsDir = mkdtempSync(join(tmpdir(), 'qa-assistant-docs-'));

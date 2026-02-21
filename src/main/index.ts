@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPC_CHANNELS } from '@shared/ipc';
+import type { UpdateStatusEvent } from '@shared/types';
 import dotenv from 'dotenv';
 import { registerHandlers } from './ipc/registerHandlers';
 import { buildRendererCsp, isAllowedNavigationUrl, validateRendererDevUrl } from './security';
@@ -40,6 +41,22 @@ if (!app.isPackaged) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+let latestUpdateStatus: UpdateStatusEvent | null = null;
+
+interface UpdateInstallController {
+  installNow: () => boolean;
+}
+
+function broadcastToWindows<T>(channel: string, payload: T): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(channel, payload);
+  }
+}
+
+function emitUpdateStatus(event: UpdateStatusEvent): void {
+  latestUpdateStatus = event;
+  broadcastToWindows(IPC_CHANNELS.updateStatus, event);
+}
 
 function resolvePreloadPath(): string {
   const candidates = [
@@ -55,35 +72,97 @@ function resolvePreloadPath(): string {
   return match;
 }
 
-function setupAutoUpdater(): void {
+function setupAutoUpdater(onUpdateStatus: (event: UpdateStatusEvent) => void): UpdateInstallController {
   if (!app.isPackaged || process.platform !== 'win32') {
-    return;
+    return {
+      installNow: () => {
+        throw new Error('In-app updates are only available in packaged Windows builds.');
+      },
+    };
   }
 
   // Keep prerelease channels enabled while the app is on a beta version.
   autoUpdater.allowPrerelease = app.getVersion().includes('-');
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  let isUpdateDownloaded = false;
 
   autoUpdater.on('error', (error) => {
     console.error('[auto-updater] Error while checking/applying updates:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    onUpdateStatus({
+      phase: 'error',
+      message: `Update check failed: ${errorMessage}`,
+      timestamp: new Date().toISOString(),
+      progressPercent: null,
+    });
   });
 
   autoUpdater.on('update-available', (info) => {
     console.info(`[auto-updater] Update available: ${info.version}`);
+    isUpdateDownloaded = false;
+    onUpdateStatus({
+      phase: 'available',
+      version: info.version,
+      message: `Version ${info.version} is available. Downloading in background...`,
+      timestamp: new Date().toISOString(),
+      progressPercent: null,
+    });
   });
 
   autoUpdater.on('update-not-available', () => {
     console.info('[auto-updater] No update available');
   });
 
+  autoUpdater.on('download-progress', (progress: { percent: number }) => {
+    const normalizedPercent = Number.isFinite(progress.percent)
+      ? Math.max(0, Math.min(100, Math.round(progress.percent * 10) / 10))
+      : null;
+
+    onUpdateStatus({
+      phase: 'downloading',
+      message:
+        normalizedPercent === null
+          ? 'Downloading update...'
+          : `Downloading update... ${normalizedPercent.toFixed(1)}%`,
+      timestamp: new Date().toISOString(),
+      progressPercent: normalizedPercent,
+    });
+  });
+
   autoUpdater.on('update-downloaded', (info) => {
     console.info(`[auto-updater] Update downloaded: ${info.version}. It will install on app quit.`);
+    isUpdateDownloaded = true;
+    onUpdateStatus({
+      phase: 'downloaded',
+      version: info.version,
+      message: `Version ${info.version} is ready. Restart to install.`,
+      timestamp: new Date().toISOString(),
+      progressPercent: 100,
+    });
   });
 
   void autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
     console.error('[auto-updater] Failed to start update check:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    onUpdateStatus({
+      phase: 'error',
+      message: `Failed to start update check: ${errorMessage}`,
+      timestamp: new Date().toISOString(),
+      progressPercent: null,
+    });
   });
+
+  return {
+    installNow: () => {
+      if (!isUpdateDownloaded) {
+        throw new Error('No downloaded update is ready yet.');
+      }
+
+      autoUpdater.quitAndInstall();
+      return true;
+    },
+  };
 }
 
 async function createWindow(rendererDevUrl: URL | null): Promise<void> {
@@ -120,6 +199,10 @@ async function createWindow(rendererDevUrl: URL | null): Promise<void> {
     await win.loadURL(rendererDevUrl.toString());
   } else {
     await win.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+
+  if (latestUpdateStatus) {
+    win.webContents.send(IPC_CHANNELS.updateStatus, latestUpdateStatus);
   }
 }
 
@@ -158,18 +241,16 @@ app.whenReady().then(async () => {
   });
 
   const services = createServices(db, paths.artifacts, paths.configFile);
+  const updateController = setupAutoUpdater(emitUpdateStatus);
 
-  registerHandlers(services);
-  setupAutoUpdater();
+  registerHandlers(services, {
+    installUpdateNow: () => updateController.installNow(),
+  });
   services.runService.setRunUpdateEmitter((event) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IPC_CHANNELS.runUpdate, event);
-    }
+    broadcastToWindows(IPC_CHANNELS.runUpdate, event);
   });
   services.runService.setBrowserInstallUpdateEmitter((event) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IPC_CHANNELS.runBrowserInstallUpdate, event);
-    }
+    broadcastToWindows(IPC_CHANNELS.runBrowserInstallUpdate, event);
   });
   await createWindow(rendererDevUrl);
 

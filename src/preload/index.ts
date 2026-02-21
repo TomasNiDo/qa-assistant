@@ -32,6 +32,7 @@ const api: QaAssistantApi = {
   runBrowserStatus: () => ipcRenderer.invoke(IPC_CHANNELS.runBrowserStatus),
   runInstallBrowser: (browser) => ipcRenderer.invoke(IPC_CHANNELS.runInstallBrowser, browser),
   openStepDocs: () => ipcRenderer.invoke(IPC_CHANNELS.openStepDocs),
+  installUpdateNow: () => ipcRenderer.invoke(IPC_CHANNELS.installUpdateNow),
   onRunUpdate: (listener) => {
     const channel = IPC_CHANNELS.runUpdate;
     const wrapped = (_event: unknown, payload: unknown) => {
@@ -46,6 +47,18 @@ const api: QaAssistantApi = {
   },
   onBrowserInstallUpdate: (listener) => {
     const channel = IPC_CHANNELS.runBrowserInstallUpdate;
+    const wrapped = (_event: unknown, payload: unknown) => {
+      listener(payload as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(channel, wrapped);
+
+    return () => {
+      ipcRenderer.removeListener(channel, wrapped);
+    };
+  },
+  onUpdateStatus: (listener) => {
+    const channel = IPC_CHANNELS.updateStatus;
     const wrapped = (_event: unknown, payload: unknown) => {
       listener(payload as Parameters<typeof listener>[0]);
     };

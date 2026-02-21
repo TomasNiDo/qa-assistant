@@ -32,7 +32,11 @@ import type { Services } from '../services/services';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export function registerHandlers(services: Services): void {
+interface RegisterHandlersOptions {
+  installUpdateNow?: () => boolean | Promise<boolean>;
+}
+
+export function registerHandlers(services: Services, options: RegisterHandlersOptions = {}): void {
   ipcMain.handle(IPC_CHANNELS.healthPing, async () => wrap(() => 'pong'));
   ipcMain.handle(IPC_CHANNELS.configGet, async () => wrap(() => services.configService.get()));
   ipcMain.handle(IPC_CHANNELS.configSet, async (_event, input) =>
@@ -180,6 +184,15 @@ export function registerHandlers(services: Services): void {
     wrapAsync(async () => {
       await shell.openExternal(resolveStepDocsUrl());
       return true;
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.installUpdateNow, async () =>
+    wrapAsync(async () => {
+      if (!options.installUpdateNow) {
+        throw new Error('In-app update install is unavailable in this build.');
+      }
+
+      return options.installUpdateNow();
     }),
   );
 

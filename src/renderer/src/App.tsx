@@ -8,12 +8,14 @@ import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
 import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
 import { ThemeToggle } from './app/components/ThemeToggle';
+import { UpdateBanner } from './app/components/UpdateBanner';
 import { WorkspaceDefaultsPanel } from './app/components/WorkspaceDefaultsPanel';
 import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
 import { useThemePreference } from './app/hooks/useThemePreference';
+import { useUpdateBanner } from './app/hooks/useUpdateBanner';
 import { appShellClass, mutedButtonClass, onboardingShellClass } from './app/uiClasses';
 
 export function App(): JSX.Element {
@@ -26,6 +28,14 @@ export function App(): JSX.Element {
   }, []);
 
   const { theme, setTheme } = useThemePreference();
+  const {
+    bannerEvent: updateBannerEvent,
+    isVisible: isUpdateBannerVisible,
+    canInstallNow,
+    isInstalling: isInstallingUpdate,
+    dismiss: dismissUpdateBanner,
+    installNow: installUpdateNow,
+  } = useUpdateBanner({ onMessage });
 
   const {
     runs,
@@ -281,6 +291,18 @@ export function App(): JSX.Element {
       >
         Step Docs
       </button>
+
+      {isUpdateBannerVisible && updateBannerEvent ? (
+        <UpdateBanner
+          event={updateBannerEvent}
+          canInstallNow={canInstallNow}
+          isInstalling={isInstallingUpdate}
+          onDismiss={dismissUpdateBanner}
+          onInstallNow={() => {
+            void installUpdateNow();
+          }}
+        />
+      ) : null}
 
       <div className={activeScreen === 'main' ? appShellClass : onboardingShellClass}>
         {activeScreen === 'loading' ? <LoadingScreen /> : null}

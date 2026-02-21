@@ -108,6 +108,16 @@ export interface BrowserInstallUpdate {
   timestamp: string;
 }
 
+export type UpdateStatusPhase = 'available' | 'downloading' | 'downloaded' | 'error';
+
+export interface UpdateStatusEvent {
+  phase: UpdateStatusPhase;
+  message: string;
+  timestamp: string;
+  version?: string;
+  progressPercent?: number | null;
+}
+
 export type RunUpdateEventType =
   | 'run-started'
   | 'step-started'
