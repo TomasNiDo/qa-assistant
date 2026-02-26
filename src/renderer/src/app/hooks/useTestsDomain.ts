@@ -122,6 +122,7 @@ export function useTestsDomain({
 
   const stepValidationVersion = useRef(0);
   const testFormLoadVersion = useRef(0);
+  const lastSavedSignatureRef = useRef('');
 
   const selectedProjectTests = useMemo(
     () => (selectedProjectId ? testCasesByProject[selectedProjectId] ?? [] : []),
@@ -141,6 +142,12 @@ export function useTestsDomain({
   const canSaveTestCase = Boolean(selectedProjectId) && !testTitleError && !hasStepErrors && !isValidatingSteps;
 
   const isSelectedTestDeleteBlocked = Boolean(selectedTestId) && activeRunContext?.testCaseId === selectedTestId;
+
+  const buildTestSignature = useCallback(
+    (projectId: string, testId: string, title: string, steps: string[]): string =>
+      `${projectId}::${testId}::${title.trim()}::${steps.join('\n')}`,
+    [],
+  );
 
   const refreshTestsTree = useCallback(
     async (
@@ -196,6 +203,7 @@ export function useTestsDomain({
     testFormLoadVersion.current = currentLoadVersion;
 
     if (!selectedTest) {
+      lastSavedSignatureRef.current = '';
       setIsTestEditing(false);
       setTestForm(DEFAULT_TEST_FORM);
       return;
@@ -211,13 +219,21 @@ export function useTestsDomain({
       return;
     }
 
+    const loadedStepsText = stepRowsResult.data.map((step) => step.rawText).join('\n');
+    lastSavedSignatureRef.current = buildTestSignature(
+      selectedTest.projectId,
+      selectedTest.id,
+      selectedTest.title,
+      parseStepLines(loadedStepsText),
+    );
+
     setIsTestEditing(true);
     setTestForm({
       id: selectedTest.id,
       title: selectedTest.title,
-      stepsText: stepRowsResult.data.map((step) => step.rawText).join('\n'),
+      stepsText: loadedStepsText,
     });
-  }, [onMessage, selectedTest]);
+  }, [buildTestSignature, onMessage, selectedTest]);
 
   useEffect(() => {
     void loadSelectedTestIntoForm();
@@ -274,6 +290,7 @@ export function useTestsDomain({
 
   const beginCreateTest = useCallback(() => {
     testFormLoadVersion.current += 1;
+    lastSavedSignatureRef.current = '';
     setSelectedTestId('');
     setIsTestEditing(false);
     setTestForm(DEFAULT_TEST_FORM);
@@ -311,16 +328,58 @@ export function useTestsDomain({
       return null;
     }
 
+    const savedTitle = result.data.title.trim();
+    const savedStepsText = cleanSteps.join('\n');
+    lastSavedSignatureRef.current = buildTestSignature(selectedProjectId, result.data.id, savedTitle, cleanSteps);
+
+    setSelectedTestId(result.data.id);
     setIsTestEditing(true);
     setTestForm({
       id: result.data.id,
       title: result.data.title,
-      stepsText: cleanSteps.join('\n'),
+      stepsText: savedStepsText,
     });
 
-    onMessage(isTestEditing ? 'Test case updated.' : 'Test case created.');
+    setTestCasesByProject((previous) => {
+      const testsForProject = previous[selectedProjectId] ?? [];
+      const existingIndex = testsForProject.findIndex((testCase) => testCase.id === result.data.id);
+      if (existingIndex >= 0) {
+        const updatedTests = [...testsForProject];
+        updatedTests[existingIndex] = result.data;
+        return {
+          ...previous,
+          [selectedProjectId]: updatedTests,
+        };
+      }
+
+      return {
+        ...previous,
+        [selectedProjectId]: [...testsForProject, result.data],
+      };
+    });
+
     return result.data;
-  }, [canSaveTestCase, isTestEditing, onMessage, selectedProjectId, testForm.id, testForm.stepsText, testForm.title, testTitleError]);
+  }, [buildTestSignature, canSaveTestCase, isTestEditing, onMessage, selectedProjectId, setSelectedTestId, testForm.id, testForm.stepsText, testForm.title, testTitleError]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !canSaveTestCase) {
+      return;
+    }
+
+    const cleanSteps = parseStepLines(testForm.stepsText);
+    const currentSignature = buildTestSignature(selectedProjectId, testForm.id, testForm.title, cleanSteps);
+    if (currentSignature === lastSavedSignatureRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void saveTestCase();
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [buildTestSignature, canSaveTestCase, saveTestCase, selectedProjectId, testForm.id, testForm.stepsText, testForm.title]);
 
   const deleteSelectedTest = useCallback(async (onTestDeleted: () => Promise<void>): Promise<boolean> => {
     if (!selectedTestId) {

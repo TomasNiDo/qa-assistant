@@ -1,41 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
+import type { RunStatus, TestCase } from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
+import { BugReportModal } from './app/components/BugReportModal';
 import { LoadingScreen } from './app/components/LoadingScreen';
-import { ProjectManagementPanel } from './app/components/ProjectManagementPanel';
+import { ProjectModal } from './app/components/ProjectModal';
 import { ProjectSetupScreen } from './app/components/ProjectSetupScreen';
 import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
 import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
-import { ThemeToggle } from './app/components/ThemeToggle';
-import { UpdateBanner } from './app/components/UpdateBanner';
-import { WorkspaceDefaultsPanel } from './app/components/WorkspaceDefaultsPanel';
 import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
-import { useThemePreference } from './app/hooks/useThemePreference';
-import { useUpdateBanner } from './app/hooks/useUpdateBanner';
-import { appShellClass, mutedButtonClass, onboardingShellClass } from './app/uiClasses';
+import { appShellClass } from './app/uiClasses';
 
 export function App(): JSX.Element {
   const [message, setMessage] = useState('');
   const [selectedTestId, setSelectedTestId] = useState('');
+  const [latestRunStatusByTestId, setLatestRunStatusByTestId] = useState<Record<string, RunStatus>>({});
+  const [appVersion, setAppVersion] = useState('0.0.0');
+  const [isBrowserInstallScreenOpen, setIsBrowserInstallScreenOpen] = useState(false);
   const hasInitializedSidebar = useRef(false);
 
   const onMessage = useCallback((nextMessage: string) => {
     setMessage(nextMessage);
   }, []);
-
-  const { theme, setTheme } = useThemePreference();
-  const {
-    bannerEvent: updateBannerEvent,
-    isVisible: isUpdateBannerVisible,
-    canInstallNow,
-    isInstalling: isInstallingUpdate,
-    dismiss: dismissUpdateBanner,
-    installNow: installUpdateNow,
-  } = useUpdateBanner({ onMessage });
 
   const {
     runs,
@@ -51,7 +41,6 @@ export function App(): JSX.Element {
     hasInstalledBrowser,
     activeRunId,
     activeRunContext,
-    appConfig,
     refreshActiveRunContext,
     startRun,
     cancelRun,
@@ -74,7 +63,7 @@ export function App(): JSX.Element {
     projectNameError,
     projectBaseUrlError,
     canSaveProject,
-    isSelectedProjectDeleteBlocked,
+    isProjectDeleteBlocked,
     refreshProjects,
     beginCreateProject,
     beginEditSelectedProject,
@@ -90,21 +79,14 @@ export function App(): JSX.Element {
   const {
     testCasesByProject,
     selectedTest,
-    isTestEditing,
     testForm,
     setTestForm,
-    parsedSteps,
-    stepParsePreview,
-    isValidatingSteps,
     isGeneratingSteps,
     testTitleError,
-    testStepsErrors,
-    canSaveTestCase,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectProject,
     beginCreateTest,
-    saveTestCase,
     deleteSelectedTest,
     generateSteps,
   } = useTestsDomain({
@@ -128,6 +110,38 @@ export function App(): JSX.Element {
     clearBugReportState,
   } = useBugReportDomain({ onMessage });
 
+  const refreshLatestRunStatusByTestId = useCallback(
+    async (tree: Record<string, TestCase[]>): Promise<void> => {
+      const testIds = Object.values(tree).flatMap((testCases) => testCases.map((testCase) => testCase.id));
+      if (testIds.length === 0) {
+        setLatestRunStatusByTestId({});
+        return;
+      }
+
+      const responses = await Promise.all(
+        testIds.map(async (testId) => {
+          const result = await window.qaApi.runHistory(testId);
+          if (!result.ok || result.data.length === 0) {
+            return [testId, undefined] as const;
+          }
+
+          const latestRun = result.data[result.data.length - 1];
+          return [testId, latestRun.status] as const;
+        }),
+      );
+
+      const nextMap: Record<string, RunStatus> = {};
+      for (const [testId, status] of responses) {
+        if (status) {
+          nextMap[testId] = status;
+        }
+      }
+
+      setLatestRunStatusByTestId(nextMap);
+    },
+    [],
+  );
+
   const refreshSidebar = useCallback(
     async (preferredProjectId: string = selectedProjectId, preferredTestId?: string): Promise<void> => {
       const rows = await refreshProjects(preferredProjectId);
@@ -135,10 +149,11 @@ export function App(): JSX.Element {
         ? preferredProjectId
         : rows[0].id;
 
-      await refreshTestsTree(rows, nextProjectId, preferredTestId);
+      const nextTree = await refreshTestsTree(rows, nextProjectId, preferredTestId);
+      await refreshLatestRunStatusByTestId(nextTree);
       await refreshActiveRunContext();
     },
-    [refreshActiveRunContext, refreshProjects, refreshTestsTree, selectedProjectId],
+    [refreshActiveRunContext, refreshLatestRunStatusByTestId, refreshProjects, refreshTestsTree, selectedProjectId],
   );
 
   useEffect(() => {
@@ -151,17 +166,16 @@ export function App(): JSX.Element {
   }, [refreshSidebar]);
 
   useEffect(() => {
-    if (!selectedProject || !isProjectFormOpen || projectFormMode !== 'edit') {
-      return;
-    }
+    void (async () => {
+      const result = await window.qaApi.appGetVersion();
+      if (!result.ok) {
+        onMessage(`Unable to load app version: ${result.error.message}`);
+        return;
+      }
 
-    setProjectForm({
-      id: selectedProject.id,
-      name: selectedProject.name,
-      baseUrl: selectedProject.baseUrl,
-      envLabel: selectedProject.envLabel,
-    });
-  }, [isProjectFormOpen, projectFormMode, selectedProject, setProjectForm]);
+      setAppVersion(result.data);
+    })();
+  }, [onMessage]);
 
   useEffect(() => {
     if (!message) {
@@ -172,30 +186,45 @@ export function App(): JSX.Element {
     setMessage('');
   }, [message]);
 
-  const hasAtLeastOneProject = projects.length > 0;
-  const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
-  const selectedProjectName = selectedProject?.name ?? 'No project selected';
-  const canStartRun = Boolean(selectedTestId);
-  const testCasePanelTitle = hasAtLeastOneTestCase ? 'Test case editor' : 'Setup first test case';
-  const testCasePanelDescription = hasAtLeastOneTestCase
-    ? 'Create a new test case or edit the selected one.'
-    : 'Create your first test case below.';
-
-  const activeScreen: 'loading' | 'install' | 'project' | 'main' = !isBrowserStatesLoaded
-    ? 'loading'
-    : !hasInstalledBrowser
-      ? 'install'
-      : !hasAtLeastOneProject
-        ? 'project'
-        : 'main';
-
   useEffect(() => {
-    if (activeScreen !== 'project') {
+    if (!selectedTestId) {
       return;
     }
 
-    beginCreateProject();
-  }, [activeScreen, beginCreateProject]);
+    const latestRun = runs[0];
+    setLatestRunStatusByTestId((previous) => {
+      if (!latestRun) {
+        if (!(selectedTestId in previous)) {
+          return previous;
+        }
+
+        const nextMap = { ...previous };
+        delete nextMap[selectedTestId];
+        return nextMap;
+      }
+
+      if (previous[selectedTestId] === latestRun.status) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [selectedTestId]: latestRun.status,
+      };
+    });
+  }, [runs, selectedTestId]);
+
+  const hasAtLeastOneProject = projects.length > 0;
+  const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
+  const canStartRun = Boolean(selectedTestId);
+
+  const activeScreen: 'loading' | 'install' | 'empty' | 'main' = !isBrowserStatesLoaded
+    ? 'loading'
+    : !hasInstalledBrowser || isBrowserInstallScreenOpen
+      ? 'install'
+      : !hasAtLeastOneProject
+        ? 'empty'
+        : 'main';
 
   const handleSelectProject = useCallback(
     (projectId: string): void => {
@@ -233,23 +262,17 @@ export function App(): JSX.Element {
     onMessage('Project updated.');
   }, [onMessage, refreshSidebar, selectedTestId, updateSelectedProject]);
 
-  const handleDeleteProject = useCallback(async (): Promise<void> => {
+  const handleDeleteProjectById = useCallback(async (projectId: string): Promise<void> => {
     await deleteSelectedProject(async () => {
-      setSelectedTestId('');
-      clearRunSelectionState();
-      clearBugReportState();
-      await refreshSidebar('');
-    });
-  }, [clearBugReportState, clearRunSelectionState, deleteSelectedProject, refreshSidebar]);
-
-  const handleSaveTestCase = useCallback(async (): Promise<void> => {
-    const saved = await saveTestCase();
-    if (!saved) {
-      return;
-    }
-
-    await refreshSidebar(selectedProjectId, saved.id);
-  }, [refreshSidebar, saveTestCase, selectedProjectId]);
+      const shouldClearSelection = selectedProjectId === projectId;
+      if (shouldClearSelection) {
+        setSelectedTestId('');
+        clearRunSelectionState();
+        clearBugReportState();
+      }
+      await refreshSidebar(shouldClearSelection ? '' : selectedProjectId);
+    }, projectId);
+  }, [clearBugReportState, clearRunSelectionState, deleteSelectedProject, refreshSidebar, selectedProjectId]);
 
   const handleDeleteSelectedTest = useCallback(async (): Promise<void> => {
     await deleteSelectedTest(async () => {
@@ -273,149 +296,115 @@ export function App(): JSX.Element {
     onMessage('Opened step writing docs in your default browser.');
   }, [onMessage]);
 
-  return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-4 md:px-6 md:py-5">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-28 top-8 h-72 w-72 rounded-full bg-primary/22 blur-3xl" />
-        <div className="absolute right-[-8rem] top-[-4rem] h-[20rem] w-[20rem] rounded-full bg-accent/16 blur-3xl" />
-        <div className="absolute bottom-[-10rem] left-1/2 h-[22rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-      </div>
+  if (activeScreen === 'loading') {
+    return (
+      <main className="h-screen w-screen bg-background">
+        <div className="flex h-full w-full items-center justify-center bg-background">
+          <LoadingScreen />
+        </div>
+        <ToastContainer position="top-right" autoClose={3200} closeOnClick newestOnTop pauseOnHover pauseOnFocusLoss={false} draggable={false} theme="dark" />
+      </main>
+    );
+  }
 
-      <ThemeToggle theme={theme} onToggle={() => setTheme((previous) => (previous === 'dark' ? 'light' : 'dark'))} />
-      <button
-        type="button"
-        className={`${mutedButtonClass} fixed bottom-4 left-4 z-50 bg-card/92 shadow-[var(--shadow-soft)] backdrop-blur-xl`}
-        onClick={() => {
-          void handleOpenStepDocs();
-        }}
-      >
-        Step Docs
-      </button>
-
-      {isUpdateBannerVisible && updateBannerEvent ? (
-        <UpdateBanner
-          event={updateBannerEvent}
-          canInstallNow={canInstallNow}
-          isInstalling={isInstallingUpdate}
-          onDismiss={dismissUpdateBanner}
-          onInstallNow={() => {
-            void installUpdateNow();
-          }}
-        />
-      ) : null}
-
-      <div className={activeScreen === 'main' ? appShellClass : onboardingShellClass}>
-        {activeScreen === 'loading' ? <LoadingScreen /> : null}
-
-        {activeScreen === 'install' ? (
+  if (activeScreen === 'install') {
+    return (
+      <main className="h-screen w-screen bg-background">
+        <div className="h-full w-full overflow-hidden bg-[#0b0d12]">
           <BrowserInstallScreen
             browserStates={browserStates}
             browserInstallProgress={browserInstallProgress}
             hasInstalledBrowser={hasInstalledBrowser}
+            onBackToWorkspace={isBrowserInstallScreenOpen ? () => setIsBrowserInstallScreenOpen(false) : undefined}
             onInstallBrowser={(nextBrowser) => {
               void installBrowser(nextBrowser);
             }}
           />
-        ) : null}
+        </div>
+        <ToastContainer position="top-right" autoClose={3200} closeOnClick newestOnTop pauseOnHover pauseOnFocusLoss={false} draggable={false} theme="dark" />
+      </main>
+    );
+  }
 
-        {activeScreen === 'project' ? (
-          <ProjectSetupScreen
-            projectForm={projectForm}
-            setProjectForm={setProjectForm}
-            projectNameError={projectNameError}
-            projectBaseUrlError={projectBaseUrlError}
-            canSaveProject={canSaveProject}
-            onCreateProject={() => {
-              void handleCreateProject();
-            }}
-          />
-        ) : null}
+  return (
+    <main className="h-screen w-screen bg-background">
+      <div className={appShellClass}>
+        <SidebarProjectsPanel
+          projects={projects}
+          testCasesByProject={testCasesByProject}
+          latestRunStatusByTestId={latestRunStatusByTestId}
+          selectedProjectId={selectedProjectId}
+          selectedTestId={selectedTestId}
+          appVersion={appVersion}
+          isProjectDeleteBlocked={isProjectDeleteBlocked}
+          onSelectProject={handleSelectProject}
+          onSelectTest={handleSelectTest}
+          onBeginCreateProject={beginCreateProject}
+          onCreateTestForProject={(projectId) => {
+            handleSelectProject(projectId);
+            beginCreateTest();
+          }}
+          onBeginEditProject={(projectId) => beginEditSelectedProject(projectId)}
+          onDeleteProject={(projectId) => {
+            void handleDeleteProjectById(projectId);
+          }}
+          onOpenStepDocs={() => {
+            void handleOpenStepDocs();
+          }}
+          onOpenBrowserInstall={() => {
+            setIsBrowserInstallScreenOpen(true);
+          }}
+        />
 
-        {activeScreen === 'main' ? (
-          <div className="grid items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-            <aside className="xl:sticky xl:top-4">
-              <div className="flex flex-col gap-4">
-                <SidebarProjectsPanel
-                  projects={projects}
-                  testCasesByProject={testCasesByProject}
-                  selectedProjectId={selectedProjectId}
-                  selectedTestId={selectedTestId}
-                  onSelectProject={handleSelectProject}
-                  onSelectTest={handleSelectTest}
-                  onBeginCreateProject={beginCreateProject}
-                />
+        <section className="min-w-0 overflow-y-auto bg-[#0b0d12] px-7 py-6">
+          {activeScreen === 'empty' ? (
+            <ProjectSetupScreen
+              onBeginCreateProject={beginCreateProject}
+            />
+          ) : (
+            <div className="space-y-5">
+              <header className="flex items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-semibold text-[#edf3fb]">Test Execution Workspace</h1>
+                  <p className="text-sm text-[#8f99a8]">Create test steps, run scenarios, and review outcomes in one place.</p>
+                </div>
+                <button type="button" className="inline-flex items-center justify-center rounded-full border border-primary/60 bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110" onClick={beginCreateTest}>
+                  Create Test Case
+                </button>
+              </header>
 
-                <ProjectManagementPanel
-                  selectedProject={selectedProject}
-                  selectedProjectName={selectedProjectName}
-                  projectForm={projectForm}
-                  setProjectForm={setProjectForm}
-                  projectFormMode={projectFormMode}
-                  isProjectFormOpen={isProjectFormOpen}
-                  projectNameError={projectNameError}
-                  projectBaseUrlError={projectBaseUrlError}
-                  canSaveProject={canSaveProject}
-                  isSelectedProjectDeleteBlocked={isSelectedProjectDeleteBlocked}
-                  onCreateProject={() => {
-                    void handleCreateProject();
-                  }}
-                  onUpdateSelectedProject={() => {
-                    void handleUpdateProject();
-                  }}
-                  onCloseProjectForm={closeProjectForm}
-                  onBeginEditSelectedProject={beginEditSelectedProject}
-                  onDeleteSelectedProject={() => {
-                    void handleDeleteProject();
-                  }}
-                />
-
-                <WorkspaceDefaultsPanel appConfig={appConfig} />
-              </div>
-            </aside>
-
-            <section className="flex min-w-0 flex-col gap-4">
               <TestCaseEditorPanel
-                testCasePanelTitle={testCasePanelTitle}
-                testCasePanelDescription={testCasePanelDescription}
+                testCasePanelTitle="Test Case Form"
+                testCasePanelDescription="Define metadata, steps, and assertions before executing a run."
                 hasAtLeastOneTestCase={hasAtLeastOneTestCase}
                 testForm={testForm}
                 setTestForm={setTestForm}
                 testTitleError={testTitleError}
-                parsedSteps={parsedSteps}
-                stepParsePreview={stepParsePreview}
-                testStepsErrors={testStepsErrors}
-                isValidatingSteps={isValidatingSteps}
                 isGeneratingSteps={isGeneratingSteps}
-                isTestEditing={isTestEditing}
-                canSaveTestCase={canSaveTestCase}
                 hasSelectedTest={Boolean(selectedTest)}
                 isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
+                browser={browser}
+                setBrowser={setBrowser}
+                canStartRun={canStartRun}
                 onBeginCreateTest={beginCreateTest}
                 onGenerateSteps={() => {
                   void generateSteps();
                 }}
-                onSaveTestCase={() => {
-                  void handleSaveTestCase();
-                }}
                 onDeleteSelectedTest={() => {
                   void handleDeleteSelectedTest();
+                }}
+                onStartRun={() => {
+                  void startRun();
                 }}
               />
 
               <RunCenterPanel
-                selectedTestTitle={selectedTest ? selectedTest.title : 'None selected'}
-                browser={browser}
-                setBrowser={setBrowser}
-                canStartRun={canStartRun}
-                activeRunId={activeRunId}
                 runs={runs}
                 selectedRunId={selectedRunId}
                 setSelectedRunId={setSelectedRunId}
                 selectedRun={selectedRun}
                 stepResults={stepResults}
-                onStartRun={() => {
-                  void startRun();
-                }}
+                activeRunId={activeRunId}
                 onCancelRun={() => {
                   void cancelRun();
                 }}
@@ -423,18 +412,41 @@ export function App(): JSX.Element {
                   void handleGenerateBugReport();
                 }}
                 isGeneratingBugReport={isGeneratingBugReport}
-                bugReportVisible={Boolean(bugReport)}
-                bugReportDraft={bugReportDraft}
-                setBugReportDraft={setBugReportDraft}
-                onCloseBugReportDraft={closeBugReportDraft}
-                onCopyBugReport={() => {
-                  void copyBugReport();
-                }}
+                canGenerateBugReport={Boolean(selectedRun && selectedRun.status === 'failed')}
               />
-            </section>
-          </div>
-        ) : null}
+            </div>
+          )}
+        </section>
       </div>
+
+      {isProjectFormOpen ? (
+        <ProjectModal
+          projectForm={projectForm}
+          setProjectForm={setProjectForm}
+          projectFormMode={projectFormMode}
+          projectNameError={projectNameError}
+          projectBaseUrlError={projectBaseUrlError}
+          canSaveProject={canSaveProject}
+          onClose={closeProjectForm}
+          onCreateProject={() => {
+            void handleCreateProject();
+          }}
+          onUpdateProject={() => {
+            void handleUpdateProject();
+          }}
+        />
+      ) : null}
+
+      {bugReport ? (
+        <BugReportModal
+          draft={bugReportDraft}
+          setDraft={setBugReportDraft}
+          onClose={closeBugReportDraft}
+          onCopy={() => {
+            void copyBugReport();
+          }}
+        />
+      ) : null}
 
       <ToastContainer
         position="top-right"
@@ -444,8 +456,9 @@ export function App(): JSX.Element {
         pauseOnHover
         pauseOnFocusLoss={false}
         draggable={false}
-        theme={theme}
+        theme="dark"
       />
     </main>
   );
 }
+

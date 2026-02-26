@@ -48,38 +48,38 @@ export function statusClassName(
   status: StepResult['status'] | 'installed' | 'missing' | 'installing',
 ): string {
   if (status === 'passed' || status === 'installed') {
-    return 'border-success/60 bg-success/12 text-success';
+    return 'bg-success/18 text-success';
   }
 
   if (status === 'installing') {
-    return 'border-primary/60 bg-primary/10 text-primary';
+    return 'bg-primary/16 text-primary';
   }
 
   if (status === 'failed' || status === 'missing') {
-    return 'border-danger/60 bg-danger/12 text-danger';
+    return 'bg-danger/18 text-danger';
   }
 
   if (status === 'cancelled') {
-    return 'border-border bg-secondary/50 text-muted-foreground';
+    return 'bg-secondary/70 text-muted-foreground';
   }
 
-  return 'border-primary/60 bg-primary/10 text-primary';
+  return 'bg-primary/16 text-primary';
 }
 
 export function runStatusClassName(status: Run['status']): string {
   if (status === 'passed') {
-    return 'border-success/60 bg-success/12 text-success';
+    return 'bg-success/18 text-success';
   }
 
   if (status === 'failed') {
-    return 'border-danger/60 bg-danger/12 text-danger';
+    return 'bg-danger/18 text-danger';
   }
 
   if (status === 'cancelled') {
-    return 'border-border bg-secondary/50 text-muted-foreground';
+    return 'bg-secondary/70 text-muted-foreground';
   }
 
-  return 'border-primary/60 bg-primary/10 text-primary';
+  return 'bg-primary/16 text-primary';
 }
 
 export function toErrorMessage(error: unknown): string {

@@ -7,12 +7,16 @@ import { IPC_CHANNELS } from '@shared/ipc';
 import { registerHandlers } from './registerHandlers';
 import type { Services } from '../services/services';
 
-const { ipcMainHandleMock, shellOpenExternalMock } = vi.hoisted(() => ({
+const { appGetVersionMock, ipcMainHandleMock, shellOpenExternalMock } = vi.hoisted(() => ({
+  appGetVersionMock: vi.fn(() => '0.1.1-beta.2'),
   ipcMainHandleMock: vi.fn(),
   shellOpenExternalMock: vi.fn(async () => undefined),
 }));
 
 vi.mock('electron', () => ({
+  app: {
+    getVersion: appGetVersionMock,
+  },
   ipcMain: {
     handle: ipcMainHandleMock,
   },
@@ -181,6 +185,8 @@ async function invoke(channel: string, payload?: unknown): Promise<unknown> {
 
 describe('registerHandlers IPC input validation', () => {
   beforeEach(() => {
+    appGetVersionMock.mockReset();
+    appGetVersionMock.mockReturnValue('0.1.1-beta.2');
     ipcMainHandleMock.mockReset();
     shellOpenExternalMock.mockReset();
     shellOpenExternalMock.mockResolvedValue(undefined);
@@ -445,6 +451,19 @@ describe('registerHandlers IPC input validation', () => {
       },
     });
     expect(spies.runInstallBrowser).toHaveBeenCalledWith('firefox');
+  });
+
+  it('returns the application version from Electron app metadata', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.appGetVersion);
+
+    expect(result).toEqual({
+      ok: true,
+      data: '0.1.1-beta.2',
+    });
+    expect(appGetVersionMock).toHaveBeenCalledTimes(1);
   });
 
   it('opens step docs in default browser', async () => {
