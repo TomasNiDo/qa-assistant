@@ -26,6 +26,7 @@ import type {
 
 export const IPC_CHANNELS = {
   healthPing: 'app.healthPing',
+  appGetVersion: 'app.getVersion',
   configGet: 'app.configGet',
   configSet: 'app.configSet',
   seedSampleProject: 'seed.sampleProject',
@@ -60,6 +61,7 @@ export const IPC_CHANNELS = {
 
 export interface QaAssistantApi {
   healthPing: () => Promise<ApiResult<string>>;
+  appGetVersion: () => Promise<ApiResult<string>>;
   configGet: () => Promise<ApiResult<AppConfig>>;
   configSet: (input: AppConfig) => Promise<ApiResult<AppConfig>>;
   seedSampleProject: () => Promise<ApiResult<SampleSeedResult>>;

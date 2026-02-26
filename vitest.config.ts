@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    environmentMatchGlobs: [['src/renderer/src/**/*.test.tsx', 'jsdom']],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
 });

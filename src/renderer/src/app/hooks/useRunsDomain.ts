@@ -144,7 +144,7 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
     }
 
     const orderedRuns = [...result.data].sort(
-      (left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt),
+      (left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt),
     );
 
     setRuns(orderedRuns);
@@ -154,7 +154,7 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
     }
 
     if (!orderedRuns.find((run) => run.id === selectedRunId)) {
-      setSelectedRunId(orderedRuns[orderedRuns.length - 1].id);
+      setSelectedRunId(orderedRuns[0].id);
     }
   }, [onMessage, selectedRunId, selectedTestId]);
 

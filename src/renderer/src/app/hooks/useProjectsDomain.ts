@@ -25,13 +25,14 @@ export interface UseProjectsDomainResult {
   projectBaseUrlError: string | null;
   canSaveProject: boolean;
   isSelectedProjectDeleteBlocked: boolean;
+  isProjectDeleteBlocked: (projectId: string) => boolean;
   refreshProjects: (preferredProjectId?: string) => Promise<Project[]>;
   beginCreateProject: () => void;
-  beginEditSelectedProject: () => void;
+  beginEditSelectedProject: (projectId?: string) => void;
   closeProjectForm: () => void;
   createProject: () => Promise<Project | null>;
   updateSelectedProject: () => Promise<Project | null>;
-  deleteSelectedProject: (onProjectDeleted: () => Promise<void>) => Promise<boolean>;
+  deleteSelectedProject: (onProjectDeleted: () => Promise<void>, projectId?: string) => Promise<boolean>;
 }
 
 export function useProjectsDomain({
@@ -55,6 +56,10 @@ export function useProjectsDomain({
 
   const isSelectedProjectDeleteBlocked =
     Boolean(selectedProjectId) && activeRunContext?.projectId === selectedProjectId;
+  const isProjectDeleteBlocked = useCallback(
+    (projectId: string): boolean => activeRunContext?.projectId === projectId,
+    [activeRunContext?.projectId],
+  );
 
   const refreshProjects = useCallback(
     async (preferredProjectId: string = selectedProjectId): Promise<Project[]> => {
@@ -93,21 +98,24 @@ export function useProjectsDomain({
     setIsProjectFormOpen(true);
   }, []);
 
-  const beginEditSelectedProject = useCallback(() => {
-    if (!selectedProject) {
+  const beginEditSelectedProject = useCallback((projectId?: string) => {
+    const targetProjectId = projectId ?? selectedProjectId;
+    const projectToEdit = projects.find((project) => project.id === targetProjectId);
+    if (!projectToEdit) {
       onMessage('Select a project first.');
       return;
     }
 
+    setSelectedProjectId(projectToEdit.id);
     setProjectFormMode('edit');
     setProjectForm({
-      id: selectedProject.id,
-      name: selectedProject.name,
-      baseUrl: selectedProject.baseUrl,
-      envLabel: selectedProject.envLabel,
+      id: projectToEdit.id,
+      name: projectToEdit.name,
+      baseUrl: projectToEdit.baseUrl,
+      envLabel: projectToEdit.envLabel,
     });
     setIsProjectFormOpen(true);
-  }, [onMessage, selectedProject]);
+  }, [onMessage, projects, selectedProjectId]);
 
   const closeProjectForm = useCallback(() => {
     setIsProjectFormOpen(false);
@@ -221,13 +229,17 @@ export function useProjectsDomain({
     selectedProject,
   ]);
 
-  const deleteSelectedProject = useCallback(async (onProjectDeleted: () => Promise<void>): Promise<boolean> => {
-    if (!selectedProjectId) {
+  const deleteSelectedProject = useCallback(async (
+    onProjectDeleted: () => Promise<void>,
+    projectId?: string,
+  ): Promise<boolean> => {
+    const targetProjectId = projectId ?? selectedProjectId;
+    if (!targetProjectId) {
       onMessage('Select a project first.');
       return false;
     }
 
-    if (activeRunContext?.projectId === selectedProjectId) {
+    if (activeRunContext?.projectId === targetProjectId) {
       onMessage('Cannot delete this project while its run is active.');
       return false;
     }
@@ -238,7 +250,7 @@ export function useProjectsDomain({
 
     let result: Awaited<ReturnType<typeof window.qaApi.projectDelete>>;
     try {
-      result = await window.qaApi.projectDelete(selectedProjectId);
+      result = await window.qaApi.projectDelete(targetProjectId);
     } catch (error) {
       onMessage(`Delete project failed: ${toErrorMessage(error)}`);
       return false;
@@ -269,6 +281,7 @@ export function useProjectsDomain({
     projectBaseUrlError,
     canSaveProject,
     isSelectedProjectDeleteBlocked,
+    isProjectDeleteBlocked,
     refreshProjects,
     beginCreateProject,
     beginEditSelectedProject,

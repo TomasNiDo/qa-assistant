@@ -1,4 +1,4 @@
-import { useEffect, useState, type WheelEvent } from 'react';
+﻿import { useEffect, useState, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { StepResult } from '@shared/types';
 import { loadFullScreenshot, loadThumbnailWithFallback } from '../../screenshotLoader';
@@ -10,9 +10,10 @@ const SCREENSHOT_VIEWER_ZOOM_STEP = 0.2;
 
 interface StepResultCardProps {
   result: StepResult;
+  compact?: boolean;
 }
 
-export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
+export function StepResultCard({ result, compact = false }: StepResultCardProps): JSX.Element {
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState('');
   const [isLoadingThumbnail, setIsLoadingThumbnail] = useState(false);
   const [thumbnailError, setThumbnailError] = useState('');
@@ -225,55 +226,45 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
 
   return (
     <>
-      <article className="rounded-2xl border border-border/80 bg-background/52 p-3.5 shadow-[0_20px_50px_-36px_hsl(198_93%_42%/0.75)]">
+      <article
+        className={compact
+          ? 'rounded-md bg-background/55 px-2.5 py-2'
+          : 'rounded-[10px] bg-background/70 px-3 py-2.5'}
+      >
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h4 className="text-sm font-bold text-foreground">
-            Step {result.stepOrder}: {result.stepRawText}
-          </h4>
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClassName(result.status)}`}>
+          <div className="space-y-1">
+            <h4 className={compact ? 'text-xs font-semibold text-[#dce4ef]' : 'text-sm font-semibold text-[#dce4ef]'}>
+              Step {result.stepOrder} · {result.stepRawText}
+            </h4>
+            {result.errorText ? (
+              <p className="text-[11px] text-[#f1a3b4]">{result.errorText}</p>
+            ) : (
+              <p className="text-[11px] text-[#8f99a8]">No error recorded.</p>
+            )}
+          </div>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClassName(result.status)}`}>
             {result.status.toUpperCase()}
           </span>
         </div>
 
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          <section className="space-y-2">
-            <h5 className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
-              Screenshot preview
-            </h5>
-            {isLoadingThumbnail ? <p className="text-xs text-muted-foreground">Loading thumbnail...</p> : null}
-            {!isLoadingThumbnail && thumbnailError ? <p className="text-xs text-danger">{thumbnailError}</p> : null}
-            {!isLoadingThumbnail && !thumbnailError && thumbnailDataUrl ? (
-              <button
-                type="button"
-                className="group relative block w-full overflow-hidden rounded-lg border border-border bg-background"
-                onClick={() => setIsScreenshotViewerOpen(true)}
-              >
-                <img
-                  className="max-h-[220px] w-full object-contain transition duration-200 group-hover:scale-[1.01]"
-                  src={thumbnailDataUrl}
-                  alt={`Step ${result.stepOrder} screenshot thumbnail`}
-                  loading="lazy"
-                />
-                <span className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-border/90 bg-card/90 px-2 py-1 text-[11px] font-semibold text-foreground">
-                  Open full size
-                </span>
-              </button>
-            ) : null}
-            {!isLoadingThumbnail && !thumbnailError && !thumbnailDataUrl ? (
-              <p className="text-xs text-muted-foreground">No screenshot captured for this step.</p>
-            ) : null}
-          </section>
-
-          <section className="space-y-2">
-            <h5 className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Error details</h5>
-            {result.errorText ? (
-              <pre className="max-h-[320px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-danger/45 bg-danger/8 p-2.5 font-mono text-xs text-danger">
-                {result.errorText}
-              </pre>
-            ) : (
-              <p className="text-xs text-muted-foreground">No error recorded.</p>
-            )}
-          </section>
+        <div className="mt-2 flex items-center gap-2">
+          {isLoadingThumbnail ? <p className="text-[11px] text-muted-foreground">Loading screenshot...</p> : null}
+          {!isLoadingThumbnail && thumbnailError ? <p className="text-[11px] text-danger">{thumbnailError}</p> : null}
+          {!isLoadingThumbnail && !thumbnailError && thumbnailDataUrl ? (
+            <button
+              type="button"
+              className="overflow-hidden rounded-md bg-background/85"
+              onClick={() => setIsScreenshotViewerOpen(true)}
+              title="Open screenshot"
+            >
+              <img
+                className={compact ? 'h-11 w-20 object-cover' : 'h-14 w-24 object-cover'}
+                src={thumbnailDataUrl}
+                alt={`Step ${result.stepOrder} screenshot thumbnail`}
+                loading="lazy"
+              />
+            </button>
+          ) : null}
         </div>
       </article>
       {isScreenshotViewerOpen && typeof document !== 'undefined'
@@ -288,11 +279,11 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
               <div className="relative max-h-[95vh] max-w-[95vw]" onClick={(event) => event.stopPropagation()}>
                 <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
                   {copyImageStatus ? (
-                    <span className="rounded-md border border-border/80 bg-card/92 px-2 py-1 text-[11px] font-medium text-foreground">
+                    <span className="rounded-md border border-border/80 bg-card px-2 py-1 text-[11px] font-medium text-foreground">
                       {copyImageStatus}
                     </span>
                   ) : null}
-                  <div className="inline-flex h-9 items-center gap-1 rounded-full border border-border/80 bg-card/92 px-1.5">
+                  <div className="inline-flex h-9 items-center gap-1 rounded-full border border-border/80 bg-card px-1.5">
                     <button
                       type="button"
                       className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/80 bg-card text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
@@ -302,10 +293,7 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
                     >
                       -
                     </button>
-                    <span
-                      className="min-w-[54px] text-center text-[11px] font-semibold text-foreground"
-                      title="Use Ctrl/Cmd + wheel to zoom"
-                    >
+                    <span className="min-w-[54px] text-center text-[11px] font-semibold text-foreground" title="Use Ctrl/Cmd + wheel to zoom">
                       {zoomPercent}%
                     </span>
                     <button
@@ -329,7 +317,7 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
                   </div>
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center justify-center rounded-full border border-border/80 bg-card/92 px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-9 items-center justify-center rounded-full border border-border/80 bg-card px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={() => void copyScreenshotImage()}
                     disabled={isCopyingImage || isLoadingFullScreenshot || !fullScreenshotDataUrl}
                   >
@@ -337,7 +325,7 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card/92 text-foreground transition hover:bg-secondary/85"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card text-foreground transition hover:bg-secondary/85"
                     onClick={() => setIsScreenshotViewerOpen(false)}
                     aria-label="Close screenshot viewer"
                   >
@@ -348,7 +336,7 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
                 </div>
                 <div className="flex min-h-[280px] min-w-[320px] items-center justify-center">
                   {isLoadingFullScreenshot ? (
-                    <p className="rounded-md border border-border/80 bg-card/92 px-3 py-2 text-xs font-medium text-foreground">
+                    <p className="rounded-md border border-border/80 bg-card px-3 py-2 text-xs font-medium text-foreground">
                       Loading full screenshot...
                     </p>
                   ) : null}
@@ -392,3 +380,4 @@ export function StepResultCard({ result }: StepResultCardProps): JSX.Element {
 function clampViewerZoom(value: number): number {
   return Math.min(SCREENSHOT_VIEWER_MAX_ZOOM, Math.max(SCREENSHOT_VIEWER_MIN_ZOOM, Number(value.toFixed(2))));
 }
+
