@@ -1,6 +1,6 @@
-﻿import type { Run, StepResult } from '@shared/types';
+import type { Run, StepResult } from '@shared/types';
 import { StepResultCard } from './StepResultCard';
-import { dangerButtonClass, panelClass, primaryButtonClass } from '../uiClasses';
+import { dangerButtonClass, mutedButtonClass, panelClass } from '../uiClasses';
 import { formatRunDuration, runStatusClassName } from '../utils';
 
 interface RunCenterPanelProps {
@@ -11,6 +11,8 @@ interface RunCenterPanelProps {
   stepResults: StepResult[];
   activeRunId: string;
   onCancelRun: () => void;
+  onRerun: () => void;
+  canRerun: boolean;
   onGenerateBugReport: () => void;
   isGeneratingBugReport: boolean;
   canGenerateBugReport: boolean;
@@ -29,19 +31,22 @@ export function RunCenterPanel({
   stepResults,
   activeRunId,
   onCancelRun,
+  onRerun,
+  canRerun,
   onGenerateBugReport,
   isGeneratingBugReport,
   canGenerateBugReport,
 }: RunCenterPanelProps): JSX.Element {
   const selectedStatusClass = selectedRun ? runStatusClassName(selectedRun.status) : 'bg-secondary/70 text-muted-foreground';
   const passedStepsCount = stepResults.filter((result) => result.status === 'passed').length;
+  const hasScreenshots = stepResults.some((result) => Boolean(result.screenshotPath));
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className={`${panelClass} space-y-3`}>
+      <div className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
         <div>
-          <h2 className="text-[15px] font-semibold text-[#e8eff9]">Run History</h2>
-          <p className="text-[11px] text-[#7d8ca3]">Run chips + focused detail card</p>
+          <h2 className="text-[15px] font-semibold text-[#eaf1fb]">Run Timeline</h2>
+          <p className="text-[11px] text-[#9db0c8]">Select a run to inspect step evidence and timing details.</p>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
@@ -81,9 +86,9 @@ export function RunCenterPanel({
         ) : null}
       </div>
 
-      <aside className={`${panelClass} space-y-3`}>
+      <aside className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e8eff9]">Latest Result</h2>
+          <h2 className="text-[15px] font-semibold text-[#eaf1fb]">Latest Result</h2>
           {selectedRun ? (
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${selectedStatusClass}`}>
               {selectedRun.status.toUpperCase()} · {passedStepsCount}/{stepResults.length || 0} steps
@@ -92,14 +97,30 @@ export function RunCenterPanel({
         </div>
 
         {selectedRun ? (
-          <div className="space-y-1 text-xs text-[#a2adb9]">
+          <div className="space-y-1 text-xs text-[#b2c1d4]">
             <p>Browser: {selectedRun.browser}</p>
             <p>Duration: {formatRunDuration(selectedRun)}</p>
             <p>Run ID: {selectedRun.id}</p>
+            <p>Screenshot: {hasScreenshots ? 'Available' : 'Not captured'}</p>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">Select a run to view details.</p>
         )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <span className="rounded-full bg-[#182231]/80 px-2 py-1 text-[11px] font-semibold text-[#c8d8ed]">
+            View Logs
+          </span>
+          <span
+            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+              hasScreenshots
+                ? 'bg-[#182231]/80 text-[#c8d8ed]'
+                : 'bg-[#121a28]/65 text-[#7f95b1]'
+            }`}
+          >
+            View Screenshot
+          </span>
+        </div>
 
         <div className="flex flex-wrap gap-2 pt-1">
           {activeRunId ? (
@@ -109,16 +130,22 @@ export function RunCenterPanel({
           ) : null}
           <button
             type="button"
-            className={primaryButtonClass}
+            className={mutedButtonClass}
+            onClick={onRerun}
+            disabled={!canRerun || Boolean(activeRunId)}
+          >
+            Re-run
+          </button>
+          <button
+            type="button"
+            className={dangerButtonClass}
             onClick={onGenerateBugReport}
             disabled={!canGenerateBugReport || isGeneratingBugReport}
           >
-            {isGeneratingBugReport ? 'Generating...' : 'Bug Report'}
+            {isGeneratingBugReport ? 'Generating...' : 'Report Issue'}
           </button>
         </div>
       </aside>
     </section>
   );
 }
-
-

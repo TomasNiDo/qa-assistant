@@ -48,6 +48,8 @@ describe('RunCenterPanel', () => {
         stepResults={stepResults}
         activeRunId=""
         onCancelRun={vi.fn()}
+        onRerun={vi.fn()}
+        canRerun
         onGenerateBugReport={vi.fn()}
         isGeneratingBugReport={false}
         canGenerateBugReport={false}
@@ -70,6 +72,8 @@ describe('RunCenterPanel', () => {
         stepResults={stepResults}
         activeRunId="run-1"
         onCancelRun={onCancelRun}
+        onRerun={vi.fn()}
+        canRerun
         onGenerateBugReport={vi.fn()}
         isGeneratingBugReport={false}
         canGenerateBugReport={false}
@@ -80,4 +84,3 @@ describe('RunCenterPanel', () => {
     expect(onCancelRun).toHaveBeenCalledTimes(1);
   });
 });
-

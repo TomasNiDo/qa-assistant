@@ -37,6 +37,7 @@ export interface UseTestsDomainResult {
   hasStepErrors: boolean;
   effectiveCode: string;
   isCodeModified: boolean;
+  autoSaveStatus: 'saving' | 'saved';
   canSaveTestCase: boolean;
   isSelectedTestDeleteBlocked: boolean;
   refreshTestsTree: (
@@ -126,9 +127,11 @@ export function useTestsDomain({
   const [stepParsePreview, setStepParsePreview] = useState<StepParseResult[]>([]);
   const [isValidatingSteps, setIsValidatingSteps] = useState(false);
   const [isGeneratingSteps, setIsGeneratingSteps] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saving' | 'saved'>('saved');
 
   const stepValidationVersion = useRef(0);
   const testFormLoadVersion = useRef(0);
+  const autoSaveVersion = useRef(0);
   const lastSavedSignatureRef = useRef('');
 
   const selectedProjectTests = useMemo(
@@ -239,6 +242,7 @@ export function useTestsDomain({
 
     if (!selectedTest) {
       lastSavedSignatureRef.current = '';
+      setAutoSaveStatus('saved');
       setIsTestEditing(false);
       setTestForm(DEFAULT_TEST_FORM);
       return;
@@ -265,6 +269,7 @@ export function useTestsDomain({
     );
 
     setIsTestEditing(true);
+    setAutoSaveStatus('saved');
     setTestForm({
       id: selectedTest.id,
       title: selectedTest.title,
@@ -333,6 +338,7 @@ export function useTestsDomain({
   const beginCreateTest = useCallback(() => {
     testFormLoadVersion.current += 1;
     lastSavedSignatureRef.current = '';
+    setAutoSaveStatus('saved');
     setSelectedTestId('');
     setIsTestEditing(false);
     setTestForm(DEFAULT_TEST_FORM);
@@ -461,6 +467,7 @@ export function useTestsDomain({
 
   useEffect(() => {
     if (!selectedProjectId || !canSaveTestCase) {
+      setAutoSaveStatus('saved');
       return;
     }
 
@@ -474,11 +481,21 @@ export function useTestsDomain({
       testForm.customCode,
     );
     if (currentSignature === lastSavedSignatureRef.current) {
+      setAutoSaveStatus('saved');
       return;
     }
 
+    const currentAutoSaveVersion = autoSaveVersion.current + 1;
+    autoSaveVersion.current = currentAutoSaveVersion;
+    setAutoSaveStatus('saving');
+
     const timeoutId = window.setTimeout(() => {
-      void saveTestCase();
+      void (async () => {
+        await saveTestCase();
+        if (currentAutoSaveVersion === autoSaveVersion.current) {
+          setAutoSaveStatus('saved');
+        }
+      })();
     }, 650);
 
     return () => {
@@ -594,6 +611,7 @@ export function useTestsDomain({
     hasStepErrors,
     effectiveCode,
     isCodeModified,
+    autoSaveStatus,
     canSaveTestCase,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,

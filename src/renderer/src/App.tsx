@@ -86,6 +86,7 @@ export function App(): JSX.Element {
     customCodeError,
     effectiveCode,
     isCodeModified,
+    autoSaveStatus,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectProject,
@@ -363,26 +364,50 @@ export function App(): JSX.Element {
           }}
         />
 
-        <section className="min-w-0 overflow-y-auto bg-[#0b0d12] px-7 py-6">
+        <section className="min-w-0 overflow-y-auto bg-transparent px-7 py-6">
           {activeScreen === 'empty' ? (
             <ProjectSetupScreen
               onBeginCreateProject={beginCreateProject}
             />
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <header className="flex items-start justify-between gap-3">
                 <div>
                   <h1 className="text-2xl font-semibold text-[#edf3fb]">Test Execution Workspace</h1>
-                  <p className="text-sm text-[#8f99a8]">Create test steps, run scenarios, and review outcomes in one place.</p>
+                  <p className="text-sm text-[#a9b8cb]">Draft steps, validate run readiness, then execute with clear result summaries.</p>
                 </div>
-                <button type="button" className="inline-flex items-center justify-center rounded-full border border-primary/60 bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:brightness-110" onClick={beginCreateTest}>
-                  Create Test Case
-                </button>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#121c2a]/75 px-3 py-1.5 text-xs font-semibold text-[#d9e4f5]">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      autoSaveStatus === 'saving' ? 'animate-pulse bg-warning' : 'bg-success'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  {autoSaveStatus === 'saving' ? 'Saving...' : 'Saved'}
+                </span>
               </header>
 
+              <section className="rounded-2xl bg-[#101722]/55 px-3 py-2.5">
+                <p className="text-[11px] font-semibold tracking-wide text-[#90a7c3]">Run Workflow</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[#17314f]/85 px-2.5 py-1 text-[11px] font-semibold text-[#9fd1ff]">
+                    1. Metadata
+                  </span>
+                  <span className="rounded-full bg-[#121c2a]/70 px-2.5 py-1 text-[11px] font-medium text-[#aac0db]">
+                    2. Steps
+                  </span>
+                  <span className="rounded-full bg-[#121c2a]/70 px-2.5 py-1 text-[11px] font-medium text-[#aac0db]">
+                    3. Start Run
+                  </span>
+                  <span className="rounded-full bg-[#121c2a]/70 px-2.5 py-1 text-[11px] font-medium text-[#aac0db]">
+                    4. Review
+                  </span>
+                </div>
+              </section>
+
               <TestCaseEditorPanel
-                testCasePanelTitle="Test Case Form"
-                testCasePanelDescription="Define metadata, steps, and assertions before executing a run."
+                testCasePanelTitle="Scenario Setup"
+                testCasePanelDescription="Define metadata first, then author or review execution input before running."
                 hasAtLeastOneTestCase={hasAtLeastOneTestCase}
                 testForm={testForm}
                 setTestForm={setTestForm}
@@ -422,6 +447,10 @@ export function App(): JSX.Element {
                 onCancelRun={() => {
                   void cancelRun();
                 }}
+                onRerun={() => {
+                  void startRun();
+                }}
+                canRerun={canStartRun}
                 onGenerateBugReport={() => {
                   void handleGenerateBugReport();
                 }}
@@ -475,4 +504,3 @@ export function App(): JSX.Element {
     </main>
   );
 }
-
