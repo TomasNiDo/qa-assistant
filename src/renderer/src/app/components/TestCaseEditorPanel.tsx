@@ -84,40 +84,20 @@ export function TestCaseEditorPanel({
         <p className="text-[11px] text-[#8e9fb8]">{testCasePanelDescription}</p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg bg-background/45 px-2.5 py-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-              testForm.isCustomized ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success'
-            }`}
-          >
-            {testForm.isCustomized ? 'CUSTOM CODE' : 'AUTO GENERATED'}
-          </span>
-          <button
-            type="button"
-            className={primaryButtonClass}
-            onClick={onStartRun}
-            disabled={!canStartRun || !hasAtLeastOneTestCase}
-          >
-            Run in Browser
-          </button>
-        </div>
-      </div>
-
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
-          Test Case Title
+        <label className="block text-xs font-semibold text-[#a9b9d1]">
+          <span className="mb-3 block">Test Case Title</span>
           <input
             className={fieldClass}
             value={testForm.title}
             onChange={(event) => setTestForm((previous) => ({ ...previous, title: event.target.value }))}
             placeholder="Checkout applies promo and captures payment"
           />
-          {testTitleError ? <span className="text-[11px] text-danger">{testTitleError}</span> : null}
+          {testTitleError ? <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span> : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
-          Browser
+        <label className="block text-xs font-semibold text-[#a9b9d1]">
+          <span className="mb-3 block">Browser</span>
           <select
             className={fieldClass}
             value={browser}
@@ -132,11 +112,11 @@ export function TestCaseEditorPanel({
 
       {testForm.activeView === 'steps' ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-[#a9b9d1]">Test Steps</p>
+          <p className="mb-3 text-xs font-semibold text-[#a9b9d1]">Test Steps</p>
           <div className="relative">
             <div className="absolute right-2 top-2 z-10">{viewToggle}</div>
             <textarea
-              className={`${fieldClass} min-h-[230px] resize-y pr-36 text-xs leading-relaxed`}
+              className={`${fieldClass} h-80 resize-y pr-36 text-xs leading-relaxed`}
               rows={6}
               value={testForm.stepsText}
               onChange={(event) => setTestForm((previous) => ({ ...previous, stepsText: event.target.value }))}
@@ -152,14 +132,17 @@ export function TestCaseEditorPanel({
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold text-[#a9b9d1]">Playwright Code</p>
-            <div className="flex flex-wrap items-center gap-2">
-              {isCodeModified ? (
-                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                  Modified
-                </span>
-              ) : null}
+            {isCodeModified ? (
+              <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                Modified
+              </span>
+            ) : null}
+          </div>
+          <div className="relative">
+            <div className="absolute right-2 top-2 z-10">{viewToggle}</div>
+            <div className="absolute bottom-4 right-2 z-10 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 className={mutedButtonClass}
@@ -177,11 +160,8 @@ export function TestCaseEditorPanel({
                 Restore Auto-Generated
               </button>
             </div>
-          </div>
-          <div className="relative">
-            <div className="absolute right-2 top-2 z-10">{viewToggle}</div>
             <textarea
-              className={`${fieldClass} min-h-[230px] resize-y pr-36 font-mono text-[12px] leading-relaxed`}
+              className={`${fieldClass} h-80 resize-y pb-16 pr-36 font-mono text-[12px] leading-relaxed`}
               rows={12}
               value={effectiveCode}
               readOnly={!testForm.isCodeEditingEnabled}
@@ -189,17 +169,19 @@ export function TestCaseEditorPanel({
               placeholder="Generated Playwright code will appear here."
             />
           </div>
-          <p className="text-[11px] text-[#8e9fb8]">
-            {testForm.isCodeEditingEnabled
-              ? 'Code edits are enabled. The test will run this custom code once saved.'
-              : 'Code is read-only by default. Enable editing to customize execution.'}
-          </p>
         </div>
       )}
 
       {customCodeError ? <p className="text-[11px] text-danger">{customCodeError}</p> : null}
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {testForm.activeView === 'code' ? (
+          <p className="mr-auto text-[11px] text-[#8e9fb8]">
+            {testForm.isCodeEditingEnabled
+              ? 'Code edits are enabled. The test will run this custom code once saved.'
+              : 'Code is read-only by default. Enable editing to customize execution.'}
+          </p>
+        ) : null}
         <button type="button" className={mutedButtonClass} onClick={onBeginCreateTest}>
           Reset
         </button>
@@ -223,13 +205,12 @@ export function TestCaseEditorPanel({
         <button
           type="button"
           className={primaryButtonClass}
-          onClick={() => setEditorView('code')}
+          onClick={onStartRun}
           disabled={!canStartRun || !hasAtLeastOneTestCase}
         >
-          Open Code View
+          Start Run
         </button>
       </div>
     </section>
   );
 }
-
