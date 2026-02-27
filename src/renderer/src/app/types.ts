@@ -11,6 +11,11 @@ export interface TestFormState {
   id: string;
   title: string;
   stepsText: string;
+  generatedCode: string;
+  customCode: string;
+  isCustomized: boolean;
+  isCodeEditingEnabled: boolean;
+  activeView: 'steps' | 'code';
 }
 
 export interface BrowserInstallProgressState {
@@ -33,6 +38,11 @@ export const DEFAULT_TEST_FORM: TestFormState = {
   id: '',
   title: '',
   stepsText: 'Click "Login"',
+  generatedCode: '',
+  customCode: '',
+  isCustomized: false,
+  isCodeEditingEnabled: false,
+  activeView: 'steps',
 };
 
 export type ThemeMode = 'light' | 'dark';

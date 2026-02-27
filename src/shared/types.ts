@@ -45,6 +45,9 @@ export interface TestCase {
   id: string;
   projectId: string;
   title: string;
+  generatedCode: string;
+  customCode: string | null;
+  isCustomized: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +154,8 @@ export interface CreateTestInput {
   projectId: string;
   title: string;
   steps: string[];
+  customCode?: string | null;
+  isCustomized?: boolean;
 }
 
 export interface UpdateTestInput extends CreateTestInput {

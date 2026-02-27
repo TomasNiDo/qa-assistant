@@ -17,6 +17,7 @@ import type {
   StepStatus,
 } from '@shared/types';
 import type { Browser as PlaywrightBrowser, BrowserContext, Page } from 'playwright';
+import { expect as playwrightExpect } from 'playwright/test';
 import { createId } from './id';
 import { BrowserService } from './browserService';
 import { parseStep } from './parserService';
@@ -31,6 +32,12 @@ interface ActiveRun {
 
 interface ExecutionStep extends Step {
   action: ParsedAction;
+}
+
+interface ExecutionPlan {
+  steps: ExecutionStep[];
+  isCustomized: boolean;
+  customCode: string | null;
 }
 
 interface RunContext {
@@ -76,8 +83,8 @@ export class RunService {
     }
 
     const context = this.getRunContext(input.testCaseId);
-    const steps = this.listExecutionSteps(input.testCaseId);
-    if (steps.length === 0) {
+    const executionPlan = this.getExecutionPlan(input.testCaseId);
+    if (executionPlan.steps.length === 0) {
       throw new Error('Test case has no steps. Add at least one step before running.');
     }
 
@@ -108,7 +115,7 @@ export class RunService {
       }
     });
 
-    transaction(run, steps);
+    transaction(run, executionPlan.steps);
 
     const abortController = new AbortController();
     this.activeRun = {
@@ -122,10 +129,10 @@ export class RunService {
       runId: run.id,
       type: 'run-started',
       runStatus: 'running',
-      message: `Running ${steps.length} step(s) for ${context.testTitle}.`,
+      message: `Running ${executionPlan.steps.length} step(s) for ${context.testTitle}.`,
     });
 
-    void this.executeRun(run, context, steps, abortController.signal);
+    void this.executeRun(run, context, executionPlan, abortController.signal);
 
     return run;
   }
@@ -306,7 +313,7 @@ export class RunService {
   private async executeRun(
     run: Run,
     context: RunContext,
-    steps: ExecutionStep[],
+    executionPlan: ExecutionPlan,
     signal: AbortSignal,
   ): Promise<void> {
     const config = this.getConfig();
@@ -338,70 +345,86 @@ export class RunService {
       page = await browserContext.newPage();
       await page.goto(context.baseUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
-      for (const step of steps) {
-        if (this.shouldStopRun(run.id, signal)) {
+      if (executionPlan.isCustomized && executionPlan.customCode) {
+        const customResult = await this.executeCustomCode(
+          run,
+          context.baseUrl,
+          executionPlan.steps,
+          page,
+          executionPlan.customCode,
+          signal,
+        );
+        failed = customResult.failed;
+        terminalMessage = customResult.message;
+        if (customResult.cancelled) {
           return;
         }
-
-        this.emitUpdate({
-          runId: run.id,
-          type: 'step-started',
-          stepId: step.id,
-          stepOrder: step.stepOrder,
-          stepStatus: 'pending',
-        });
-
-        try {
-          await this.executeStep(page, step.action, timeoutMs, context.baseUrl);
-
-          const screenshotPath = await this.captureStepScreenshot(page, run.id, step);
-          const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
-          if (!stepResult) {
+      } else {
+        for (const step of executionPlan.steps) {
+          if (this.shouldStopRun(run.id, signal)) {
             return;
           }
 
           this.emitUpdate({
             runId: run.id,
-            type: 'step-finished',
+            type: 'step-started',
             stepId: step.id,
             stepOrder: step.stepOrder,
-            stepStatus: 'passed',
-            stepResult,
-          });
-        } catch (error) {
-          if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
-            return;
-          }
-
-          failed = true;
-          const errorText = mapPlaywrightError(error, run.browser);
-          terminalMessage = errorText;
-          const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, step);
-
-          const stepResult = this.updateStepResult(
-            run.id,
-            step.id,
-            'failed',
-            errorText,
-            screenshotPath,
-          );
-          if (!stepResult) {
-            return;
-          }
-
-          this.emitUpdate({
-            runId: run.id,
-            type: 'step-finished',
-            stepId: step.id,
-            stepOrder: step.stepOrder,
-            stepStatus: 'failed',
-            stepResult,
-            message: errorText,
+            stepStatus: 'pending',
           });
 
-          if (!config.continueOnFailure) {
-            this.markPendingStepsCancelled(run.id);
-            break;
+          try {
+            await this.executeStep(page, step.action, timeoutMs, context.baseUrl);
+
+            const screenshotPath = await this.captureStepScreenshot(page, run.id, step);
+            const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
+            if (!stepResult) {
+              return;
+            }
+
+            this.emitUpdate({
+              runId: run.id,
+              type: 'step-finished',
+              stepId: step.id,
+              stepOrder: step.stepOrder,
+              stepStatus: 'passed',
+              stepResult,
+            });
+          } catch (error) {
+            if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
+              return;
+            }
+
+            failed = true;
+            const errorText = mapPlaywrightError(error, run.browser);
+            terminalMessage = errorText;
+            const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, step);
+
+            const stepResult = this.updateStepResult(
+              run.id,
+              step.id,
+              'failed',
+              errorText,
+              screenshotPath,
+            );
+            if (!stepResult) {
+              return;
+            }
+
+            this.emitUpdate({
+              runId: run.id,
+              type: 'step-finished',
+              stepId: step.id,
+              stepOrder: step.stepOrder,
+              stepStatus: 'failed',
+              stepResult,
+              message: errorText,
+            });
+
+            if (!config.continueOnFailure) {
+              this.markPendingStepsCancelled(run.id);
+              break;
+            }
           }
         }
       }
@@ -475,6 +498,32 @@ export class RunService {
     };
   }
 
+  private getExecutionPlan(testCaseId: string): ExecutionPlan {
+    const testCaseRow = this.db
+      .prepare(
+        `SELECT id, is_customized, custom_code
+         FROM test_cases
+         WHERE id = ?`,
+      )
+      .get(testCaseId) as
+      | {
+          id: string;
+          is_customized: number;
+          custom_code: string | null;
+        }
+      | undefined;
+
+    if (!testCaseRow) {
+      throw new Error('Test case not found.');
+    }
+
+    return {
+      steps: this.listExecutionSteps(testCaseId),
+      isCustomized: testCaseRow.is_customized === 1,
+      customCode: testCaseRow.custom_code,
+    };
+  }
+
   private listExecutionSteps(testCaseId: string): ExecutionStep[] {
     const rows = this.db
       .prepare(
@@ -499,6 +548,101 @@ export class RunService {
       actionJson: row.action_json,
       action: parseActionJson(row.action_json, row.raw_text, row.step_order),
     }));
+  }
+
+  private async executeCustomCode(
+    run: Run,
+    baseUrl: string,
+    steps: ExecutionStep[],
+    page: Page,
+    customCode: string,
+    signal: AbortSignal,
+  ): Promise<{ failed: boolean; cancelled: boolean; message?: string }> {
+    const primaryStep = steps[0];
+    this.emitUpdate({
+      runId: run.id,
+      type: 'step-started',
+      stepId: primaryStep.id,
+      stepOrder: primaryStep.stepOrder,
+      stepStatus: 'pending',
+    });
+
+    try {
+      await this.runCustomCodeBlock(page, baseUrl, customCode);
+      if (this.shouldStopRun(run.id, signal)) {
+        return { failed: false, cancelled: true };
+      }
+
+      const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, primaryStep);
+      for (const step of steps) {
+        const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
+        if (!stepResult) {
+          continue;
+        }
+
+        this.emitUpdate({
+          runId: run.id,
+          type: 'step-finished',
+          stepId: step.id,
+          stepOrder: step.stepOrder,
+          stepStatus: 'passed',
+          stepResult,
+        });
+      }
+
+      return {
+        failed: false,
+        cancelled: false,
+      };
+    } catch (error) {
+      if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
+        return { failed: false, cancelled: true };
+      }
+
+      const errorText = mapCustomCodeError(error);
+      const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, primaryStep);
+      const stepResult = this.updateStepResult(
+        run.id,
+        primaryStep.id,
+        'failed',
+        errorText,
+        screenshotPath,
+      );
+
+      if (stepResult) {
+        this.emitUpdate({
+          runId: run.id,
+          type: 'step-finished',
+          stepId: primaryStep.id,
+          stepOrder: primaryStep.stepOrder,
+          stepStatus: 'failed',
+          stepResult,
+          message: errorText,
+        });
+      }
+
+      this.markPendingStepsCancelled(run.id);
+      return {
+        failed: true,
+        cancelled: false,
+        message: errorText,
+      };
+    }
+  }
+
+  private async runCustomCodeBlock(page: Page, baseUrl: string, customCode: string): Promise<void> {
+    const body = customCode.trim();
+    if (!body) {
+      throw new Error('Custom code is empty.');
+    }
+
+    const AsyncFunction = Object.getPrototypeOf(async function noOp() {
+      return undefined;
+    }).constructor as new (
+      ...args: string[]
+    ) => (page: Page, baseUrl: string, expect: typeof playwrightExpect) => Promise<unknown>;
+    const executor = new AsyncFunction('page', 'baseUrl', 'expect', body);
+    await executor(page, baseUrl, playwrightExpect);
   }
 
   private async executeStep(
@@ -1253,6 +1397,16 @@ function mapPlaywrightError(error: unknown, browser: BrowserName): string {
   return `Automation failed: ${raw}`;
 }
 
+function mapCustomCodeError(error: unknown): string {
+  const message = toMessage(error);
+  const line = getCustomCodeLineNumber(error);
+  if (!line) {
+    return `Custom code failed: ${message}`;
+  }
+
+  return `Custom code failed at line ${line}: ${message}`;
+}
+
 function isMissingBrowserMessage(message: string): boolean {
   return /executable doesn't exist|please run the following command|browser binaries/i.test(message);
 }
@@ -1264,6 +1418,30 @@ function isAbortLikeError(error: unknown): boolean {
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+function getCustomCodeLineNumber(error: unknown): number | null {
+  if (!(error instanceof Error) || !error.stack) {
+    return null;
+  }
+
+  const patterns = [/<anonymous>:(\d+):(\d+)/, /eval:(\d+):(\d+)/, /Function:(\d+):(\d+)/];
+  for (const pattern of patterns) {
+    const match = error.stack.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    const parsedLine = Number(match[1]);
+    if (!Number.isFinite(parsedLine)) {
+      continue;
+    }
+
+    const adjustedLine = Math.max(1, parsedLine - 2);
+    return adjustedLine;
+  }
+
+  return null;
 }
 
 function escapeRegExp(value: string): string {

@@ -307,7 +307,7 @@ function setupRealDb(): { db: Database.Database; dir: string; artifactsDir: stri
   return { db, dir, artifactsDir };
 }
 
-function seedTestCase(db: Database.Database, steps: string[]): { testCaseId: string } {
+function seedTestCase(db: Database.Database, steps: string[]): { projectId: string; testCaseId: string } {
   const projectService = new ProjectService(db);
   const testCaseService = new TestCaseService(db);
   const project = projectService.create({
@@ -320,7 +320,7 @@ function seedTestCase(db: Database.Database, steps: string[]): { testCaseId: str
     steps,
   });
 
-  return { testCaseId: testCase.id };
+  return { projectId: project.id, testCaseId: testCase.id };
 }
 
 describe('RunService integration', () => {
@@ -470,5 +470,41 @@ describe('RunService integration', () => {
     expect(terminal.status).toBe('passed');
     expect(results).toHaveLength(8);
     expect(results.every((result) => result.status === 'passed')).toBe(true);
+  });
+
+  it('executes stored custom code when the test case is customized', async () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const { projectId, testCaseId } = seedTestCase(db, ['Expect login page', 'Expect dashboard visible']);
+    const testCaseService = new TestCaseService(db);
+    testCaseService.update({
+      id: testCaseId,
+      projectId,
+      title: 'Checkout flow custom',
+      steps: ['Expect login page', 'Expect dashboard visible'],
+      isCustomized: true,
+      customCode: [
+        'await page.getByText("login page").first().waitFor();',
+        'throw new Error("boom from custom");',
+      ].join('\n'),
+    });
+
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({ expectOutcomes: ['pass'] }),
+      () => config(),
+    );
+
+    const run = service.start({ testCaseId, browser: 'chromium' });
+    const terminal = await waitForTerminalRun(service, run.id);
+    const results = service.stepResults(run.id);
+
+    expect(terminal.status).toBe('failed');
+    expect(results.map((result) => result.status)).toEqual(['failed', 'cancelled']);
+    expect(results[0].errorText).toContain('Custom code failed');
+    expect(results[0].errorText).toContain('line');
   });
 });

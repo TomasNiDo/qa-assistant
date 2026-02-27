@@ -32,8 +32,11 @@ export interface UseTestsDomainResult {
   isValidatingSteps: boolean;
   isGeneratingSteps: boolean;
   testTitleError: string | null;
+  customCodeError: string | null;
   testStepsErrors: Array<string | null>;
   hasStepErrors: boolean;
+  effectiveCode: string;
+  isCodeModified: boolean;
   canSaveTestCase: boolean;
   isSelectedTestDeleteBlocked: boolean;
   refreshTestsTree: (
@@ -43,6 +46,10 @@ export interface UseTestsDomainResult {
   ) => Promise<Record<string, TestCase[]>>;
   selectProject: (projectId: string) => void;
   beginCreateTest: () => void;
+  setEditorView: (view: TestFormState['activeView']) => void;
+  enableCodeEditing: () => void;
+  updateCodeDraft: (nextCode: string) => void;
+  restoreGeneratedCode: () => void;
   saveTestCase: () => Promise<TestCase | null>;
   deleteSelectedTest: (onTestDeleted: () => Promise<void>) => Promise<boolean>;
   generateSteps: () => Promise<void>;
@@ -135,17 +142,45 @@ export function useTestsDomain({
   );
 
   const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
+  const effectiveCode = useMemo(
+    () => (testForm.isCustomized ? testForm.customCode : testForm.generatedCode),
+    [testForm.customCode, testForm.generatedCode, testForm.isCustomized],
+  );
+  const isCodeModified = useMemo(
+    () =>
+      testForm.isCustomized &&
+      testForm.customCode.trim() !== testForm.generatedCode.trim(),
+    [testForm.customCode, testForm.generatedCode, testForm.isCustomized],
+  );
 
   const testTitleError = testForm.title.trim() ? null : 'Test title is required.';
+  const customCodeError =
+    testForm.isCustomized && !testForm.customCode.trim()
+      ? 'Custom code cannot be empty when customization is enabled.'
+      : null;
   const testStepsErrors = getStepParseErrors(parsedSteps, stepParsePreview, isValidatingSteps);
   const hasStepErrors = testStepsErrors.some(Boolean) || parsedSteps.length === 0;
-  const canSaveTestCase = Boolean(selectedProjectId) && !testTitleError && !hasStepErrors && !isValidatingSteps;
+  const canSaveTestCase =
+    Boolean(selectedProjectId) &&
+    !testTitleError &&
+    !customCodeError &&
+    !hasStepErrors &&
+    !isValidatingSteps;
 
   const isSelectedTestDeleteBlocked = Boolean(selectedTestId) && activeRunContext?.testCaseId === selectedTestId;
 
   const buildTestSignature = useCallback(
-    (projectId: string, testId: string, title: string, steps: string[]): string =>
-      `${projectId}::${testId}::${title.trim()}::${steps.join('\n')}`,
+    (
+      projectId: string,
+      testId: string,
+      title: string,
+      steps: string[],
+      isCustomized: boolean,
+      customCode: string,
+    ): string =>
+      `${projectId}::${testId}::${title.trim()}::${steps.join('\n')}::${isCustomized ? '1' : '0'}::${
+        isCustomized ? customCode : ''
+      }`,
     [],
   );
 
@@ -225,6 +260,8 @@ export function useTestsDomain({
       selectedTest.id,
       selectedTest.title,
       parseStepLines(loadedStepsText),
+      selectedTest.isCustomized,
+      selectedTest.customCode ?? '',
     );
 
     setIsTestEditing(true);
@@ -232,6 +269,11 @@ export function useTestsDomain({
       id: selectedTest.id,
       title: selectedTest.title,
       stepsText: loadedStepsText,
+      generatedCode: selectedTest.generatedCode,
+      customCode: selectedTest.customCode ?? '',
+      isCustomized: selectedTest.isCustomized,
+      isCodeEditingEnabled: false,
+      activeView: 'steps',
     });
   }, [buildTestSignature, onMessage, selectedTest]);
 
@@ -296,6 +338,45 @@ export function useTestsDomain({
     setTestForm(DEFAULT_TEST_FORM);
   }, [setSelectedTestId]);
 
+  const setEditorView = useCallback((view: TestFormState['activeView']) => {
+    setTestForm((previous) => ({ ...previous, activeView: view }));
+  }, []);
+
+  const enableCodeEditing = useCallback(() => {
+    setTestForm((previous) => ({ ...previous, isCodeEditingEnabled: true }));
+  }, []);
+
+  const updateCodeDraft = useCallback((nextCode: string) => {
+    setTestForm((previous) => {
+      if (!previous.isCodeEditingEnabled) {
+        return previous;
+      }
+
+      if (!previous.isCustomized) {
+        const hasDiverged = nextCode !== previous.generatedCode;
+        return {
+          ...previous,
+          isCustomized: hasDiverged,
+          customCode: hasDiverged ? nextCode : '',
+        };
+      }
+
+      return {
+        ...previous,
+        customCode: nextCode,
+      };
+    });
+  }, []);
+
+  const restoreGeneratedCode = useCallback(() => {
+    setTestForm((previous) => ({
+      ...previous,
+      isCustomized: false,
+      customCode: '',
+      isCodeEditingEnabled: false,
+    }));
+  }, []);
+
   const saveTestCase = useCallback(async (): Promise<TestCase | null> => {
     if (!selectedProjectId) {
       onMessage('Select a project first.');
@@ -303,11 +384,12 @@ export function useTestsDomain({
     }
 
     if (!canSaveTestCase) {
-      onMessage(testTitleError ?? 'Fix invalid steps before saving.');
+      onMessage(testTitleError ?? customCodeError ?? 'Fix invalid steps before saving.');
       return null;
     }
 
     const cleanSteps = parseStepLines(testForm.stepsText);
+    const nextCustomCode = testForm.isCustomized ? testForm.customCode : null;
 
     const result =
       isTestEditing && testForm.id
@@ -316,11 +398,15 @@ export function useTestsDomain({
             projectId: selectedProjectId,
             title: testForm.title.trim(),
             steps: cleanSteps,
+            customCode: nextCustomCode,
+            isCustomized: testForm.isCustomized,
           })
         : await window.qaApi.testCreate({
             projectId: selectedProjectId,
             title: testForm.title.trim(),
             steps: cleanSteps,
+            customCode: nextCustomCode,
+            isCustomized: testForm.isCustomized,
           });
 
     if (!result.ok) {
@@ -330,15 +416,27 @@ export function useTestsDomain({
 
     const savedTitle = result.data.title.trim();
     const savedStepsText = cleanSteps.join('\n');
-    lastSavedSignatureRef.current = buildTestSignature(selectedProjectId, result.data.id, savedTitle, cleanSteps);
+    lastSavedSignatureRef.current = buildTestSignature(
+      selectedProjectId,
+      result.data.id,
+      savedTitle,
+      cleanSteps,
+      result.data.isCustomized,
+      result.data.customCode ?? '',
+    );
 
     setSelectedTestId(result.data.id);
     setIsTestEditing(true);
-    setTestForm({
+    setTestForm((previous) => ({
+      ...previous,
       id: result.data.id,
       title: result.data.title,
       stepsText: savedStepsText,
-    });
+      generatedCode: result.data.generatedCode,
+      customCode: result.data.customCode ?? '',
+      isCustomized: result.data.isCustomized,
+      isCodeEditingEnabled: previous.isCodeEditingEnabled && result.data.isCustomized,
+    }));
 
     setTestCasesByProject((previous) => {
       const testsForProject = previous[selectedProjectId] ?? [];
@@ -359,7 +457,7 @@ export function useTestsDomain({
     });
 
     return result.data;
-  }, [buildTestSignature, canSaveTestCase, isTestEditing, onMessage, selectedProjectId, setSelectedTestId, testForm.id, testForm.stepsText, testForm.title, testTitleError]);
+  }, [buildTestSignature, canSaveTestCase, customCodeError, isTestEditing, onMessage, selectedProjectId, setSelectedTestId, testForm.customCode, testForm.id, testForm.isCustomized, testForm.stepsText, testForm.title, testTitleError]);
 
   useEffect(() => {
     if (!selectedProjectId || !canSaveTestCase) {
@@ -367,7 +465,14 @@ export function useTestsDomain({
     }
 
     const cleanSteps = parseStepLines(testForm.stepsText);
-    const currentSignature = buildTestSignature(selectedProjectId, testForm.id, testForm.title, cleanSteps);
+    const currentSignature = buildTestSignature(
+      selectedProjectId,
+      testForm.id,
+      testForm.title,
+      cleanSteps,
+      testForm.isCustomized,
+      testForm.customCode,
+    );
     if (currentSignature === lastSavedSignatureRef.current) {
       return;
     }
@@ -379,7 +484,7 @@ export function useTestsDomain({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [buildTestSignature, canSaveTestCase, saveTestCase, selectedProjectId, testForm.id, testForm.stepsText, testForm.title]);
+  }, [buildTestSignature, canSaveTestCase, saveTestCase, selectedProjectId, testForm.customCode, testForm.id, testForm.isCustomized, testForm.stepsText, testForm.title]);
 
   const deleteSelectedTest = useCallback(async (onTestDeleted: () => Promise<void>): Promise<boolean> => {
     if (!selectedTestId) {
@@ -484,13 +589,20 @@ export function useTestsDomain({
     isValidatingSteps,
     isGeneratingSteps,
     testTitleError,
+    customCodeError,
     testStepsErrors,
     hasStepErrors,
+    effectiveCode,
+    isCodeModified,
     canSaveTestCase,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectProject,
     beginCreateTest,
+    setEditorView,
+    enableCodeEditing,
+    updateCodeDraft,
+    restoreGeneratedCode,
     saveTestCase,
     deleteSelectedTest,
     generateSteps,

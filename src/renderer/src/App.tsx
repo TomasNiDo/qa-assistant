@@ -83,10 +83,17 @@ export function App(): JSX.Element {
     setTestForm,
     isGeneratingSteps,
     testTitleError,
+    customCodeError,
+    effectiveCode,
+    isCodeModified,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectProject,
     beginCreateTest,
+    setEditorView,
+    enableCodeEditing,
+    updateCodeDraft,
+    restoreGeneratedCode,
     deleteSelectedTest,
     generateSteps,
   } = useTestsDomain({
@@ -380,12 +387,19 @@ export function App(): JSX.Element {
                 testForm={testForm}
                 setTestForm={setTestForm}
                 testTitleError={testTitleError}
+                customCodeError={customCodeError}
                 isGeneratingSteps={isGeneratingSteps}
                 hasSelectedTest={Boolean(selectedTest)}
                 isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
+                effectiveCode={effectiveCode}
+                isCodeModified={isCodeModified}
                 browser={browser}
                 setBrowser={setBrowser}
                 canStartRun={canStartRun}
+                setEditorView={setEditorView}
+                onEnableCodeEditing={enableCodeEditing}
+                onCodeChange={updateCodeDraft}
+                onRestoreGeneratedCode={restoreGeneratedCode}
                 onBeginCreateTest={beginCreateTest}
                 onGenerateSteps={() => {
                   void generateSteps();

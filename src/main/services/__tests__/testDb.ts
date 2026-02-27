@@ -13,6 +13,9 @@ interface TestCaseRow {
   id: string;
   project_id: string;
   title: string;
+  generated_code: string;
+  custom_code: string | null;
+  is_customized: number;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +159,9 @@ class FakeDatabase {
             id: string;
             projectId: string;
             title: string;
+            generatedCode?: string;
+            customCode?: string | null;
+            isCustomized?: number | boolean;
             createdAt: string;
             updatedAt: string;
           }>;
@@ -164,6 +170,9 @@ class FakeDatabase {
             id: testCase.id,
             project_id: testCase.projectId,
             title: testCase.title,
+            generated_code: testCase.generatedCode ?? '',
+            custom_code: testCase.customCode ?? null,
+            is_customized: Number(testCase.isCustomized ?? 0),
             created_at: testCase.createdAt,
             updated_at: testCase.updatedAt,
           });
@@ -181,6 +190,9 @@ class FakeDatabase {
             id: string;
             projectId: string;
             title: string;
+            generatedCode: string;
+            customCode: string | null;
+            isCustomized: number;
             updatedAt: string;
           }>;
 
@@ -193,6 +205,9 @@ class FakeDatabase {
             ...this.testCases[index],
             project_id: testCase.projectId,
             title: testCase.title,
+            generated_code: testCase.generatedCode,
+            custom_code: testCase.customCode,
+            is_customized: testCase.isCustomized,
             updated_at: testCase.updatedAt,
           };
           return { changes: 1 };

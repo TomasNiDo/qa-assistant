@@ -58,6 +58,8 @@ export const testCreateInputSchema = z
     steps: z
       .array(nonEmptyTrimmedString('Step cannot be empty.'))
       .min(1, 'At least one step is required.'),
+    customCode: z.string().optional().nullable(),
+    isCustomized: z.boolean().optional(),
   })
   .strict();
 
@@ -69,6 +71,8 @@ export const testUpdateInputSchema = z
     steps: z
       .array(nonEmptyTrimmedString('Step cannot be empty.'))
       .min(1, 'At least one step is required.'),
+    customCode: z.string().optional().nullable(),
+    isCustomized: z.boolean().optional(),
   })
   .strict();
 

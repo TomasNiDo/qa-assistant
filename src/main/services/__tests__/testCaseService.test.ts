@@ -27,6 +27,9 @@ describe('TestCaseService', () => {
     });
 
     expect(created.title).toBe('Login flow');
+    expect(created.generatedCode).toContain('await page.getByRole("button", { name: "Sign in" }).first().click();');
+    expect(created.customCode).toBeNull();
+    expect(created.isCustomized).toBe(false);
     expect(tests.list(project.id)).toHaveLength(1);
 
     const steps = tests.listSteps(created.id);
@@ -72,6 +75,50 @@ describe('TestCaseService', () => {
       'Click "Sign out"',
     ]);
     expect(steps.map((step) => step.stepOrder)).toEqual([1, 2, 3]);
+  });
+
+  it('preserves generated code and uses custom code when customization is enabled', () => {
+    db = createTestDb();
+    const projects = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = projects.create({
+      name: 'Auth',
+      baseUrl: 'https://example.com',
+    });
+
+    const created = tests.create({
+      projectId: project.id,
+      title: 'Login flow',
+      steps: ['Click "Sign in"'],
+    });
+    const generatedBeforeCustomize = created.generatedCode;
+
+    const customized = tests.update({
+      id: created.id,
+      projectId: project.id,
+      title: 'Login flow custom',
+      steps: ['Click "Sign in"', 'Expect dashboard visible'],
+      isCustomized: true,
+      customCode: 'await page.goto(baseUrl);\nawait page.getByText("Custom").click();',
+    });
+
+    expect(customized.isCustomized).toBe(true);
+    expect(customized.customCode).toContain('Custom');
+    expect(customized.generatedCode).toBe(generatedBeforeCustomize);
+
+    const restored = tests.update({
+      id: created.id,
+      projectId: project.id,
+      title: 'Login flow restored',
+      steps: ['Expect dashboard visible'],
+      isCustomized: false,
+      customCode: null,
+    });
+
+    expect(restored.isCustomized).toBe(false);
+    expect(restored.customCode).toBeNull();
+    expect(restored.generatedCode).not.toBe(generatedBeforeCustomize);
+    expect(restored.generatedCode).toContain('await expect(page.getByText("dashboard visible").first()).toBeVisible();');
   });
 
   it('rolls back create when a step is invalid', () => {
