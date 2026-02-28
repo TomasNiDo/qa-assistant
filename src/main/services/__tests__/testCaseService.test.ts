@@ -27,7 +27,7 @@ describe('TestCaseService', () => {
     });
 
     expect(created.title).toBe('Login flow');
-    expect(created.generatedCode).toContain('await qa.click("Sign in");');
+    expect(created.generatedCode).toContain('await page.getByRole("button", { name: "Sign in" }).first().click();');
     expect(created.customCode).toBeNull();
     expect(created.isCustomized).toBe(false);
     expect(tests.list(project.id)).toHaveLength(1);

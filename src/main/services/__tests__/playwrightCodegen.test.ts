@@ -3,7 +3,7 @@ import type { ParsedAction } from '@shared/types';
 import { generatePlaywrightCode, repairLegacyPlaywrightCode } from '../playwrightCodegen';
 
 describe('generatePlaywrightCode', () => {
-  it('maps ambiguous legacy actions to qa fallback helper calls', () => {
+  it('maps ambiguous legacy actions to inferred standard Playwright locators', () => {
     const actions: ParsedAction[] = [
       { type: 'enter', target: 'Search Product', value: 'Kindle' },
       { type: 'click', target: 'Search' },
@@ -12,9 +12,9 @@ describe('generatePlaywrightCode', () => {
 
     expect(generatePlaywrightCode(actions)).toBe(
       [
-        '// Ambiguous step targets use qa fallback helpers. Prefer adding `using <locator>` in steps.',
-        'await qa.enter("Search Product", "Kindle");',
-        'await qa.click("Search");',
+        '// Some steps were ambiguous; default locators were inferred. Add `using <locator>` for precision.',
+        'await page.getByLabel("Search Product").first().fill("Kindle");',
+        'await page.getByRole("button", { name: "Search" }).first().click();',
         'await expect(page.getByText("Kindle").first()).toBeVisible({ timeout: 10000 });',
       ].join('\n'),
     );
@@ -46,7 +46,7 @@ describe('generatePlaywrightCode', () => {
     expect(generated).toContain('await page.getByPlaceholder("Search").first().fill("wireless headphone");');
     expect(generated).toContain('await page.getByRole("button", { name: "Search" }).first().click();');
     expect(generated).toContain('page.getByRole("button", { name: "Login" }).first().click()');
-    expect(generated).not.toContain('qa.click("Login")');
+    expect(generated).not.toContain('qa.');
   });
 
   it('includes timeout and click-triggered request handling when present', () => {
@@ -66,7 +66,7 @@ describe('generatePlaywrightCode', () => {
     expect(generated).toContain('response.request().method().toUpperCase() === "POST"');
     expect(generated).toContain('response.status() === 200');
     expect(generated).toContain('{ timeout: 30000 }');
-    expect(generated).toContain('qa.click("Submit")');
+    expect(generated).toContain('page.getByRole("button", { name: "Submit" }).first().click()');
   });
 
   it('repairs known legacy expect-timeout syntax emitted by old versions', () => {

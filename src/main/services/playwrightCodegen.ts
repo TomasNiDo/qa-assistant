@@ -1,8 +1,13 @@
 import type { ParsedAction, TargetLocator } from '@shared/types';
 
+interface ResolvedLocator {
+  locator: TargetLocator;
+  inferred: boolean;
+}
+
 interface CodegenBlock {
   lines: string[];
-  usesQaFallback: boolean;
+  usedInferredLocator: boolean;
 }
 
 export function generatePlaywrightCode(actions: ParsedAction[]): string {
@@ -10,13 +15,14 @@ export function generatePlaywrightCode(actions: ParsedAction[]): string {
     return '';
   }
 
-  const mapped = actions.map((action, index) => mapActionToCode(action, index + 1));
+  const blocks = actions.map((action, index) => mapActionToCode(action, index + 1));
   const lines: string[] = [];
-  if (mapped.some((item) => item.usesQaFallback)) {
-    lines.push('// Ambiguous step targets use qa fallback helpers. Prefer adding `using <locator>` in steps.');
+  if (blocks.some((block) => block.usedInferredLocator)) {
+    lines.push('// Some steps were ambiguous; default locators were inferred. Add `using <locator>` for precision.');
   }
-  for (const item of mapped) {
-    lines.push(...item.lines);
+
+  for (const block of blocks) {
+    lines.push(...block.lines);
   }
 
   return repairLegacyPlaywrightCode(lines.join('\n'));
@@ -35,17 +41,10 @@ export function repairLegacyPlaywrightCode(code: string): string {
 
 function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
   if (action.type === 'enter') {
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [`await ${toLocatorExpression(action.target, locator)}.fill(${toCodeString(action.value)});`],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'label' });
     return {
-      lines: [`await qa.enter(${toCodeString(action.target)}, ${toCodeString(action.value)});`],
-      usesQaFallback: true,
+      lines: [`await ${toLocatorExpression(action.target, resolved.locator)}.fill(${toCodeString(action.value)});`],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
@@ -57,20 +56,21 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
       lines.push(`await page.waitForTimeout(${delayMs});`);
     }
 
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      lines.push(`await ${toLocatorExpression(action.target, locator)}.click();`);
-      return { lines, usesQaFallback: false };
-    }
-
-    lines.push(`await qa.click(${toCodeString(action.target)});`);
-    return { lines, usesQaFallback: true };
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, {
+      kind: 'role',
+      role: 'button',
+    });
+    lines.push(`await ${toLocatorExpression(action.target, resolved.locator)}.click();`);
+    return {
+      lines,
+      usedInferredLocator: resolved.inferred,
+    };
   }
 
   if (action.type === 'navigate') {
     return {
       lines: [toNavigationLine(action.target)],
-      usesQaFallback: false,
+      usedInferredLocator: false,
     };
   }
 
@@ -83,62 +83,41 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
             Math.round(action.timeoutSeconds * 1000),
           )} });`,
         ],
-        usesQaFallback: false,
+        usedInferredLocator: false,
       };
     }
 
     return {
       lines: [`await expect(page.getByText(${toCodeString(action.assertion)}).first()).toBeVisible();`],
-      usesQaFallback: false,
+      usedInferredLocator: false,
     };
   }
 
   if (action.type === 'select') {
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [
-          `await ${toLocatorExpression(action.target, locator)}.selectOption({ label: ${toCodeString(action.value)} });`,
-        ],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'label' });
     return {
-      lines: [`await qa.select(${toCodeString(action.target)}, ${toCodeString(action.value)});`],
-      usesQaFallback: true,
+      lines: [
+        `await ${toLocatorExpression(action.target, resolved.locator)}.selectOption({ label: ${toCodeString(action.value)} });`,
+      ],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
   if (action.type === 'setChecked') {
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [
-          `await ${toLocatorExpression(action.target, locator)}.${action.checked ? 'check' : 'uncheck'}();`,
-        ],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'label' });
     return {
-      lines: [`await qa.setChecked(${toCodeString(action.target)}, ${action.checked ? 'true' : 'false'});`],
-      usesQaFallback: true,
+      lines: [
+        `await ${toLocatorExpression(action.target, resolved.locator)}.${action.checked ? 'check' : 'uncheck'}();`,
+      ],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
   if (action.type === 'hover') {
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [`await ${toLocatorExpression(action.target, locator)}.hover();`],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'text' });
     return {
-      lines: [`await qa.hover(${toCodeString(action.target)});`],
-      usesQaFallback: true,
+      lines: [`await ${toLocatorExpression(action.target, resolved.locator)}.hover();`],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
@@ -146,41 +125,27 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
     if (!action.target) {
       return {
         lines: [`await page.keyboard.press(${toCodeString(action.key)});`],
-        usesQaFallback: false,
+        usedInferredLocator: false,
       };
     }
 
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [
-          `await ${toLocatorExpression(action.target, locator)}.click();`,
-          `await page.keyboard.press(${toCodeString(action.key)});`,
-        ],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'label' });
     return {
-      lines: [`await qa.press(${toCodeString(action.key)}, ${toCodeString(action.target)});`],
-      usesQaFallback: true,
+      lines: [
+        `await ${toLocatorExpression(action.target, resolved.locator)}.click();`,
+        `await page.keyboard.press(${toCodeString(action.key)});`,
+      ],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
   if (action.type === 'upload') {
-    const locator = resolveTargetLocator(action.target, action.targetLocator);
-    if (locator) {
-      return {
-        lines: [
-          `await ${toLocatorExpression(action.target, locator)}.setInputFiles(${toCodeArray(action.filePaths)});`,
-        ],
-        usesQaFallback: false,
-      };
-    }
-
+    const resolved = resolveTargetLocator(action.target, action.targetLocator, { kind: 'label' });
     return {
-      lines: [`await qa.upload(${toCodeString(action.target)}, ${toCodeArray(action.filePaths)});`],
-      usesQaFallback: true,
+      lines: [
+        `await ${toLocatorExpression(action.target, resolved.locator)}.setInputFiles(${toCodeArray(action.filePaths)});`,
+      ],
+      usedInferredLocator: resolved.inferred,
     };
   }
 
@@ -193,7 +158,7 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
         : 'dialog.dismiss()';
     return {
       lines: [`page.once("dialog", async (dialog) => { await ${dialogAction}; });`],
-      usesQaFallback: false,
+      usedInferredLocator: false,
     };
   }
 
@@ -213,26 +178,25 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
         : '';
     const waitExpression = `page.waitForResponse((response) => ${requestPredicate}${timeoutOption})`;
     if (action.triggerClickTarget) {
-      const clickLocator = resolveTargetLocator(
+      const resolved = resolveTargetLocator(
         action.triggerClickTarget,
         action.triggerClickTargetLocator,
+        { kind: 'role', role: 'button' },
       );
       return {
         lines: [
           'await Promise.all([',
           `  ${waitExpression},`,
-          clickLocator
-            ? `  ${toLocatorExpression(action.triggerClickTarget, clickLocator)}.click(),`
-            : `  qa.click(${toCodeString(action.triggerClickTarget)}),`,
+          `  ${toLocatorExpression(action.triggerClickTarget, resolved.locator)}.click(),`,
           ']);',
         ],
-        usesQaFallback: !clickLocator,
+        usedInferredLocator: resolved.inferred,
       };
     }
 
     return {
       lines: [`await ${waitExpression};`],
-      usesQaFallback: false,
+      usedInferredLocator: false,
     };
   }
 
@@ -240,39 +204,43 @@ function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
     action.timeoutSeconds !== undefined
       ? `, { timeout: ${Math.max(1, Math.round(action.timeoutSeconds * 1000))} }`
       : '';
-  const clickLocator = resolveTargetLocator(
+  const resolved = resolveTargetLocator(
     action.triggerClickTarget,
     action.triggerClickTargetLocator,
+    { kind: 'role', role: 'button' },
   );
   return {
     lines: [
       `const download${order} = await Promise.all([`,
       `  page.waitForEvent("download"${timeoutOption}),`,
-      clickLocator
-        ? `  ${toLocatorExpression(action.triggerClickTarget, clickLocator)}.click(),`
-        : `  qa.click(${toCodeString(action.triggerClickTarget)}),`,
+      `  ${toLocatorExpression(action.triggerClickTarget, resolved.locator)}.click(),`,
       ']);',
       `if (await download${order}[0].failure()) {`,
       '  throw new Error("Download failed.");',
       '}',
     ],
-    usesQaFallback: !clickLocator,
+    usedInferredLocator: resolved.inferred,
   };
 }
 
-function resolveTargetLocator(target: string, locator?: TargetLocator): TargetLocator | undefined {
-  if (locator) {
-    return locator;
+function resolveTargetLocator(
+  target: string,
+  explicitLocator: TargetLocator | undefined,
+  fallbackLocator: TargetLocator,
+): ResolvedLocator {
+  if (explicitLocator) {
+    return { locator: explicitLocator, inferred: false };
   }
 
   const trimmed = target.trim();
   if (trimmed.startsWith('#')) {
-    return { kind: 'id' };
+    return { locator: { kind: 'id' }, inferred: false };
   }
   if (trimmed.startsWith('.')) {
-    return { kind: 'class' };
+    return { locator: { kind: 'class' }, inferred: false };
   }
-  return undefined;
+
+  return { locator: fallbackLocator, inferred: true };
 }
 
 function toNavigationLine(target: string): string {
