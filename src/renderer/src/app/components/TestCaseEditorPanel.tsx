@@ -1,5 +1,10 @@
 ﻿import type { Dispatch, SetStateAction } from 'react';
 import type { BrowserName } from '@shared/types';
+import Editor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
 import type { TestFormState } from '../types';
 import { dangerButtonClass, fieldClass, mutedButtonClass, panelClass, primaryButtonClass, subtleButtonClass } from '../uiClasses';
 
@@ -27,6 +32,11 @@ interface TestCaseEditorPanelProps {
   onGenerateSteps: () => void;
   onDeleteSelectedTest: () => void;
   onStartRun: () => void;
+}
+
+function highlightPlaywrightCode(code: string): string {
+  const language = Prism.languages.typescript ?? Prism.languages.javascript;
+  return Prism.highlight(code, language, 'typescript');
 }
 
 export function TestCaseEditorPanel({
@@ -144,8 +154,25 @@ export function TestCaseEditorPanel({
               </span>
             ) : null}
 
-            <div className="relative">
-              <div className="absolute bottom-4 right-2 z-10 flex flex-wrap items-center gap-2">
+            <div className="space-y-2">
+              <Editor
+                value={effectiveCode}
+                onValueChange={onCodeChange}
+                highlight={highlightPlaywrightCode}
+                padding={12}
+                className="qa-code-editor h-80 rounded-xl bg-[#0d1320]/75"
+                textareaClassName="qa-code-editor__textarea"
+                preClassName="qa-code-editor__pre language-typescript"
+                placeholder="Generated Playwright code will appear here."
+                readOnly={!testForm.isCodeEditingEnabled}
+                aria-label="Playwright Code"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                }}
+              />
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   className={subtleButtonClass}
@@ -163,15 +190,6 @@ export function TestCaseEditorPanel({
                   Restore Auto-Generated
                 </button>
               </div>
-              <textarea
-                className={`${fieldClass} h-80 resize-y bg-[#0d1320]/75 pb-16 font-mono text-[12px] leading-relaxed`}
-                rows={12}
-                value={effectiveCode}
-                readOnly={!testForm.isCodeEditingEnabled}
-                onChange={(event) => onCodeChange(event.target.value)}
-                placeholder="Generated Playwright code will appear here."
-                aria-label="Playwright Code"
-              />
             </div>
             <p className="text-[11px] text-[#7f95b1]">
               {testForm.isCodeEditingEnabled

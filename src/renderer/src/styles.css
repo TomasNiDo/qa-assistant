@@ -1,4 +1,5 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('prismjs/themes/prism-tomorrow.css');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -91,3 +92,26 @@
   text-wrap: balance;
 }
 
+/* Syntax-highlighted editor surfaces for Playwright code. */
+.qa-code-editor {
+  overflow: auto;
+}
+
+.qa-code-editor__textarea,
+.qa-code-editor__pre {
+  min-height: 100%;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.qa-code-editor__textarea {
+  color: hsl(212 38% 94%);
+  caret-color: hsl(220 86% 60%);
+  outline: none;
+}
+
+.qa-code-editor__textarea::selection {
+  background-color: hsl(from var(--primary) h s l / 0.25);
+}
