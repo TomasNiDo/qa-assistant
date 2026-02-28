@@ -1,5 +1,5 @@
 ﻿import type { Dispatch, SetStateAction } from 'react';
-import type { BrowserName } from '@shared/types';
+import type { BrowserName, StepParseWarning } from '@shared/types';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-clike';
@@ -17,6 +17,9 @@ interface TestCaseEditorPanelProps {
   setTestForm: Dispatch<SetStateAction<TestFormState>>;
   testTitleError: string | null;
   customCodeError: string | null;
+  testStepsErrors: Array<string | null>;
+  stepParseWarnings: StepParseWarning[][];
+  ambiguousStepWarningCount: number;
   isGeneratingSteps: boolean;
   hasSelectedTest: boolean;
   isSelectedTestDeleteBlocked: boolean;
@@ -48,6 +51,9 @@ export function TestCaseEditorPanel({
   setTestForm,
   testTitleError,
   customCodeError,
+  testStepsErrors,
+  stepParseWarnings,
+  ambiguousStepWarningCount,
   isGeneratingSteps,
   hasSelectedTest,
   isSelectedTestDeleteBlocked,
@@ -128,7 +134,14 @@ export function TestCaseEditorPanel({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold text-[#aec0d8]">Execution Input</p>
-          {viewToggle}
+          <div className="flex items-center gap-2">
+            {ambiguousStepWarningCount > 0 ? (
+              <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                Ambiguous Steps: {ambiguousStepWarningCount}
+              </span>
+            ) : null}
+            {viewToggle}
+          </div>
         </div>
 
         {isStepsView ? (
@@ -153,6 +166,29 @@ export function TestCaseEditorPanel({
               <p className="rounded-md border border-warning/35 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
                 This test has custom code. Step edits will not auto-sync.
               </p>
+            ) : null}
+            {testStepsErrors.some(Boolean) || stepParseWarnings.some((warnings) => warnings.length > 0) ? (
+              <div className="space-y-1.5 rounded-md border border-[#223244] bg-[#0f1722]/65 px-2.5 py-2">
+                {testStepsErrors.map((error, index) => {
+                  const warnings = stepParseWarnings[index] ?? [];
+                  if (!error && warnings.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div key={`step-issue-${index}`} className="space-y-1 text-[11px]">
+                      {error ? (
+                        <p className="text-danger">Line {index + 1}: {error}</p>
+                      ) : null}
+                      {warnings.map((warning, warningIndex) => (
+                        <p key={`step-warning-${index}-${warningIndex}`} className="text-warning">
+                          Line {index + 1}: {warning.message} Suggested: <code>{warning.suggestedStep}</code>
+                        </p>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             ) : null}
           </>
         ) : (

@@ -139,7 +139,7 @@
       <h1>QA Assistant Step Writing Guide</h1>
       <p>
         Write one step per line. Use quotes around values and targets. For the most reliable runs, use strict
-        grammar formats shown below.
+        grammar formats shown below with explicit locator suffixes.
       </p>
 
       <section class="card">
@@ -147,9 +147,25 @@
         <ul>
           <li>Use one action per step line.</li>
           <li>Prefer strict syntax instead of free-form natural language.</li>
+          <li>For element actions, end the step with <code>using &lt;locator-kind&gt;</code>.</li>
           <li>Use full or absolute file paths for uploads when possible.</li>
-          <li>For element selectors, use class or ID forms when text matching is unstable.</li>
+          <li>If a step is ambiguous, rewrite it with an explicit locator kind.</li>
           <li>Use timeouts on network/assertion/download steps if the action is slow.</li>
+        </ul>
+      </section>
+
+      <section class="card" style="margin-top: 16px">
+        <h2>Locator Vocabulary</h2>
+        <p>Use one of these suffix forms for DOM-targeting actions:</p>
+        <ul>
+          <li><code>using label</code></li>
+          <li><code>using placeholder</code></li>
+          <li><code>using role &lt;roleName&gt;</code> (for example <code>using role button</code>)</li>
+          <li><code>using text</code></li>
+          <li><code>using testid</code></li>
+          <li><code>using css</code></li>
+          <li><code>using id</code></li>
+          <li><code>using class</code></li>
         </ul>
       </section>
 
@@ -160,10 +176,10 @@
           <span class="meta">Enter Text</span>
           <h3>Fill an input field</h3>
           <p>Use this to type values into forms such as login, search, checkout, OTP, and profile fields.</p>
-          <p class="syntax"><code>Enter "&lt;value&gt;" in "&lt;field&gt;" field</code></p>
+          <p class="syntax"><code>Enter "&lt;value&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Enter "john@example.com" in "Email" field</code></li>
-            <li><code>Enter "123456" in "OTP" field</code></li>
+            <li><code>Enter "john@example.com" in "Email" field using label</code></li>
+            <li><code>Enter "123456" in "OTP" field using placeholder</code></li>
           </ul>
         </article>
 
@@ -172,11 +188,12 @@
           <h3>Click buttons, links, menu items, or text targets</h3>
           <p>Use delayed clicks when UI transitions or animations need a short pause first.</p>
           <p class="syntax">
-            <code>Click "&lt;text&gt;"</code> or <code>Click "&lt;text&gt;" button after 2 sec</code>
+            <code>Click "&lt;target&gt;" using &lt;locator-kind&gt;</code> or
+            <code>Click "&lt;target&gt;" button after 2 sec using &lt;locator-kind&gt;</code>
           </p>
           <ul class="examples">
-            <li><code>Click "Sign in"</code></li>
-            <li><code>Click "Continue" button after 1 sec</code></li>
+            <li><code>Click "Sign in" using role button</code></li>
+            <li><code>Click "Continue" button after 1 sec using role button</code></li>
           </ul>
         </article>
 
@@ -206,8 +223,8 @@
       </section>
 
       <section class="card" style="margin-top: 16px">
-        <h2>Selector-Based Click Targeting</h2>
-        <p>Use these formats when text-based clicking is unstable or ambiguous.</p>
+        <h2>Legacy Selector Forms</h2>
+        <p>These still parse for backward compatibility, but new steps should use <code>using css/id/class</code>.</p>
 
         <article class="step-card">
           <span class="meta">Class Selector</span>
@@ -248,44 +265,44 @@
 
         <article class="step-card">
           <span class="meta">Select Dropdown</span>
-          <p class="syntax"><code>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown</code></p>
+          <p class="syntax"><code>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Select "United States" from "Country" dropdown</code></li>
+            <li><code>Select "United States" from "Country" dropdown using label</code></li>
           </ul>
         </article>
 
         <article class="step-card">
           <span class="meta">Checkbox</span>
-          <p class="syntax"><code>Check "&lt;label&gt;" checkbox</code> or <code>Uncheck "&lt;label&gt;" checkbox</code></p>
+          <p class="syntax"><code>Check "&lt;label&gt;" checkbox using &lt;locator-kind&gt;</code> or <code>Uncheck "&lt;label&gt;" checkbox using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Check "Remember me" checkbox</code></li>
-            <li><code>Uncheck "Subscribe to newsletter" checkbox</code></li>
+            <li><code>Check "Remember me" checkbox using label</code></li>
+            <li><code>Uncheck "Subscribe to newsletter" checkbox using label</code></li>
           </ul>
         </article>
 
         <article class="step-card">
           <span class="meta">Hover</span>
-          <p class="syntax"><code>Hover over "&lt;target&gt;"</code></p>
+          <p class="syntax"><code>Hover over "&lt;target&gt;" using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Hover over "Profile"</code></li>
+            <li><code>Hover over "Profile" using text</code></li>
           </ul>
         </article>
 
         <article class="step-card">
           <span class="meta">Keyboard</span>
-          <p class="syntax"><code>Press "&lt;key&gt;"</code> optionally <code>in "&lt;field&gt;" field</code></p>
+          <p class="syntax"><code>Press "&lt;key&gt;"</code> optionally <code>in "&lt;field&gt;" field using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
             <li><code>Press "Control+K"</code></li>
-            <li><code>Press "Enter" in "Search" field</code></li>
+            <li><code>Press "Enter" in "Search" field using placeholder</code></li>
           </ul>
         </article>
 
         <article class="step-card">
           <span class="meta">Upload</span>
-          <p class="syntax"><code>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input</code></p>
+          <p class="syntax"><code>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Upload file "C:/fixtures/invoice.pdf" to "Receipt" input</code></li>
-            <li><code>Upload files "C:/a.png,C:/b.png" to "Attachments" input</code></li>
+            <li><code>Upload file "C:/fixtures/invoice.pdf" to "Receipt" input using testid</code></li>
+            <li><code>Upload files "C:/a.png,C:/b.png" to "Attachments" input using label</code></li>
           </ul>
         </article>
 
@@ -304,19 +321,19 @@
             <code>Wait for request "&lt;METHOD pattern&gt;" and expect status "200"</code>
           </p>
           <p class="syntax">
-            <code>Wait for request "&lt;pattern&gt;" after clicking "&lt;target&gt;" within 10s</code>
+            <code>Wait for request "&lt;pattern&gt;" after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 10s</code>
           </p>
           <ul class="examples">
             <li><code>Wait for request "POST **/api/login" and expect status "200"</code></li>
-            <li><code>Wait for request "**/api/profile" after clicking "Load profile" within 10s</code></li>
+            <li><code>Wait for request "**/api/profile" after clicking "Load profile" using role button within 10s</code></li>
           </ul>
         </article>
 
         <article class="step-card">
           <span class="meta">Wait For Download</span>
-          <p class="syntax"><code>Wait for download after clicking "&lt;target&gt;"</code></p>
+          <p class="syntax"><code>Wait for download after clicking "&lt;target&gt;" using &lt;locator-kind&gt;</code></p>
           <ul class="examples">
-            <li><code>Wait for download after clicking "Export CSV" within 15s</code></li>
+            <li><code>Wait for download after clicking "Export CSV" using role button within 15s</code></li>
           </ul>
         </article>
       </section>
@@ -330,7 +347,8 @@
         </p>
         <ul>
           <li>If parse preview fails, convert the step to one of the strict formats above.</li>
-          <li>If click targets are unstable, switch to class/ID selector forms.</li>
+          <li>If you see an ambiguity warning, copy the suggested explicit rewrite.</li>
+          <li>If click targets are unstable, use <code>using role button</code>, <code>using id</code>, or <code>using css</code>.</li>
           <li>If assertions or network waits fail intermittently, add explicit timeout clauses.</li>
           <li>If upload fails, verify the file path exists on the machine running the app.</li>
         </ul>

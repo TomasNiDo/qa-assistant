@@ -24,6 +24,7 @@ interface BrowserRuntimeOptions {
   requestResponses?: Array<{ url: string; method: string; status: number }>;
   dialogActions?: Array<'accept' | 'dismiss'>;
   downloadFailures?: Array<string | null>;
+  tracker?: { locatorCalls: string[] };
 }
 
 function createDeferred<T>(): Deferred<T> {
@@ -95,6 +96,7 @@ class FakePage {
   private readonly requestResponses: Array<{ url: string; method: string; status: number }>;
   private readonly dialogActions: Array<'accept' | 'dismiss'>;
   private readonly downloadFailures: Array<string | null>;
+  private readonly tracker: { locatorCalls: string[] } | undefined;
   private currentUrl = 'about:blank';
 
   public readonly keyboard = {
@@ -111,6 +113,7 @@ class FakePage {
     this.requestResponses = [...(options.requestResponses ?? [])];
     this.dialogActions = [...(options.dialogActions ?? [])];
     this.downloadFailures = [...(options.downloadFailures ?? [])];
+    this.tracker = options.tracker;
   }
 
   url(): string {
@@ -123,22 +126,32 @@ class FakePage {
   }
 
   getByLabel(): FakeLocator {
+    this.tracker?.locatorCalls.push('label');
     return new FakeLocator(this, false);
   }
 
   getByRole(): FakeLocator {
+    this.tracker?.locatorCalls.push('role');
     return new FakeLocator(this, false);
   }
 
   getByPlaceholder(): FakeLocator {
+    this.tracker?.locatorCalls.push('placeholder');
     return new FakeLocator(this, false);
   }
 
   getByText(): FakeLocator {
+    this.tracker?.locatorCalls.push('text');
     return new FakeLocator(this, true);
   }
 
   locator(): FakeLocator {
+    this.tracker?.locatorCalls.push('css');
+    return new FakeLocator(this, false);
+  }
+
+  getByTestId(): FakeLocator {
+    this.tracker?.locatorCalls.push('testid');
     return new FakeLocator(this, false);
   }
 
@@ -472,6 +485,69 @@ describe('RunService integration', () => {
     expect(results.every((result) => result.status === 'passed')).toBe(true);
   });
 
+  it('honors explicit locator intent for enter and click actions', async () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const tracker = { locatorCalls: [] as string[] };
+    const { testCaseId } = seedTestCase(db, [
+      'Enter "wireless headphone" in "Search" field using placeholder',
+      'Click "Search" using role button',
+    ]);
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({ tracker }),
+      () => config(),
+    );
+
+    const run = service.start({ testCaseId, browser: 'chromium' });
+    const terminal = await waitForTerminalRun(service, run.id);
+    const results = service.stepResults(run.id);
+
+    expect(terminal.status).toBe('passed');
+    expect(results.map((result) => result.status)).toEqual(['passed', 'passed']);
+    expect(tracker.locatorCalls).toContain('placeholder');
+    expect(tracker.locatorCalls).toContain('role');
+    expect(tracker.locatorCalls).not.toContain('label');
+  });
+
+  it('honors explicit locator intent for request/download click triggers', async () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const tracker = { locatorCalls: [] as string[] };
+    const { testCaseId } = seedTestCase(db, [
+      'Wait for request "GET **/api/profile" after clicking "Load profile" using role button within 10s',
+      'Wait for download after clicking "Export CSV" using role button within 15s',
+    ]);
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({
+        tracker,
+        requestResponses: [
+          {
+            url: 'https://example.com/api/profile',
+            method: 'GET',
+            status: 200,
+          },
+        ],
+      }),
+      () => config(),
+    );
+
+    const run = service.start({ testCaseId, browser: 'chromium' });
+    const terminal = await waitForTerminalRun(service, run.id);
+    const results = service.stepResults(run.id);
+
+    expect(terminal.status).toBe('passed');
+    expect(results.map((result) => result.status)).toEqual(['passed', 'passed']);
+    expect(tracker.locatorCalls.filter((value) => value === 'role').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('executes stored custom code when the test case is customized', async () => {
     const ctx = setupRealDb();
     db = ctx.db;
@@ -506,5 +582,34 @@ describe('RunService integration', () => {
     expect(results.map((result) => result.status)).toEqual(['failed', 'cancelled']);
     expect(results[0].errorText).toContain('Custom code failed');
     expect(results[0].errorText).toContain('line');
+  });
+
+  it('rejects run start when customized code has syntax errors before creating run rows', () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const { testCaseId } = seedTestCase(db, ['Expect login page']);
+    db.prepare(
+      `UPDATE test_cases
+       SET is_customized = 1,
+           custom_code = ?,
+           title = ?
+       WHERE id = ?`,
+    ).run(
+      'await expect(page.getByText("Successfully added to cart").first()).toBeVisible({ timeout: 10000 };',
+      'Invalid custom code',
+      testCaseId,
+    );
+
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({ expectOutcomes: ['pass'] }),
+      () => config(),
+    );
+
+    expect(() => service.start({ testCaseId, browser: 'chromium' })).toThrow(/Custom code syntax error/);
+    expect(service.history(testCaseId)).toHaveLength(0);
   });
 });

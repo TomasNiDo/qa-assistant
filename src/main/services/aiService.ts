@@ -117,18 +117,21 @@ export class AIService {
 
     const prompt = [
       'You are a QA automation assistant for a desktop app that supports only these step types:',
-      '1) Enter "<value>" in "<field>" field',
-      '2) Click "<text>"',
+      'Locator vocabulary for DOM-targeting steps: label, placeholder, role <name>, text, testid, css, id, class.',
+      '1) Enter "<value>" in "<field>" field using <locator-kind>',
+      '2) Click "<target>" using <locator-kind>',
       '3) Go to "<path-or-url>"',
       '4) Expect <assertion>',
-      '5) Select "<option>" from "<field>" dropdown',
-      '6) Check/Uncheck "<label>" checkbox',
-      '7) Hover over "<target>"',
-      '8) Press "<key>" (optionally in "<field>" field)',
-      '9) Upload file "<path>" to "<input>" input',
+      '5) Select "<option>" from "<field>" dropdown using <locator-kind>',
+      '6) Check/Uncheck "<label>" checkbox using <locator-kind>',
+      '7) Hover over "<target>" using <locator-kind>',
+      '8) Press "<key>" (optionally in "<field>" field using <locator-kind>)',
+      '9) Upload file "<path>" to "<input>" input using <locator-kind>',
       '10) Accept/Dismiss browser dialog',
       '11) Wait for request "<METHOD url-pattern>" (optionally expect status)',
-      '12) Wait for download after clicking "<target>"',
+      '12) Wait for request "<pattern>" after clicking "<target>" using <locator-kind> (optional within timeout)',
+      '13) Wait for download after clicking "<target>" using <locator-kind>',
+      'Avoid ambiguous DOM targets: always include the locator suffix for Enter/Click/Select/Check/Hover/Press with field/Upload/Wait-after-click/Download.',
       'Return strict JSON with shape: {"steps":[{"rawText":string,"reason":string}]}.',
       'No markdown fences.',
       `Test title: ${input.title}`,
@@ -396,7 +399,7 @@ export class AIService {
     const sanitized = title.trim() || 'Untitled test case';
     return [
       {
-        rawText: `Click "${sanitized}"`,
+        rawText: `Click "${sanitized}" using role button`,
         reason: 'Fallback when GEMINI_API_KEY is not configured.',
         isDestructive: false,
       },

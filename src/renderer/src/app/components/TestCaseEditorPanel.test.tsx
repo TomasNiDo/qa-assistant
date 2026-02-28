@@ -28,6 +28,9 @@ function TestCaseEditorPanelHarness(props: {
       setTestForm={setTestForm}
       testTitleError={null}
       customCodeError={null}
+      testStepsErrors={[null]}
+      stepParseWarnings={[[]]}
+      ambiguousStepWarningCount={0}
       isGeneratingSteps={false}
       hasSelectedTest
       isSelectedTestDeleteBlocked={false}
@@ -83,5 +86,63 @@ describe('TestCaseEditorPanel', () => {
 
     expect(onGenerateSteps).toHaveBeenCalledTimes(1);
     expect(onStartRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders ambiguous warning indicator and inline suggested rewrite', () => {
+    const [testForm, setTestForm] = [
+      {
+        id: 'test-1',
+        title: 'Checkout flow',
+        stepsText: 'Enter "product1" in "Search" field',
+        generatedCode: '',
+        customCode: '',
+        isCustomized: false,
+        isCodeEditingEnabled: false,
+        activeView: 'steps' as const,
+      },
+      vi.fn(),
+    ];
+
+    render(
+      <TestCaseEditorPanel
+        testCasePanelTitle="Scenario Setup"
+        testCasePanelDescription="Define metadata first."
+        hasAtLeastOneTestCase
+        testForm={testForm}
+        setTestForm={setTestForm}
+        testTitleError={null}
+        customCodeError={null}
+        testStepsErrors={[null]}
+        stepParseWarnings={[
+          [
+            {
+              code: 'ambiguous_target',
+              message: 'Target lookup is ambiguous.',
+              suggestedStep: 'Enter "product1" in "Search" field using placeholder',
+            },
+          ],
+        ]}
+        ambiguousStepWarningCount={1}
+        isGeneratingSteps={false}
+        hasSelectedTest
+        isSelectedTestDeleteBlocked={false}
+        effectiveCode=""
+        isCodeModified={false}
+        browser="chromium"
+        setBrowser={vi.fn()}
+        canStartRun
+        setEditorView={vi.fn()}
+        onEnableCodeEditing={vi.fn()}
+        onCodeChange={vi.fn()}
+        onRestoreGeneratedCode={vi.fn()}
+        onBeginCreateTest={vi.fn()}
+        onGenerateSteps={vi.fn()}
+        onDeleteSelectedTest={vi.fn()}
+        onStartRun={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Ambiguous Steps: 1')).toBeTruthy();
+    expect(screen.getByText(/Enter "product1" in "Search" field using placeholder/)).toBeTruthy();
   });
 });

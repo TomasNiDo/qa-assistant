@@ -64,6 +64,13 @@ function createServicesMock() {
     lastError: null,
   }));
   const aiGenerateSteps = vi.fn(async () => []);
+  const validateCustomCodeSyntax = vi.fn((customCode: string) => ({
+    valid: !customCode.includes('(,'),
+    line: customCode.includes('(,') ? 1 : null,
+    message: customCode.includes('(,')
+      ? "Custom code syntax error at line 1: Unexpected token ','"
+      : null,
+  }));
 
   const services = {
     configService: {
@@ -129,12 +136,14 @@ function createServicesMock() {
       list: vi.fn(() => []),
       listSteps: vi.fn(() => []),
       getById: vi.fn(() => null),
+      validateCustomCodeSyntax,
     },
     parserService: {
       parse: vi.fn(() => ({
         ok: true,
         source: 'strict',
         action: { type: 'click', target: 'Continue' },
+        warnings: [],
       })),
     },
     runService: {
@@ -170,6 +179,7 @@ function createServicesMock() {
     runStart,
     runInstallBrowser,
     aiGenerateSteps,
+    validateCustomCodeSyntax,
   };
 
   return {
@@ -349,6 +359,45 @@ describe('registerHandlers IPC input validation', () => {
       testCaseId: 'test-1',
       browser: 'chromium',
     });
+  });
+
+  it('validates custom code syntax payload and invokes syntax checker', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(
+      IPC_CHANNELS.testValidateCustomCodeSyntax,
+      'await page.getByRole("button").click();',
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        valid: true,
+        line: null,
+        message: null,
+      },
+    });
+    expect(spies.validateCustomCodeSyntax).toHaveBeenCalledWith(
+      'await page.getByRole("button").click();',
+    );
+  });
+
+  it('rejects non-string custom code validation payloads', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.testValidateCustomCodeSyntax, { code: 'invalid' });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid test.validateCustomCodeSyntax payload: Expected string',
+        ),
+      },
+    });
+    expect(spies.validateCustomCodeSyntax).not.toHaveBeenCalled();
   });
 
   it('registers thumbnail screenshot handler and returns data for valid payloads', async () => {

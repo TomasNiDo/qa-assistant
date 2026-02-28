@@ -1,12 +1,35 @@
 import type Database from 'better-sqlite3';
-import type { CreateTestInput, ParsedAction, Step, TestCase, UpdateTestInput } from '@shared/types';
+import {
+  formatCustomCodeSyntaxError,
+  validateCustomCodeSyntax,
+} from '@shared/customCodeValidation';
+import type {
+  CreateTestInput,
+  CustomCodeSyntaxValidationResult,
+  ParsedAction,
+  Step,
+  TestCase,
+  UpdateTestInput,
+} from '@shared/types';
 import { parseStep } from './parserService';
-import { generatePlaywrightCode } from './playwrightCodegen';
+import { generatePlaywrightCode, repairLegacyPlaywrightCode } from './playwrightCodegen';
 import { createId } from './id';
 import { nowIso } from './time';
 
 export class TestCaseService {
   constructor(private readonly db: Database.Database) {}
+
+  validateCustomCodeSyntax(customCode: string): CustomCodeSyntaxValidationResult {
+    const validation = validateCustomCodeSyntax(customCode);
+    if (validation.valid) {
+      return validation;
+    }
+
+    return {
+      ...validation,
+      message: formatCustomCodeSyntaxError(validation),
+    };
+  }
 
   create(input: CreateTestInput): TestCase {
     const timestamp = nowIso();
@@ -233,12 +256,15 @@ function toTestCase(row: {
   created_at: string;
   updated_at: string;
 }): TestCase {
+  const generatedCode = repairLegacyPlaywrightCode(row.generated_code);
+  const customCode = row.custom_code ? repairLegacyPlaywrightCode(row.custom_code) : null;
+
   return {
     id: row.id,
     projectId: row.project_id,
     title: row.title,
-    generatedCode: row.generated_code,
-    customCode: row.custom_code,
+    generatedCode,
+    customCode,
     isCustomized: row.is_customized === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -263,22 +289,30 @@ function resolveCodeFields(input: ResolveCodeFieldsInput): {
   isCustomized: boolean;
 } {
   const isCustomized = Boolean(input.isCustomized);
+  const normalizedGeneratedCode = repairLegacyPlaywrightCode(
+    input.regeneratedCode ?? input.generatedCode,
+  );
 
   if (!isCustomized) {
     return {
-      generatedCode: input.regeneratedCode ?? input.generatedCode,
+      generatedCode: normalizedGeneratedCode,
       customCode: null,
       isCustomized: false,
     };
   }
 
-  const customCode = (input.customCode ?? input.generatedCode).trim();
+  const customCode = repairLegacyPlaywrightCode(input.customCode ?? input.generatedCode).trim();
   if (!customCode) {
     throw new Error('Custom code cannot be empty when customization is enabled.');
   }
 
+  const syntaxValidation = validateCustomCodeSyntax(customCode);
+  if (!syntaxValidation.valid) {
+    throw new Error(formatCustomCodeSyntaxError(syntaxValidation));
+  }
+
   return {
-    generatedCode: input.generatedCode,
+    generatedCode: repairLegacyPlaywrightCode(input.generatedCode),
     customCode,
     isCustomized: true,
   };

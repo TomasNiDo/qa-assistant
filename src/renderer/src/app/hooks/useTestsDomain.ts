@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type {
   ActiveRunContext,
+  CustomCodeSyntaxValidationResult,
   Project,
+  StepParseWarning,
   StepParseResult,
   TestCase,
 } from '@shared/types';
@@ -31,9 +33,12 @@ export interface UseTestsDomainResult {
   stepParsePreview: StepParseResult[];
   isValidatingSteps: boolean;
   isGeneratingSteps: boolean;
+  isValidatingCustomCode: boolean;
   testTitleError: string | null;
   customCodeError: string | null;
   testStepsErrors: Array<string | null>;
+  stepParseWarnings: StepParseWarning[][];
+  ambiguousStepWarningCount: number;
   hasStepErrors: boolean;
   effectiveCode: string;
   isCodeModified: boolean;
@@ -112,6 +117,46 @@ export function getStepParseErrors(
   });
 }
 
+export function getStepParseWarnings(
+  parsedSteps: string[],
+  stepParsePreview: StepParseResult[],
+): StepParseWarning[][] {
+  return parsedSteps.map((_stepText, index) => {
+    const parsed = stepParsePreview[index];
+    if (!parsed || !parsed.ok) {
+      return [];
+    }
+
+    return parsed.warnings ?? [];
+  });
+}
+
+export function formatCustomCodeSyntaxError(
+  validation: CustomCodeSyntaxValidationResult,
+): string | null {
+  if (validation.valid) {
+    return null;
+  }
+
+  return validation.message ?? 'Custom code syntax is invalid.';
+}
+
+export function getCustomCodeError(
+  isCustomized: boolean,
+  customCode: string,
+  customCodeSyntaxError: string | null,
+): string | null {
+  if (!isCustomized) {
+    return null;
+  }
+
+  if (!customCode.trim()) {
+    return 'Custom code cannot be empty when customization is enabled.';
+  }
+
+  return customCodeSyntaxError;
+}
+
 export function useTestsDomain({
   projects,
   selectedProjectId,
@@ -130,9 +175,12 @@ export function useTestsDomain({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saving' | 'saved'>('saved');
 
   const stepValidationVersion = useRef(0);
+  const customCodeValidationVersion = useRef(0);
   const testFormLoadVersion = useRef(0);
   const autoSaveVersion = useRef(0);
   const lastSavedSignatureRef = useRef('');
+  const [customCodeSyntaxError, setCustomCodeSyntaxError] = useState<string | null>(null);
+  const [isValidatingCustomCode, setIsValidatingCustomCode] = useState(false);
 
   const selectedProjectTests = useMemo(
     () => (selectedProjectId ? testCasesByProject[selectedProjectId] ?? [] : []),
@@ -157,16 +205,23 @@ export function useTestsDomain({
   );
 
   const testTitleError = testForm.title.trim() ? null : 'Test title is required.';
-  const customCodeError =
-    testForm.isCustomized && !testForm.customCode.trim()
-      ? 'Custom code cannot be empty when customization is enabled.'
-      : null;
+  const customCodeError = getCustomCodeError(
+    testForm.isCustomized,
+    testForm.customCode,
+    customCodeSyntaxError,
+  );
   const testStepsErrors = getStepParseErrors(parsedSteps, stepParsePreview, isValidatingSteps);
+  const stepParseWarnings = getStepParseWarnings(parsedSteps, stepParsePreview);
+  const ambiguousStepWarningCount = stepParseWarnings.reduce(
+    (count, warnings) => count + warnings.length,
+    0,
+  );
   const hasStepErrors = testStepsErrors.some(Boolean) || parsedSteps.length === 0;
   const canSaveTestCase =
     Boolean(selectedProjectId) &&
     !testTitleError &&
     !customCodeError &&
+    !isValidatingCustomCode &&
     !hasStepErrors &&
     !isValidatingSteps;
 
@@ -270,15 +325,21 @@ export function useTestsDomain({
 
     setIsTestEditing(true);
     setAutoSaveStatus('saved');
-    setTestForm({
-      id: selectedTest.id,
-      title: selectedTest.title,
-      stepsText: loadedStepsText,
-      generatedCode: selectedTest.generatedCode,
-      customCode: selectedTest.customCode ?? '',
-      isCustomized: selectedTest.isCustomized,
-      isCodeEditingEnabled: false,
-      activeView: 'steps',
+    setTestForm((previous) => {
+      const isSameTest = previous.id === selectedTest.id;
+
+      return {
+        id: selectedTest.id,
+        title: selectedTest.title,
+        stepsText: loadedStepsText,
+        generatedCode: selectedTest.generatedCode,
+        customCode: selectedTest.customCode ?? '',
+        isCustomized: selectedTest.isCustomized,
+        isCodeEditingEnabled: isSameTest
+          ? previous.isCodeEditingEnabled && selectedTest.isCustomized
+          : false,
+        activeView: isSameTest ? previous.activeView : 'steps',
+      };
     });
   }, [buildTestSignature, onMessage, selectedTest]);
 
@@ -324,6 +385,41 @@ export function useTestsDomain({
       setIsValidatingSteps(false);
     })();
   }, [parsedSteps]);
+
+  useEffect(() => {
+    const version = customCodeValidationVersion.current + 1;
+    customCodeValidationVersion.current = version;
+
+    if (!testForm.isCustomized || !testForm.customCode.trim()) {
+      setCustomCodeSyntaxError(null);
+      setIsValidatingCustomCode(false);
+      return;
+    }
+
+    setIsValidatingCustomCode(true);
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const validation = await window.qaApi.testValidateCustomCodeSyntax(testForm.customCode);
+        if (version !== customCodeValidationVersion.current) {
+          return;
+        }
+
+        if (!validation.ok) {
+          setCustomCodeSyntaxError(validation.error.message);
+          setIsValidatingCustomCode(false);
+          return;
+        }
+
+        setCustomCodeSyntaxError(formatCustomCodeSyntaxError(validation.data));
+        setIsValidatingCustomCode(false);
+      })();
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [testForm.customCode, testForm.isCustomized]);
 
   const selectProject = useCallback(
     (projectId: string): void => {
@@ -605,9 +701,12 @@ export function useTestsDomain({
     stepParsePreview,
     isValidatingSteps,
     isGeneratingSteps,
+    isValidatingCustomCode,
     testTitleError,
     customCodeError,
     testStepsErrors,
+    stepParseWarnings,
+    ambiguousStepWarningCount,
     hasStepErrors,
     effectiveCode,
     isCodeModified,

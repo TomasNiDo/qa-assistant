@@ -82,8 +82,14 @@ export function App(): JSX.Element {
     testForm,
     setTestForm,
     isGeneratingSteps,
+    isValidatingCustomCode,
     testTitleError,
     customCodeError,
+    testStepsErrors,
+    stepParseWarnings,
+    ambiguousStepWarningCount,
+    hasStepErrors,
+    isValidatingSteps,
     effectiveCode,
     isCodeModified,
     autoSaveStatus,
@@ -224,7 +230,12 @@ export function App(): JSX.Element {
 
   const hasAtLeastOneProject = projects.length > 0;
   const hasAtLeastOneTestCase = Object.values(testCasesByProject).some((tests) => tests.length > 0);
-  const canStartRun = Boolean(selectedTestId);
+  const canStartRun =
+    Boolean(selectedTestId) &&
+    !customCodeError &&
+    !isValidatingCustomCode &&
+    !isValidatingSteps &&
+    !hasStepErrors;
 
   const activeScreen: 'loading' | 'install' | 'empty' | 'main' = !isBrowserStatesLoaded
     ? 'loading'
@@ -413,6 +424,9 @@ export function App(): JSX.Element {
                 setTestForm={setTestForm}
                 testTitleError={testTitleError}
                 customCodeError={customCodeError}
+                testStepsErrors={testStepsErrors}
+                stepParseWarnings={stepParseWarnings}
+                ambiguousStepWarningCount={ambiguousStepWarningCount}
                 isGeneratingSteps={isGeneratingSteps}
                 hasSelectedTest={Boolean(selectedTest)}
                 isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}

@@ -19,6 +19,8 @@ const api: QaAssistantApi = {
   testList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.testList, projectId),
   stepList: (testCaseId) => ipcRenderer.invoke(IPC_CHANNELS.stepList, testCaseId),
   stepParse: (rawText) => ipcRenderer.invoke(IPC_CHANNELS.stepParse, rawText),
+  testValidateCustomCodeSyntax: (customCode) =>
+    ipcRenderer.invoke(IPC_CHANNELS.testValidateCustomCodeSyntax, customCode),
 
   runStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.runStart, input),
   runCancel: (runId) => ipcRenderer.invoke(IPC_CHANNELS.runCancel, runId),

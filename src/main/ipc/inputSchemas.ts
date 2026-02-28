@@ -80,6 +80,7 @@ export const testDeleteIdSchema = idSchema;
 export const testListProjectIdSchema = idSchema;
 export const stepListTestCaseIdSchema = idSchema;
 export const stepParseRawTextSchema = z.string().trim();
+export const testValidateCustomCodeSyntaxSchema = z.string();
 
 export const runStartInputSchema = z
   .object({

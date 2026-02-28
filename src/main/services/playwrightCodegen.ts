@@ -1,74 +1,187 @@
-import type { ParsedAction } from '@shared/types';
+import type { ParsedAction, TargetLocator } from '@shared/types';
+
+interface CodegenBlock {
+  lines: string[];
+  usesQaFallback: boolean;
+}
 
 export function generatePlaywrightCode(actions: ParsedAction[]): string {
   if (actions.length === 0) {
     return '';
   }
 
-  return actions
-    .flatMap((action, index) => mapActionToCodeLines(action, index + 1))
-    .join('\n');
+  const mapped = actions.map((action, index) => mapActionToCode(action, index + 1));
+  const lines: string[] = [];
+  if (mapped.some((item) => item.usesQaFallback)) {
+    lines.push('// Ambiguous step targets use qa fallback helpers. Prefer adding `using <locator>` in steps.');
+  }
+  for (const item of mapped) {
+    lines.push(...item.lines);
+  }
+
+  return repairLegacyPlaywrightCode(lines.join('\n'));
 }
 
-function mapActionToCodeLines(action: ParsedAction, order: number): string[] {
+export function repairLegacyPlaywrightCode(code: string): string {
+  if (!code) {
+    return code;
+  }
+
+  return code.replace(
+    /\.toBeVisible\(\s*,\s*\{\s*timeout:\s*(\d+)\s*\}\s*\)/g,
+    '.toBeVisible({ timeout: $1 })',
+  );
+}
+
+function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
   if (action.type === 'enter') {
-    return [`await page.getByLabel(${toCodeString(action.target)}).fill(${toCodeString(action.value)});`];
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [`await ${toLocatorExpression(action.target, locator)}.fill(${toCodeString(action.value)});`],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.enter(${toCodeString(action.target)}, ${toCodeString(action.value)});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'click') {
     const lines: string[] = [];
-    if (action.delaySeconds) {
-      lines.push(`await page.waitForTimeout(${Math.max(1, Math.round(action.delaySeconds * 1000))});`);
+    const delayMs =
+      action.delaySeconds !== undefined ? Math.max(1, Math.round(action.delaySeconds * 1000)) : undefined;
+    if (delayMs) {
+      lines.push(`await page.waitForTimeout(${delayMs});`);
     }
-    lines.push(`${toClickLocator(action.target)}.click();`);
-    return prefixAwait(lines);
+
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      lines.push(`await ${toLocatorExpression(action.target, locator)}.click();`);
+      return { lines, usesQaFallback: false };
+    }
+
+    lines.push(`await qa.click(${toCodeString(action.target)});`);
+    return { lines, usesQaFallback: true };
   }
 
   if (action.type === 'navigate') {
-    return [toNavigationLine(action.target)];
+    return {
+      lines: [toNavigationLine(action.target)],
+      usesQaFallback: false,
+    };
   }
 
   if (action.type === 'expect') {
-    const timeout =
-      action.timeoutSeconds !== undefined
-        ? `, { timeout: ${Math.max(1, Math.round(action.timeoutSeconds * 1000))} }`
-        : '';
-    return [
-      `await expect(page.getByText(${toCodeString(action.assertion)}).first()).toBeVisible(${timeout});`,
-    ];
+    if (action.timeoutSeconds !== undefined) {
+      return {
+        lines: [
+          `await expect(page.getByText(${toCodeString(action.assertion)}).first()).toBeVisible({ timeout: ${Math.max(
+            1,
+            Math.round(action.timeoutSeconds * 1000),
+          )} });`,
+        ],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await expect(page.getByText(${toCodeString(action.assertion)}).first()).toBeVisible();`],
+      usesQaFallback: false,
+    };
   }
 
   if (action.type === 'select') {
-    return [
-      `await page.getByLabel(${toCodeString(action.target)}).selectOption({ label: ${toCodeString(action.value)} });`,
-    ];
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [
+          `await ${toLocatorExpression(action.target, locator)}.selectOption({ label: ${toCodeString(action.value)} });`,
+        ],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.select(${toCodeString(action.target)}, ${toCodeString(action.value)});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'setChecked') {
-    return [
-      `await page.getByLabel(${toCodeString(action.target)}).${
-        action.checked ? 'check' : 'uncheck'
-      }();`,
-    ];
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [
+          `await ${toLocatorExpression(action.target, locator)}.${action.checked ? 'check' : 'uncheck'}();`,
+        ],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.setChecked(${toCodeString(action.target)}, ${action.checked ? 'true' : 'false'});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'hover') {
-    return [`await page.getByText(${toCodeString(action.target)}).first().hover();`];
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [`await ${toLocatorExpression(action.target, locator)}.hover();`],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.hover(${toCodeString(action.target)});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'press') {
-    const lines: string[] = [];
-    if (action.target) {
-      lines.push(`await page.getByLabel(${toCodeString(action.target)}).first().click();`);
+    if (!action.target) {
+      return {
+        lines: [`await page.keyboard.press(${toCodeString(action.key)});`],
+        usesQaFallback: false,
+      };
     }
-    lines.push(`await page.keyboard.press(${toCodeString(action.key)});`);
-    return lines;
+
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [
+          `await ${toLocatorExpression(action.target, locator)}.click();`,
+          `await page.keyboard.press(${toCodeString(action.key)});`,
+        ],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.press(${toCodeString(action.key)}, ${toCodeString(action.target)});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'upload') {
-    return [
-      `await page.getByLabel(${toCodeString(action.target)}).setInputFiles(${toCodeArray(action.filePaths)});`,
-    ];
+    const locator = resolveTargetLocator(action.target, action.targetLocator);
+    if (locator) {
+      return {
+        lines: [
+          `await ${toLocatorExpression(action.target, locator)}.setInputFiles(${toCodeArray(action.filePaths)});`,
+        ],
+        usesQaFallback: false,
+      };
+    }
+
+    return {
+      lines: [`await qa.upload(${toCodeString(action.target)}, ${toCodeArray(action.filePaths)});`],
+      usesQaFallback: true,
+    };
   }
 
   if (action.type === 'dialog') {
@@ -78,7 +191,10 @@ function mapActionToCodeLines(action: ParsedAction, order: number): string[] {
           ? `dialog.accept(${toCodeString(action.promptText)})`
           : 'dialog.accept()'
         : 'dialog.dismiss()';
-    return [`page.once("dialog", async (dialog) => { await ${dialogAction}; });`];
+    return {
+      lines: [`page.once("dialog", async (dialog) => { await ${dialogAction}; });`],
+      usesQaFallback: false,
+    };
   }
 
   if (action.type === 'waitForRequest') {
@@ -87,7 +203,7 @@ function mapActionToCodeLines(action: ParsedAction, order: number): string[] {
       action.method
         ? `response.request().method().toUpperCase() === ${toCodeString(action.method.toUpperCase())}`
         : null,
-      action.status ? `response.status() === ${action.status}` : null,
+      action.status !== undefined ? `response.status() === ${action.status}` : null,
     ]
       .filter(Boolean)
       .join(' && ');
@@ -97,30 +213,66 @@ function mapActionToCodeLines(action: ParsedAction, order: number): string[] {
         : '';
     const waitExpression = `page.waitForResponse((response) => ${requestPredicate}${timeoutOption})`;
     if (action.triggerClickTarget) {
-      return [
-        `await Promise.all([`,
-        `  ${waitExpression},`,
-        `  ${toClickLocator(action.triggerClickTarget)}.click(),`,
-        `]);`,
-      ];
+      const clickLocator = resolveTargetLocator(
+        action.triggerClickTarget,
+        action.triggerClickTargetLocator,
+      );
+      return {
+        lines: [
+          'await Promise.all([',
+          `  ${waitExpression},`,
+          clickLocator
+            ? `  ${toLocatorExpression(action.triggerClickTarget, clickLocator)}.click(),`
+            : `  qa.click(${toCodeString(action.triggerClickTarget)}),`,
+          ']);',
+        ],
+        usesQaFallback: !clickLocator,
+      };
     }
 
-    return [`await ${waitExpression};`];
+    return {
+      lines: [`await ${waitExpression};`],
+      usesQaFallback: false,
+    };
   }
 
   const timeoutOption =
     action.timeoutSeconds !== undefined
       ? `, { timeout: ${Math.max(1, Math.round(action.timeoutSeconds * 1000))} }`
       : '';
-  return [
-    `const download${order} = await Promise.all([`,
-    `  page.waitForEvent("download"${timeoutOption}),`,
-    `  ${toClickLocator(action.triggerClickTarget)}.click(),`,
-    `]);`,
-    `if (await download${order}[0].failure()) {`,
-    `  throw new Error("Download failed.");`,
-    `}`,
-  ];
+  const clickLocator = resolveTargetLocator(
+    action.triggerClickTarget,
+    action.triggerClickTargetLocator,
+  );
+  return {
+    lines: [
+      `const download${order} = await Promise.all([`,
+      `  page.waitForEvent("download"${timeoutOption}),`,
+      clickLocator
+        ? `  ${toLocatorExpression(action.triggerClickTarget, clickLocator)}.click(),`
+        : `  qa.click(${toCodeString(action.triggerClickTarget)}),`,
+      ']);',
+      `if (await download${order}[0].failure()) {`,
+      '  throw new Error("Download failed.");',
+      '}',
+    ],
+    usesQaFallback: !clickLocator,
+  };
+}
+
+function resolveTargetLocator(target: string, locator?: TargetLocator): TargetLocator | undefined {
+  if (locator) {
+    return locator;
+  }
+
+  const trimmed = target.trim();
+  if (trimmed.startsWith('#')) {
+    return { kind: 'id' };
+  }
+  if (trimmed.startsWith('.')) {
+    return { kind: 'class' };
+  }
+  return undefined;
 }
 
 function toNavigationLine(target: string): string {
@@ -135,12 +287,50 @@ function toNavigationLine(target: string): string {
   return `await page.goto(new URL(${toCodeString(target)}, page.url() || baseUrl).toString());`;
 }
 
-function toClickLocator(target: string): string {
-  if (target.startsWith('.') || target.startsWith('#')) {
+function toLocatorExpression(target: string, locator: TargetLocator): string {
+  if (locator.kind === 'label') {
+    return `page.getByLabel(${toCodeString(target)}).first()`;
+  }
+
+  if (locator.kind === 'placeholder') {
+    return `page.getByPlaceholder(${toCodeString(target)}).first()`;
+  }
+
+  if (locator.kind === 'role') {
+    return `page.getByRole(${toCodeString(locator.role)}, { name: ${toCodeString(target)} }).first()`;
+  }
+
+  if (locator.kind === 'text') {
+    return `page.getByText(${toCodeString(target)}).first()`;
+  }
+
+  if (locator.kind === 'testid') {
+    return `page.getByTestId(${toCodeString(target)}).first()`;
+  }
+
+  if (locator.kind === 'css') {
     return `page.locator(${toCodeString(target)}).first()`;
   }
 
-  return `page.getByRole("button", { name: ${toCodeString(target)} }).first()`;
+  if (locator.kind === 'id') {
+    const idValue = stripSelectorPrefix(target, '#');
+    return `page.locator(${toCodeString(`[id="${escapeAttributeValue(idValue)}"]`)}).first()`;
+  }
+
+  const classValue = stripSelectorPrefix(target, '.');
+  return `page.locator(${toCodeString(`[class~="${escapeAttributeValue(classValue)}"]`)}).first()`;
+}
+
+function stripSelectorPrefix(value: string, prefix: '#' | '.'): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith(prefix)) {
+    return trimmed.slice(1).trim();
+  }
+  return trimmed;
+}
+
+function escapeAttributeValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function toCodeArray(values: string[]): string {
@@ -149,8 +339,4 @@ function toCodeArray(values: string[]): string {
 
 function toCodeString(value: string): string {
   return JSON.stringify(value);
-}
-
-function prefixAwait(lines: string[]): string[] {
-  return lines.map((line) => (line.startsWith('await ') ? line : `await ${line}`));
 }
