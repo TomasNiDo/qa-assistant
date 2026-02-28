@@ -5,6 +5,7 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-typescript';
+import { highlightStepsInput } from '../stepsHighlight';
 import type { TestFormState } from '../types';
 import { dangerButtonClass, fieldClass, mutedButtonClass, panelClass, primaryButtonClass, subtleButtonClass } from '../uiClasses';
 
@@ -132,13 +133,21 @@ export function TestCaseEditorPanel({
 
         {isStepsView ? (
           <>
-            <textarea
-              className={`${fieldClass} h-80 resize-y font-mono text-[12px] leading-relaxed`}
-              rows={6}
+            <Editor
               value={testForm.stepsText}
-              onChange={(event) => setTestForm((previous) => ({ ...previous, stepsText: event.target.value }))}
+              onValueChange={(nextValue) => setTestForm((previous) => ({ ...previous, stepsText: nextValue }))}
+              highlight={highlightStepsInput}
+              padding={12}
+              className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
+              textareaClassName="qa-steps-editor__textarea"
+              preClassName="qa-steps-editor__pre"
               placeholder={'1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'}
               aria-label="Test Steps"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                lineHeight: 1.6,
+              }}
             />
             {testForm.isCustomized ? (
               <p className="rounded-md border border-warning/35 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">

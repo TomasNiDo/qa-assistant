@@ -115,3 +115,39 @@
 .qa-code-editor__textarea::selection {
   background-color: hsl(from var(--primary) h s l / 0.25);
 }
+
+.qa-steps-editor {
+  overflow: auto;
+}
+
+.qa-steps-editor__textarea,
+.qa-steps-editor__pre {
+  min-height: 100%;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.qa-steps-editor__textarea {
+  color: hsl(212 38% 94%);
+  caret-color: hsl(220 86% 60%);
+  outline: none;
+}
+
+.qa-steps-editor__textarea::selection {
+  background-color: hsl(from var(--primary) h s l / 0.25);
+}
+
+.qa-step-token--action {
+  color: #7bb6ff;
+  font-weight: 600;
+}
+
+.qa-step-token--value {
+  color: #f6c97f;
+}
+
+.qa-step-token--target {
+  color: #7fe3c2;
+}
