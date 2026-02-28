@@ -133,7 +133,7 @@ export function TestCaseEditorPanel({
         {isStepsView ? (
           <>
             <textarea
-              className={`${fieldClass} h-80 resize-y text-xs leading-relaxed`}
+              className={`${fieldClass} h-80 resize-y font-mono text-[12px] leading-relaxed`}
               rows={6}
               value={testForm.stepsText}
               onChange={(event) => setTestForm((previous) => ({ ...previous, stepsText: event.target.value }))}
@@ -172,30 +172,32 @@ export function TestCaseEditorPanel({
                   lineHeight: 1.6,
                 }}
               />
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <button
-                  type="button"
-                  className={subtleButtonClass}
-                  onClick={onEnableCodeEditing}
-                  disabled={testForm.isCodeEditingEnabled}
-                >
-                  {testForm.isCodeEditingEnabled ? 'Editing Enabled' : 'Enable Editing'}
-                </button>
-                <button
-                  type="button"
-                  className={subtleButtonClass}
-                  onClick={onRestoreGeneratedCode}
-                  disabled={!testForm.isCustomized}
-                >
-                  Restore Auto-Generated
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="mr-auto text-[11px] text-[#7f95b1]">
+                  {testForm.isCodeEditingEnabled
+                    ? 'Code edits are enabled. The next run uses this custom code once auto-saved.'
+                    : 'Code is read-only while Guided mode is enabled.'}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={subtleButtonClass}
+                    onClick={onEnableCodeEditing}
+                    disabled={testForm.isCodeEditingEnabled}
+                  >
+                    {testForm.isCodeEditingEnabled ? 'Editing Enabled' : 'Enable Editing'}
+                  </button>
+                  <button
+                    type="button"
+                    className={subtleButtonClass}
+                    onClick={onRestoreGeneratedCode}
+                    disabled={!testForm.isCustomized}
+                  >
+                    Restore Auto-Generated
+                  </button>
+                </div>
               </div>
             </div>
-            <p className="text-[11px] text-[#7f95b1]">
-              {testForm.isCodeEditingEnabled
-                ? 'Code edits are enabled. The next run uses this custom code once auto-saved.'
-                : 'Code is read-only while Guided mode is enabled.'}
-            </p>
           </>
         )}
       </div>
