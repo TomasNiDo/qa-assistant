@@ -7082,7 +7082,7 @@
     {
       "type": "frame",
       "id": "SvFm1",
-      "x": -451,
+      "x": -345,
       "y": 1431,
       "name": "Approved Sidebar Design",
       "width": 280,
@@ -11288,7 +11288,7 @@
     {
       "type": "frame",
       "id": "1V7Ct",
-      "x": -6,
+      "x": 100,
       "y": 1431,
       "name": "Feature - Planning Mode V2",
       "clip": true,
@@ -26111,7 +26111,7 @@
     {
       "type": "frame",
       "id": "TJkSa",
-      "x": -6,
+      "x": 100,
       "y": 2500,
       "name": "Feature - Planning Mode V2 Light",
       "clip": true,
@@ -36979,7 +36979,7 @@
       "name": "Report Bug Modal Light",
       "clip": true,
       "width": 1440,
-      "height": 902,
+      "height": 893,
       "fill": "#ffffff",
       "layout": "none",
       "children": [
@@ -40954,6 +40954,17 @@
           ]
         }
       ]
+    },
+    {
+      "type": "text",
+      "id": "JLFS8",
+      "x": -1146,
+      "y": 2950,
+      "fill": "#ffffff",
+      "content": "V2 DESIGNS - LIGHT MODE",
+      "fontFamily": "Inter",
+      "fontSize": 50,
+      "fontWeight": "normal"
     }
   ],
   "themes": {
