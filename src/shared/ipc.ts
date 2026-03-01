@@ -3,6 +3,7 @@ import type {
   AppConfig,
   BrowserInstallUpdate,
   BrowserInstallState,
+  CustomCodeSyntaxValidationResult,
   ActiveRunContext,
   CreateProjectInput,
   CreateTestInput,
@@ -40,6 +41,7 @@ export const IPC_CHANNELS = {
   testList: 'test.list',
   stepList: 'step.list',
   stepParse: 'step.parse',
+  testValidateCustomCodeSyntax: 'test.validateCustomCodeSyntax',
   runStart: 'run.start',
   runCancel: 'run.cancel',
   runStatus: 'run.status',
@@ -77,6 +79,9 @@ export interface QaAssistantApi {
   testList: (projectId: string) => Promise<ApiResult<TestCase[]>>;
   stepList: (testCaseId: string) => Promise<ApiResult<Step[]>>;
   stepParse: (rawText: string) => Promise<ApiResult<StepParseResult>>;
+  testValidateCustomCodeSyntax: (
+    customCode: string,
+  ) => Promise<ApiResult<CustomCodeSyntaxValidationResult>>;
 
   runStart: (input: StartRunInput) => Promise<ApiResult<Run>>;
   runCancel: (runId: string) => Promise<ApiResult<boolean>>;

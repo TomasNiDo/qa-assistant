@@ -1,6 +1,12 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { extname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
+import {
+  compileCustomCodeBlock,
+  formatCustomCodeRuntimeError,
+  formatCustomCodeSyntaxError,
+  validateCustomCodeSyntax,
+} from '@shared/customCodeValidation';
 import type {
   ActiveRunContext,
   AppConfig,
@@ -15,11 +21,19 @@ import type {
   Step,
   StepResult,
   StepStatus,
+  TargetLocator,
 } from '@shared/types';
-import type { Browser as PlaywrightBrowser, BrowserContext, Page } from 'playwright';
+import type {
+  Browser as PlaywrightBrowser,
+  BrowserContext,
+  Locator,
+  Page,
+} from 'playwright';
+import { expect as playwrightExpect } from 'playwright/test';
 import { createId } from './id';
 import { BrowserService } from './browserService';
 import { parseStep } from './parserService';
+import { repairLegacyPlaywrightCode } from './playwrightCodegen';
 import { nowIso } from './time';
 
 interface ActiveRun {
@@ -31,6 +45,12 @@ interface ActiveRun {
 
 interface ExecutionStep extends Step {
   action: ParsedAction;
+}
+
+interface ExecutionPlan {
+  steps: ExecutionStep[];
+  isCustomized: boolean;
+  customCode: string | null;
 }
 
 interface RunContext {
@@ -76,8 +96,15 @@ export class RunService {
     }
 
     const context = this.getRunContext(input.testCaseId);
-    const steps = this.listExecutionSteps(input.testCaseId);
-    if (steps.length === 0) {
+    const executionPlan = this.getExecutionPlan(input.testCaseId);
+    if (executionPlan.isCustomized) {
+      const syntaxValidation = validateCustomCodeSyntax(executionPlan.customCode ?? '');
+      if (!syntaxValidation.valid) {
+        throw new Error(formatCustomCodeSyntaxError(syntaxValidation));
+      }
+    }
+
+    if (executionPlan.steps.length === 0) {
       throw new Error('Test case has no steps. Add at least one step before running.');
     }
 
@@ -108,7 +135,7 @@ export class RunService {
       }
     });
 
-    transaction(run, steps);
+    transaction(run, executionPlan.steps);
 
     const abortController = new AbortController();
     this.activeRun = {
@@ -122,10 +149,10 @@ export class RunService {
       runId: run.id,
       type: 'run-started',
       runStatus: 'running',
-      message: `Running ${steps.length} step(s) for ${context.testTitle}.`,
+      message: `Running ${executionPlan.steps.length} step(s) for ${context.testTitle}.`,
     });
 
-    void this.executeRun(run, context, steps, abortController.signal);
+    void this.executeRun(run, context, executionPlan, abortController.signal);
 
     return run;
   }
@@ -306,7 +333,7 @@ export class RunService {
   private async executeRun(
     run: Run,
     context: RunContext,
-    steps: ExecutionStep[],
+    executionPlan: ExecutionPlan,
     signal: AbortSignal,
   ): Promise<void> {
     const config = this.getConfig();
@@ -338,70 +365,87 @@ export class RunService {
       page = await browserContext.newPage();
       await page.goto(context.baseUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
-      for (const step of steps) {
-        if (this.shouldStopRun(run.id, signal)) {
+      if (executionPlan.isCustomized && executionPlan.customCode) {
+        const customResult = await this.executeCustomCode(
+          run,
+          context.baseUrl,
+          executionPlan.steps,
+          page,
+          executionPlan.customCode,
+          timeoutMs,
+          signal,
+        );
+        failed = customResult.failed;
+        terminalMessage = customResult.message;
+        if (customResult.cancelled) {
           return;
         }
-
-        this.emitUpdate({
-          runId: run.id,
-          type: 'step-started',
-          stepId: step.id,
-          stepOrder: step.stepOrder,
-          stepStatus: 'pending',
-        });
-
-        try {
-          await this.executeStep(page, step.action, timeoutMs, context.baseUrl);
-
-          const screenshotPath = await this.captureStepScreenshot(page, run.id, step);
-          const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
-          if (!stepResult) {
+      } else {
+        for (const step of executionPlan.steps) {
+          if (this.shouldStopRun(run.id, signal)) {
             return;
           }
 
           this.emitUpdate({
             runId: run.id,
-            type: 'step-finished',
+            type: 'step-started',
             stepId: step.id,
             stepOrder: step.stepOrder,
-            stepStatus: 'passed',
-            stepResult,
-          });
-        } catch (error) {
-          if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
-            return;
-          }
-
-          failed = true;
-          const errorText = mapPlaywrightError(error, run.browser);
-          terminalMessage = errorText;
-          const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, step);
-
-          const stepResult = this.updateStepResult(
-            run.id,
-            step.id,
-            'failed',
-            errorText,
-            screenshotPath,
-          );
-          if (!stepResult) {
-            return;
-          }
-
-          this.emitUpdate({
-            runId: run.id,
-            type: 'step-finished',
-            stepId: step.id,
-            stepOrder: step.stepOrder,
-            stepStatus: 'failed',
-            stepResult,
-            message: errorText,
+            stepStatus: 'pending',
           });
 
-          if (!config.continueOnFailure) {
-            this.markPendingStepsCancelled(run.id);
-            break;
+          try {
+            await this.executeStep(page, step.action, timeoutMs, context.baseUrl);
+
+            const screenshotPath = await this.captureStepScreenshot(page, run.id, step);
+            const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
+            if (!stepResult) {
+              return;
+            }
+
+            this.emitUpdate({
+              runId: run.id,
+              type: 'step-finished',
+              stepId: step.id,
+              stepOrder: step.stepOrder,
+              stepStatus: 'passed',
+              stepResult,
+            });
+          } catch (error) {
+            if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
+              return;
+            }
+
+            failed = true;
+            const errorText = mapPlaywrightError(error, run.browser);
+            terminalMessage = errorText;
+            const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, step);
+
+            const stepResult = this.updateStepResult(
+              run.id,
+              step.id,
+              'failed',
+              errorText,
+              screenshotPath,
+            );
+            if (!stepResult) {
+              return;
+            }
+
+            this.emitUpdate({
+              runId: run.id,
+              type: 'step-finished',
+              stepId: step.id,
+              stepOrder: step.stepOrder,
+              stepStatus: 'failed',
+              stepResult,
+              message: errorText,
+            });
+
+            if (!config.continueOnFailure) {
+              this.markPendingStepsCancelled(run.id);
+              break;
+            }
           }
         }
       }
@@ -475,6 +519,34 @@ export class RunService {
     };
   }
 
+  private getExecutionPlan(testCaseId: string): ExecutionPlan {
+    const testCaseRow = this.db
+      .prepare(
+        `SELECT id, is_customized, custom_code
+         FROM test_cases
+         WHERE id = ?`,
+      )
+      .get(testCaseId) as
+      | {
+          id: string;
+          is_customized: number;
+          custom_code: string | null;
+        }
+      | undefined;
+
+    if (!testCaseRow) {
+      throw new Error('Test case not found.');
+    }
+
+    return {
+      steps: this.listExecutionSteps(testCaseId),
+      isCustomized: testCaseRow.is_customized === 1,
+      customCode: testCaseRow.custom_code
+        ? repairLegacyPlaywrightCode(testCaseRow.custom_code)
+        : null,
+    };
+  }
+
   private listExecutionSteps(testCaseId: string): ExecutionStep[] {
     const rows = this.db
       .prepare(
@@ -501,6 +573,151 @@ export class RunService {
     }));
   }
 
+  private async executeCustomCode(
+    run: Run,
+    baseUrl: string,
+    steps: ExecutionStep[],
+    page: Page,
+    customCode: string,
+    timeoutMs: number,
+    signal: AbortSignal,
+  ): Promise<{ failed: boolean; cancelled: boolean; message?: string }> {
+    const primaryStep = steps[0];
+    this.emitUpdate({
+      runId: run.id,
+      type: 'step-started',
+      stepId: primaryStep.id,
+      stepOrder: primaryStep.stepOrder,
+      stepStatus: 'pending',
+    });
+
+    try {
+      await this.runCustomCodeBlock(page, baseUrl, customCode, timeoutMs);
+      if (this.shouldStopRun(run.id, signal)) {
+        return { failed: false, cancelled: true };
+      }
+
+      const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, primaryStep);
+      for (const step of steps) {
+        const stepResult = this.updateStepResult(run.id, step.id, 'passed', null, screenshotPath);
+        if (!stepResult) {
+          continue;
+        }
+
+        this.emitUpdate({
+          runId: run.id,
+          type: 'step-finished',
+          stepId: step.id,
+          stepOrder: step.stepOrder,
+          stepStatus: 'passed',
+          stepResult,
+        });
+      }
+
+      return {
+        failed: false,
+        cancelled: false,
+      };
+    } catch (error) {
+      if (this.shouldStopRun(run.id, signal) || isAbortLikeError(error)) {
+        return { failed: false, cancelled: true };
+      }
+
+      const errorText = mapCustomCodeError(error);
+      const screenshotPath = await this.captureStepScreenshotSafe(page, run.id, primaryStep);
+      const stepResult = this.updateStepResult(
+        run.id,
+        primaryStep.id,
+        'failed',
+        errorText,
+        screenshotPath,
+      );
+
+      if (stepResult) {
+        this.emitUpdate({
+          runId: run.id,
+          type: 'step-finished',
+          stepId: primaryStep.id,
+          stepOrder: primaryStep.stepOrder,
+          stepStatus: 'failed',
+          stepResult,
+          message: errorText,
+        });
+      }
+
+      this.markPendingStepsCancelled(run.id);
+      return {
+        failed: true,
+        cancelled: false,
+        message: errorText,
+      };
+    }
+  }
+
+  private async runCustomCodeBlock(
+    page: Page,
+    baseUrl: string,
+    customCode: string,
+    timeoutMs: number,
+  ): Promise<void> {
+    const executor = compileCustomCodeBlock(customCode) as (
+      page: Page,
+      baseUrl: string,
+      expect: typeof playwrightExpect,
+      qa: {
+        enter: (target: string, value: string) => Promise<void>;
+        click: (target: string) => Promise<void>;
+        select: (target: string, value: string) => Promise<void>;
+        setChecked: (target: string, checked: boolean) => Promise<void>;
+        hover: (target: string) => Promise<void>;
+        press: (key: string, target?: string) => Promise<void>;
+        upload: (target: string, filePaths: string[] | string) => Promise<void>;
+      },
+      test: (title: string, callback: (fixtures: { page: Page }) => Promise<unknown> | unknown) => void,
+    ) => Promise<unknown>;
+    const qa = {
+      enter: async (target: string, value: string): Promise<void> => {
+        await this.performEnter(page, target, value, timeoutMs);
+      },
+      click: async (target: string): Promise<void> => {
+        await this.performClick(page, target, timeoutMs);
+      },
+      select: async (target: string, value: string): Promise<void> => {
+        await this.performSelect(page, target, value, timeoutMs);
+      },
+      setChecked: async (target: string, checked: boolean): Promise<void> => {
+        await this.performSetChecked(page, target, checked, timeoutMs);
+      },
+      hover: async (target: string): Promise<void> => {
+        await this.performHover(page, target, timeoutMs);
+      },
+      press: async (key: string, target?: string): Promise<void> => {
+        await this.performPress(page, key, target, timeoutMs);
+      },
+      upload: async (target: string, filePaths: string[] | string): Promise<void> => {
+        const normalized = Array.isArray(filePaths) ? filePaths : [filePaths];
+        await this.performUpload(page, target, normalized, timeoutMs);
+      },
+    };
+    let capturedTest:
+      | ((fixtures: { page: Page }) => Promise<unknown> | unknown)
+      | null = null;
+    const test = (
+      _title: string,
+      callback: (fixtures: { page: Page }) => Promise<unknown> | unknown,
+    ): void => {
+      capturedTest = callback;
+    };
+
+    await executor(page, baseUrl, playwrightExpect, qa, test);
+    const registeredTestCallback = capturedTest as
+      | ((fixtures: { page: Page }) => Promise<unknown> | unknown)
+      | null;
+    if (registeredTestCallback) {
+      await registeredTestCallback({ page });
+    }
+  }
+
   private async executeStep(
     page: Page,
     action: ParsedAction,
@@ -508,7 +725,7 @@ export class RunService {
     baseUrl: string,
   ): Promise<void> {
     if (action.type === 'enter') {
-      await this.performEnter(page, action.target, action.value, timeoutMs);
+      await this.performEnter(page, action.target, action.value, timeoutMs, action.targetLocator);
       return;
     }
 
@@ -519,7 +736,7 @@ export class RunService {
       if (clickDelayMs > 0) {
         await sleep(clickDelayMs);
       }
-      await this.performClick(page, action.target, timeoutMs);
+      await this.performClick(page, action.target, timeoutMs, action.targetLocator);
       return;
     }
 
@@ -537,27 +754,27 @@ export class RunService {
     }
 
     if (action.type === 'select') {
-      await this.performSelect(page, action.target, action.value, timeoutMs);
+      await this.performSelect(page, action.target, action.value, timeoutMs, action.targetLocator);
       return;
     }
 
     if (action.type === 'setChecked') {
-      await this.performSetChecked(page, action.target, action.checked, timeoutMs);
+      await this.performSetChecked(page, action.target, action.checked, timeoutMs, action.targetLocator);
       return;
     }
 
     if (action.type === 'hover') {
-      await this.performHover(page, action.target, timeoutMs);
+      await this.performHover(page, action.target, timeoutMs, action.targetLocator);
       return;
     }
 
     if (action.type === 'press') {
-      await this.performPress(page, action.key, action.target, timeoutMs);
+      await this.performPress(page, action.key, action.target, timeoutMs, action.targetLocator);
       return;
     }
 
     if (action.type === 'upload') {
-      await this.performUpload(page, action.target, action.filePaths, timeoutMs);
+      await this.performUpload(page, action.target, action.filePaths, timeoutMs, action.targetLocator);
       return;
     }
 
@@ -577,7 +794,12 @@ export class RunService {
     const downloadTimeoutMs = action.timeoutSeconds
       ? Math.max(1000, Math.min(600_000, Math.round(action.timeoutSeconds * 1000)))
       : timeoutMs;
-    await this.performDownload(page, action.triggerClickTarget, downloadTimeoutMs);
+    await this.performDownload(
+      page,
+      action.triggerClickTarget,
+      downloadTimeoutMs,
+      action.triggerClickTargetLocator,
+    );
   }
 
   private async performEnter(
@@ -585,7 +807,14 @@ export class RunService {
     fieldName: string,
     value: string,
     timeoutMs: number,
+    targetLocator?: TargetLocator,
   ): Promise<void> {
+    if (targetLocator) {
+      await this.resolveLocatorFromTarget(page, fieldName, targetLocator)
+        .fill(value, { timeout: timeoutMs });
+      return;
+    }
+
     const textMatcher = new RegExp(escapeRegExp(fieldName), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
 
@@ -611,7 +840,17 @@ export class RunService {
     throw new Error(`Unable to locate input field "${fieldName}".`);
   }
 
-  private async performClick(page: Page, target: string, timeoutMs: number): Promise<void> {
+  private async performClick(
+    page: Page,
+    target: string,
+    timeoutMs: number,
+    targetLocator?: TargetLocator,
+  ): Promise<void> {
+    if (targetLocator) {
+      await this.resolveLocatorFromTarget(page, target, targetLocator).click({ timeout: timeoutMs });
+      return;
+    }
+
     const textMatcher = new RegExp(escapeRegExp(target), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
     const selectorAttempts = buildElementSelectorCandidates(target).map(
@@ -643,7 +882,16 @@ export class RunService {
     target: string,
     value: string,
     timeoutMs: number,
+    targetLocator?: TargetLocator,
   ): Promise<void> {
+    if (targetLocator) {
+      await this.resolveLocatorFromTarget(page, target, targetLocator).selectOption(
+        { label: value },
+        { timeout: timeoutMs },
+      );
+      return;
+    }
+
     const targetMatcher = new RegExp(escapeRegExp(target), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
 
@@ -677,7 +925,18 @@ export class RunService {
     target: string,
     checked: boolean,
     timeoutMs: number,
+    targetLocator?: TargetLocator,
   ): Promise<void> {
+    if (targetLocator) {
+      const locator = this.resolveLocatorFromTarget(page, target, targetLocator);
+      if (checked) {
+        await locator.check({ timeout: timeoutMs });
+      } else {
+        await locator.uncheck({ timeout: timeoutMs });
+      }
+      return;
+    }
+
     const targetMatcher = new RegExp(escapeRegExp(target), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
 
@@ -712,7 +971,17 @@ export class RunService {
     throw new Error(`Unable to locate checkbox "${target}".`);
   }
 
-  private async performHover(page: Page, target: string, timeoutMs: number): Promise<void> {
+  private async performHover(
+    page: Page,
+    target: string,
+    timeoutMs: number,
+    targetLocator?: TargetLocator,
+  ): Promise<void> {
+    if (targetLocator) {
+      await this.resolveLocatorFromTarget(page, target, targetLocator).hover({ timeout: timeoutMs });
+      return;
+    }
+
     const textMatcher = new RegExp(escapeRegExp(target), 'i');
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
 
@@ -739,8 +1008,15 @@ export class RunService {
     key: string,
     target: string | undefined,
     timeoutMs: number,
+    targetLocator?: TargetLocator,
   ): Promise<void> {
     if (target) {
+      if (targetLocator) {
+        await this.resolveLocatorFromTarget(page, target, targetLocator).click({ timeout: timeoutMs });
+        await page.keyboard.press(key);
+        return;
+      }
+
       const targetMatcher = new RegExp(escapeRegExp(target), 'i');
       const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
       const focusAttempts: Array<() => Promise<void>> = [
@@ -774,9 +1050,17 @@ export class RunService {
     target: string,
     filePaths: string[],
     timeoutMs: number,
+    targetLocator?: TargetLocator,
   ): Promise<void> {
     const targetMatcher = new RegExp(escapeRegExp(target), 'i');
     const resolvedPaths = filePaths.map((filePath) => resolve(filePath));
+    if (targetLocator) {
+      await this.resolveLocatorFromTarget(page, target, targetLocator).setInputFiles(resolvedPaths, {
+        timeout: timeoutMs,
+      });
+      return;
+    }
+
     const attemptTimeout = Math.max(1000, Math.floor(timeoutMs / 3));
 
     const attempts: Array<() => Promise<void>> = [
@@ -841,7 +1125,12 @@ export class RunService {
     if (action.triggerClickTarget) {
       await Promise.all([
         page.waitForResponse(predicate, { timeout: timeoutMs }),
-        this.performClick(page, action.triggerClickTarget, timeoutMs),
+        this.performClick(
+          page,
+          action.triggerClickTarget,
+          timeoutMs,
+          action.triggerClickTargetLocator,
+        ),
       ]);
       return;
     }
@@ -853,16 +1142,58 @@ export class RunService {
     page: Page,
     triggerClickTarget: string,
     timeoutMs: number,
+    triggerClickTargetLocator?: TargetLocator,
   ): Promise<void> {
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: timeoutMs }),
-      this.performClick(page, triggerClickTarget, timeoutMs),
+      this.performClick(page, triggerClickTarget, timeoutMs, triggerClickTargetLocator),
     ]);
 
     const failure = await download.failure();
     if (failure) {
       throw new Error(`Download failed: ${failure}`);
     }
+  }
+
+  private resolveLocatorFromTarget(
+    page: Page,
+    target: string,
+    targetLocator: TargetLocator,
+  ): Locator {
+    const trimmedTarget = target.trim();
+    const targetMatcher = new RegExp(escapeRegExp(trimmedTarget), 'i');
+
+    if (targetLocator.kind === 'label') {
+      return page.getByLabel(targetMatcher).first();
+    }
+
+    if (targetLocator.kind === 'placeholder') {
+      return page.getByPlaceholder(targetMatcher).first();
+    }
+
+    if (targetLocator.kind === 'role') {
+      return page.getByRole(targetLocator.role as never, { name: targetMatcher }).first();
+    }
+
+    if (targetLocator.kind === 'text') {
+      return page.getByText(targetMatcher).first();
+    }
+
+    if (targetLocator.kind === 'testid') {
+      return page.getByTestId(trimmedTarget).first();
+    }
+
+    if (targetLocator.kind === 'css') {
+      return page.locator(trimmedTarget).first();
+    }
+
+    if (targetLocator.kind === 'id') {
+      const idValue = trimSelectorPrefix(trimmedTarget, '#');
+      return page.locator(`[id="${escapeAttributeValue(idValue)}"]`).first();
+    }
+
+    const classValue = trimSelectorPrefix(trimmedTarget, '.');
+    return page.locator(`[class~="${escapeAttributeValue(classValue)}"]`).first();
   }
 
   private async performExpect(page: Page, assertion: string, timeoutMs: number): Promise<void> {
@@ -1080,21 +1411,35 @@ export class RunService {
 
 function parseActionJson(actionJson: string, rawText: string, stepOrder: number): ParsedAction {
   try {
-    const parsed = JSON.parse(actionJson) as ParsedAction;
+    const parsed = JSON.parse(actionJson) as ParsedAction & {
+      targetLocator?: unknown;
+      triggerClickTargetLocator?: unknown;
+    };
     const reparsed = parseStep(rawText);
 
     if (parsed.type === 'enter' && typeof parsed.target === 'string' && typeof parsed.value === 'string') {
-      return parsed;
+      if (reparsed.ok && reparsed.action.type === 'enter') {
+        return reparsed.action;
+      }
+
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid enter target locator.');
+      return targetLocator
+        ? { type: 'enter', target: parsed.target, value: parsed.value, targetLocator }
+        : { type: 'enter', target: parsed.target, value: parsed.value };
     }
 
     if (parsed.type === 'click' && typeof parsed.target === 'string') {
       let target = parsed.target;
       let delaySeconds = parsed.delaySeconds;
+      let targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid click target locator.');
 
       if (reparsed.ok && reparsed.action.type === 'click') {
         target = reparsed.action.target;
         if (delaySeconds === undefined && reparsed.action.delaySeconds !== undefined) {
           delaySeconds = reparsed.action.delaySeconds;
+        }
+        if (!targetLocator && reparsed.action.targetLocator) {
+          targetLocator = reparsed.action.targetLocator;
         }
       }
 
@@ -1102,9 +1447,12 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
         throw new Error('Invalid click delay.');
       }
 
-      return delaySeconds !== undefined
-        ? { type: 'click', target, delaySeconds }
-        : { type: 'click', target };
+      return {
+        type: 'click',
+        target,
+        ...(delaySeconds !== undefined ? { delaySeconds } : {}),
+        ...(targetLocator ? { targetLocator } : {}),
+      };
     }
 
     if (parsed.type === 'navigate' && typeof parsed.target === 'string') {
@@ -1140,7 +1488,10 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       if (reparsed.ok && reparsed.action.type === 'select') {
         return reparsed.action;
       }
-      return parsed;
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid select target locator.');
+      return targetLocator
+        ? { type: 'select', target: parsed.target, value: parsed.value, targetLocator }
+        : { type: 'select', target: parsed.target, value: parsed.value };
     }
 
     if (
@@ -1151,14 +1502,25 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       if (reparsed.ok && reparsed.action.type === 'setChecked') {
         return reparsed.action;
       }
-      return parsed;
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid checkbox target locator.');
+      return targetLocator
+        ? {
+            type: 'setChecked',
+            target: parsed.target,
+            checked: parsed.checked,
+            targetLocator,
+          }
+        : parsed;
     }
 
     if (parsed.type === 'hover' && typeof parsed.target === 'string') {
       if (reparsed.ok && reparsed.action.type === 'hover') {
         return reparsed.action;
       }
-      return parsed;
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid hover target locator.');
+      return targetLocator
+        ? { type: 'hover', target: parsed.target, targetLocator }
+        : { type: 'hover', target: parsed.target };
     }
 
     if (parsed.type === 'press' && typeof parsed.key === 'string') {
@@ -1168,7 +1530,18 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       if (reparsed.ok && reparsed.action.type === 'press') {
         return reparsed.action;
       }
-      return parsed.target ? { type: 'press', key: parsed.key, target: parsed.target } : parsed;
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid press target locator.');
+      if (!parsed.target && targetLocator) {
+        throw new Error('Invalid press target locator.');
+      }
+      return parsed.target
+        ? {
+            type: 'press',
+            key: parsed.key,
+            target: parsed.target,
+            ...(targetLocator ? { targetLocator } : {}),
+          }
+        : { type: 'press', key: parsed.key };
     }
 
     if (parsed.type === 'upload' && typeof parsed.target === 'string' && Array.isArray(parsed.filePaths)) {
@@ -1181,7 +1554,13 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       if (reparsed.ok && reparsed.action.type === 'upload') {
         return reparsed.action;
       }
-      return { type: 'upload', target: parsed.target, filePaths: parsed.filePaths };
+      const targetLocator = validateTargetLocator(parsed.targetLocator, 'Invalid upload target locator.');
+      return {
+        type: 'upload',
+        target: parsed.target,
+        filePaths: parsed.filePaths,
+        ...(targetLocator ? { targetLocator } : {}),
+      };
     }
 
     if (parsed.type === 'dialog' && (parsed.action === 'accept' || parsed.action === 'dismiss')) {
@@ -1209,26 +1588,86 @@ function parseActionJson(actionJson: string, rawText: string, stepOrder: number)
       if (parsed.timeoutSeconds !== undefined && (!Number.isFinite(parsed.timeoutSeconds) || parsed.timeoutSeconds <= 0)) {
         throw new Error('Invalid request timeout.');
       }
+      const triggerClickTargetLocator = validateTargetLocator(
+        parsed.triggerClickTargetLocator,
+        'Invalid request click target locator.',
+      );
+      if (!parsed.triggerClickTarget && triggerClickTargetLocator) {
+        throw new Error('Invalid request click target locator.');
+      }
       if (reparsed.ok && reparsed.action.type === 'waitForRequest') {
         return reparsed.action;
       }
-      return parsed;
+      return {
+        type: 'waitForRequest',
+        urlPattern: parsed.urlPattern,
+        ...(parsed.method ? { method: parsed.method } : {}),
+        ...(parsed.status ? { status: parsed.status } : {}),
+        ...(parsed.triggerClickTarget ? { triggerClickTarget: parsed.triggerClickTarget } : {}),
+        ...(triggerClickTargetLocator ? { triggerClickTargetLocator } : {}),
+        ...(parsed.timeoutSeconds ? { timeoutSeconds: parsed.timeoutSeconds } : {}),
+      };
     }
 
     if (parsed.type === 'download' && typeof parsed.triggerClickTarget === 'string') {
       if (parsed.timeoutSeconds !== undefined && (!Number.isFinite(parsed.timeoutSeconds) || parsed.timeoutSeconds <= 0)) {
         throw new Error('Invalid download timeout.');
       }
+      const triggerClickTargetLocator = validateTargetLocator(
+        parsed.triggerClickTargetLocator,
+        'Invalid download click target locator.',
+      );
       if (reparsed.ok && reparsed.action.type === 'download') {
         return reparsed.action;
       }
-      return parsed;
+      return {
+        type: 'download',
+        triggerClickTarget: parsed.triggerClickTarget,
+        ...(triggerClickTargetLocator ? { triggerClickTargetLocator } : {}),
+        ...(parsed.timeoutSeconds ? { timeoutSeconds: parsed.timeoutSeconds } : {}),
+      };
     }
   } catch {
     // Validated below.
   }
 
   throw new Error(`Step ${stepOrder} has invalid parsed action data.`);
+}
+
+function validateTargetLocator(raw: unknown, message: string): TargetLocator | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    throw new Error(message);
+  }
+
+  const candidate = raw as { kind?: unknown; role?: unknown };
+  if (typeof candidate.kind !== 'string') {
+    throw new Error(message);
+  }
+
+  if (candidate.kind === 'role') {
+    if (typeof candidate.role !== 'string' || !candidate.role.trim()) {
+      throw new Error(message);
+    }
+    return { kind: 'role', role: candidate.role.trim() };
+  }
+
+  if (
+    candidate.kind === 'label' ||
+    candidate.kind === 'placeholder' ||
+    candidate.kind === 'text' ||
+    candidate.kind === 'testid' ||
+    candidate.kind === 'css' ||
+    candidate.kind === 'id' ||
+    candidate.kind === 'class'
+  ) {
+    return { kind: candidate.kind };
+  }
+
+  throw new Error(message);
 }
 
 function mapPlaywrightError(error: unknown, browser: BrowserName): string {
@@ -1251,6 +1690,10 @@ function mapPlaywrightError(error: unknown, browser: BrowserName): string {
   }
 
   return `Automation failed: ${raw}`;
+}
+
+function mapCustomCodeError(error: unknown): string {
+  return formatCustomCodeRuntimeError(error);
 }
 
 function isMissingBrowserMessage(message: string): boolean {
@@ -1362,6 +1805,14 @@ function buildElementSelectorCandidates(target: string): string[] {
 
 function escapeAttributeValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function trimSelectorPrefix(value: string, prefix: '#' | '.'): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith(prefix)) {
+    return trimmed.slice(1).trim();
+  }
+  return trimmed;
 }
 
 function isSimpleCssId(value: string): boolean {

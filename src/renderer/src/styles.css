@@ -1,4 +1,5 @@
 ﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('prismjs/themes/prism-tomorrow.css');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -91,3 +92,82 @@
   text-wrap: balance;
 }
 
+/* Syntax-highlighted editor surfaces for Playwright code. */
+.qa-code-editor {
+  position: relative;
+  overflow: hidden !important;
+  max-height: 100%;
+}
+
+.qa-code-editor__textarea,
+.qa-code-editor__pre {
+  min-height: 100%;
+  margin: 0;
+  white-space: pre;
+}
+
+.qa-code-editor__textarea {
+  color: hsl(212 38% 94%);
+  caret-color: hsl(220 86% 60%);
+  outline: none;
+  overflow: auto !important;
+}
+
+.qa-code-editor__pre {
+  overflow: hidden !important;
+  will-change: transform;
+}
+
+.qa-code-editor pre.qa-code-editor__pre {
+  overflow: hidden !important;
+}
+
+.qa-code-editor__textarea::selection {
+  background-color: hsl(from var(--primary) h s l / 0.25);
+}
+
+.qa-steps-editor {
+  position: relative;
+  overflow: hidden !important;
+  max-height: 100%;
+}
+
+.qa-steps-editor__textarea,
+.qa-steps-editor__pre {
+  min-height: 100%;
+  margin: 0;
+  white-space: pre;
+}
+
+.qa-steps-editor__textarea {
+  color: hsl(212 38% 94%);
+  caret-color: hsl(220 86% 60%);
+  outline: none;
+  overflow: auto !important;
+}
+
+.qa-steps-editor__pre {
+  overflow: hidden !important;
+  will-change: transform;
+}
+
+.qa-steps-editor pre.qa-steps-editor__pre {
+  overflow: hidden !important;
+}
+
+.qa-steps-editor__textarea::selection {
+  background-color: hsl(from var(--primary) h s l / 0.25);
+}
+
+.qa-step-token--action {
+  color: #7bb6ff;
+  font-weight: 600;
+}
+
+.qa-step-token--value {
+  color: #f6c97f;
+}
+
+.qa-step-token--target {
+  color: #7fe3c2;
+}

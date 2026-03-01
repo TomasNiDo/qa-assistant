@@ -1,15 +1,29 @@
 export type BrowserName = 'chromium' | 'firefox' | 'webkit';
 
+export type LocatorKind =
+  | 'label'
+  | 'placeholder'
+  | 'role'
+  | 'text'
+  | 'testid'
+  | 'css'
+  | 'id'
+  | 'class';
+
+export type TargetLocator =
+  | { kind: 'role'; role: string }
+  | { kind: Exclude<LocatorKind, 'role'> };
+
 export type ParsedAction =
-  | { type: 'enter'; target: string; value: string }
-  | { type: 'click'; target: string; delaySeconds?: number }
+  | { type: 'enter'; target: string; value: string; targetLocator?: TargetLocator }
+  | { type: 'click'; target: string; delaySeconds?: number; targetLocator?: TargetLocator }
   | { type: 'navigate'; target: string }
   | { type: 'expect'; assertion: string; timeoutSeconds?: number }
-  | { type: 'select'; target: string; value: string }
-  | { type: 'setChecked'; target: string; checked: boolean }
-  | { type: 'hover'; target: string }
-  | { type: 'press'; key: string; target?: string }
-  | { type: 'upload'; target: string; filePaths: string[] }
+  | { type: 'select'; target: string; value: string; targetLocator?: TargetLocator }
+  | { type: 'setChecked'; target: string; checked: boolean; targetLocator?: TargetLocator }
+  | { type: 'hover'; target: string; targetLocator?: TargetLocator }
+  | { type: 'press'; key: string; target?: string; targetLocator?: TargetLocator }
+  | { type: 'upload'; target: string; filePaths: string[]; targetLocator?: TargetLocator }
   | { type: 'dialog'; action: 'accept' | 'dismiss'; promptText?: string }
   | {
       type: 'waitForRequest';
@@ -17,16 +31,24 @@ export type ParsedAction =
       method?: string;
       status?: number;
       triggerClickTarget?: string;
+      triggerClickTargetLocator?: TargetLocator;
       timeoutSeconds?: number;
     }
   | {
       type: 'download';
       triggerClickTarget: string;
+      triggerClickTargetLocator?: TargetLocator;
       timeoutSeconds?: number;
     };
 
+export interface StepParseWarning {
+  code: 'ambiguous_target';
+  message: string;
+  suggestedStep: string;
+}
+
 export type StepParseResult =
-  | { ok: true; action: ParsedAction; source: 'strict' | 'fallback' }
+  | { ok: true; action: ParsedAction; source: 'strict' | 'fallback'; warnings: StepParseWarning[] }
   | { ok: false; error: string };
 
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled';
@@ -45,6 +67,9 @@ export interface TestCase {
   id: string;
   projectId: string;
   title: string;
+  generatedCode: string;
+  customCode: string | null;
+  isCustomized: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +176,8 @@ export interface CreateTestInput {
   projectId: string;
   title: string;
   steps: string[];
+  customCode?: string | null;
+  isCustomized?: boolean;
 }
 
 export interface UpdateTestInput extends CreateTestInput {
@@ -200,6 +227,12 @@ export interface GeneratedBugReport {
   expectedResult: string;
   actualResult: string;
   evidence: string[];
+}
+
+export interface CustomCodeSyntaxValidationResult {
+  valid: boolean;
+  line: number | null;
+  message: string | null;
 }
 
 export interface SampleSeedResult {

@@ -3,337 +3,356 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QA Assistant Step Writing Guide</title>
+    <title>QA Assistant Step Guide</title>
     <style>
-      :root {
-        color-scheme: light dark;
-        --bg: #0b1220;
-        --card: #111b2e;
-        --card-2: #15233a;
-        --text: #e6edf7;
-        --muted: #9fb1cf;
-        --line: #2c4063;
-        --accent: #54b6ff;
-        --ok: #2fd49f;
-      }
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-      @media (prefers-color-scheme: light) {
-        :root {
-          --bg: #f4f8ff;
-          --card: #ffffff;
-          --card-2: #f8fbff;
-          --text: #0f1d34;
-          --muted: #4a5f82;
-          --line: #d4def0;
-          --accent: #005fcc;
-          --ok: #007a55;
-        }
+      :root {
+        color-scheme: dark;
+        --background: hsl(223 30% 5%);
+        --foreground: hsl(212 38% 94%);
+        --card: hsl(222 33% 8%);
+        --card-alt: hsl(221 29% 11%);
+        --muted: hsl(214 19% 67%);
+        --line: hsl(218 24% 20%);
+        --primary: hsl(220 86% 60%);
+        --accent: hsl(207 64% 54%);
+        --warning: hsl(40 94% 56%);
+        --success: hsl(147 62% 72%);
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html,
+      body {
+        min-height: 100%;
+      }
+
       body {
         margin: 0;
-        font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(circle at top left, rgba(84, 182, 255, 0.15), transparent 42%), var(--bg);
-        color: var(--text);
-        line-height: 1.5;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: var(--foreground);
+        background-color: var(--background);
+        background-image:
+          radial-gradient(circle at 22% -20%, hsl(219 92% 62% / 0.12), transparent 42%),
+          radial-gradient(circle at 94% 0%, hsl(200 75% 56% / 0.11), transparent 38%);
+        line-height: 1.6;
       }
 
       main {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 24px;
+        width: min(1200px, 100% - 40px);
+        margin: 28px auto 56px;
       }
 
-      h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-      }
-
-      h2 {
-        margin: 24px 0 8px;
-        font-size: 20px;
-      }
-
+      h1,
+      h2,
       h3 {
-        margin: 0 0 8px;
-        font-size: 17px;
+        margin: 0;
+        line-height: 1.25;
       }
 
       p {
-        margin: 0 0 12px;
+        margin: 0;
         color: var(--muted);
       }
 
-      .card {
-        background: linear-gradient(180deg, var(--card), var(--card-2));
+      .hero {
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 14px;
-        margin-bottom: 8px;
+        border-radius: 20px;
+        padding: 24px;
+        background: linear-gradient(
+          150deg,
+          hsl(221 41% 12% / 0.9) 0%,
+          hsl(220 39% 10% / 0.9) 52%,
+          hsl(219 36% 9% / 0.88) 100%
+        );
+        box-shadow: 0 28px 60px -50px hsl(220 95% 4% / 0.95);
       }
 
-      .step-card {
-        margin-top: 12px;
-        padding: 14px;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: rgba(84, 182, 255, 0.05);
+      .hero h1 {
+        font-size: clamp(1.6rem, 2.6vw, 2rem);
+        letter-spacing: -0.02em;
       }
 
-      .meta {
-        display: inline-block;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-        color: var(--ok);
-        margin-bottom: 8px;
-      }
-
-      .syntax {
-        margin: 10px 0;
-      }
-
-      .syntax code {
-        display: inline-block;
-      }
-
-      .examples {
-        margin: 8px 0 0;
-        padding-left: 18px;
-      }
-
-      .examples li {
-        margin-bottom: 6px;
-      }
-
-      .tip {
-        border-left: 4px solid var(--accent);
-        padding: 10px 12px;
+      .hero p {
         margin-top: 10px;
-        background: rgba(84, 182, 255, 0.08);
-        border-radius: 8px;
+        max-width: 78ch;
       }
 
-      ul {
-        margin: 8px 0 0;
+      .pill-row {
+        margin-top: 18px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid hsl(from var(--primary) h s l / 0.32);
+        background: hsl(from var(--primary) h s l / 0.12);
+        color: hsl(212 100% 88%);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 5px 10px;
+      }
+
+      .layout {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: linear-gradient(180deg, hsl(from var(--card) h s l / 0.95), hsl(from var(--card-alt) h s l / 0.92));
+        padding: 16px;
+      }
+
+      .panel h2 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+      }
+
+      .list,
+      .syntax-list {
+        margin: 0;
         padding-left: 18px;
+      }
+
+      .list li,
+      .syntax-list li {
+        margin-bottom: 8px;
+        color: var(--muted);
+      }
+
+      .syntax-list li strong {
+        color: var(--foreground);
+      }
+
+      .section {
+        margin-top: 14px;
+      }
+
+      .section h2 {
+        margin-bottom: 10px;
+        font-size: 1.04rem;
+      }
+
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .card {
+        border: 1px solid hsl(from var(--line) h s l / 0.95);
+        border-radius: 14px;
+        padding: 12px;
+        background: hsl(from var(--card-alt) h s l / 0.84);
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border: 1px solid hsl(from var(--success) h s l / 0.22);
+        color: hsl(from var(--success) h s l / 0.95);
+        background: hsl(from var(--success) h s l / 0.09);
+      }
+
+      .card h3 {
+        margin-top: 8px;
+        font-size: 0.95rem;
+      }
+
+      .card p {
+        margin-top: 8px;
+        font-size: 0.88rem;
+      }
+
+      .code-block {
+        margin-top: 10px;
+      }
+
+      code,
+      pre {
+        font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
       }
 
       code {
-        color: var(--text);
-        background: rgba(84, 182, 255, 0.12);
-        border: 1px solid rgba(84, 182, 255, 0.25);
+        color: var(--foreground);
+        background: hsl(from var(--primary) h s l / 0.12);
+        border: 1px solid hsl(from var(--primary) h s l / 0.24);
         border-radius: 6px;
         padding: 1px 6px;
         word-break: break-word;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: hsl(221 36% 8% / 0.85);
+        border: 1px solid hsl(from var(--line) h s l / 0.85);
+        border-radius: 12px;
+        padding: 10px 12px;
+        color: hsl(213 42% 92%);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .note {
+        margin-top: 12px;
+        border-left: 3px solid var(--warning);
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: hsl(from var(--warning) h s l / 0.1);
+        color: hsl(42 92% 84%);
+        font-size: 12px;
+      }
+
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .card-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>QA Assistant Step Writing Guide</h1>
-      <p>
-        Write one step per line. Use quotes around values and targets. For the most reliable runs, use strict
-        grammar formats shown below.
-      </p>
-
-      <section class="card">
-        <h2>Quick Rules</h2>
-        <ul>
-          <li>Use one action per step line.</li>
-          <li>Prefer strict syntax instead of free-form natural language.</li>
-          <li>Use full or absolute file paths for uploads when possible.</li>
-          <li>For element selectors, use class or ID forms when text matching is unstable.</li>
-          <li>Use timeouts on network/assertion/download steps if the action is slow.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>Core Step Types</h2>
-
-        <article class="step-card">
-          <span class="meta">Enter Text</span>
-          <h3>Fill an input field</h3>
-          <p>Use this to type values into forms such as login, search, checkout, OTP, and profile fields.</p>
-          <p class="syntax"><code>Enter "&lt;value&gt;" in "&lt;field&gt;" field</code></p>
-          <ul class="examples">
-            <li><code>Enter "john@example.com" in "Email" field</code></li>
-            <li><code>Enter "123456" in "OTP" field</code></li>
-          </ul>
-        </article>
-
-        <article class="step-card">
-          <span class="meta">Click</span>
-          <h3>Click buttons, links, menu items, or text targets</h3>
-          <p>Use delayed clicks when UI transitions or animations need a short pause first.</p>
-          <p class="syntax">
-            <code>Click "&lt;text&gt;"</code> or <code>Click "&lt;text&gt;" button after 2 sec</code>
-          </p>
-          <ul class="examples">
-            <li><code>Click "Sign in"</code></li>
-            <li><code>Click "Continue" button after 1 sec</code></li>
-          </ul>
-        </article>
-
-        <article class="step-card">
-          <span class="meta">Navigate</span>
-          <h3>Move to a path or URL</h3>
-          <p>Supports absolute URLs and project-relative paths.</p>
-          <p class="syntax">
-            <code>Go to &lt;path-or-url&gt;</code> or <code>Redirect to &lt;path&gt; url</code>
-          </p>
-          <ul class="examples">
-            <li><code>Go to /checkout</code></li>
-            <li><code>Go to https://example.com/help</code></li>
-          </ul>
-        </article>
-
-        <article class="step-card">
-          <span class="meta">Expect</span>
-          <h3>Assert visible text</h3>
-          <p>Add timeout clauses for slower pages to avoid premature failures.</p>
-          <p class="syntax"><code>Expect &lt;assertion&gt;</code> with optional <code>within 45s</code></p>
-          <ul class="examples">
-            <li><code>Expect dashboard is visible</code></li>
-            <li><code>Expect "Order placed" within 45s</code></li>
-          </ul>
-        </article>
-      </section>
-
-      <section class="card" style="margin-top: 16px">
-        <h2>Selector-Based Click Targeting</h2>
-        <p>Use these formats when text-based clicking is unstable or ambiguous.</p>
-
-        <article class="step-card">
-          <span class="meta">Class Selector</span>
-          <h3>Target by class name</h3>
-          <p class="syntax"><code>Click element with '&lt;className&gt;' class</code></p>
-          <ul class="examples">
-            <li><code>Click element with 'btn-finish' class</code></li>
-          </ul>
-        </article>
-
-        <article class="step-card">
-          <span class="meta">ID Selector</span>
-          <h3>Target by ID</h3>
-          <p class="syntax"><code>Click element with this ID '&lt;elementId&gt;'</code></p>
-          <ul class="examples">
-            <li><code>Click element with this ID 'submitButton'</code></li>
-          </ul>
-        </article>
-
-        <article class="step-card">
-          <span class="meta">Identifier</span>
-          <h3>Target generic identifier</h3>
-          <p class="syntax"><code>Click element with '&lt;identifier&gt;'</code></p>
-          <ul class="examples">
-            <li><code>Click element with 'btn-finish'</code></li>
-          </ul>
-        </article>
-
-        <div class="tip">
-          <strong>Lookup behavior:</strong> class and ID forms are treated as selectors. Generic identifiers are
-          attempted in this order: <code>data-testid</code>, <code>data-test-id</code>, <code>id</code>, then
-          button/link/menu/text.
+      <section class="hero">
+        <h1>QA Assistant Step Writing Guide</h1>
+        <p>
+          Write one step per line. For all DOM-targeting actions, use explicit locator suffixes so the parser and generated Playwright code reflect exact intent.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Explicit Locators</span>
+          <span class="pill">Ambiguous Steps = Warning (Not Blocking)</span>
+          <span class="pill">Default Code View = Full Playwright Test</span>
         </div>
       </section>
 
-      <section class="card" style="margin-top: 16px">
-        <h2>Advanced Step Types</h2>
-
-        <article class="step-card">
-          <span class="meta">Select Dropdown</span>
-          <p class="syntax"><code>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown</code></p>
-          <ul class="examples">
-            <li><code>Select "United States" from "Country" dropdown</code></li>
+      <section class="layout">
+        <aside class="panel">
+          <h2>Quick Rules</h2>
+          <ul class="list">
+            <li>Use one action per step line.</li>
+            <li>Quote values and targets: <code>"Search"</code>, <code>"headphone"</code>.</li>
+            <li>DOM actions should end with <code>using &lt;locator-kind&gt;</code>.</li>
+            <li><code>Go to</code>, <code>Expect</code>, and dialog actions do not need locator suffixes.</li>
+            <li>Ambiguous legacy steps still run, but show rewrite guidance.</li>
           </ul>
-        </article>
 
-        <article class="step-card">
-          <span class="meta">Checkbox</span>
-          <p class="syntax"><code>Check "&lt;label&gt;" checkbox</code> or <code>Uncheck "&lt;label&gt;" checkbox</code></p>
-          <ul class="examples">
-            <li><code>Check "Remember me" checkbox</code></li>
-            <li><code>Uncheck "Subscribe to newsletter" checkbox</code></li>
-          </ul>
-        </article>
+          <div class="section">
+            <h2>Locator Vocabulary</h2>
+            <ul class="syntax-list">
+              <li><strong>label</strong>: <code>using label</code></li>
+              <li><strong>placeholder</strong>: <code>using placeholder</code></li>
+              <li><strong>role</strong>: <code>using role button</code></li>
+              <li><strong>text</strong>: <code>using text</code></li>
+              <li><strong>testid</strong>: <code>using testid</code></li>
+              <li><strong>css</strong>: <code>using css</code></li>
+              <li><strong>id</strong>: <code>using id</code></li>
+              <li><strong>class</strong>: <code>using class</code></li>
+            </ul>
+          </div>
+        </aside>
 
-        <article class="step-card">
-          <span class="meta">Hover</span>
-          <p class="syntax"><code>Hover over "&lt;target&gt;"</code></p>
-          <ul class="examples">
-            <li><code>Hover over "Profile"</code></li>
-          </ul>
-        </article>
+        <section class="panel">
+          <h2>Canonical Syntax</h2>
+          <div class="card-grid">
+            <article class="card">
+              <span class="tag">Enter</span>
+              <h3>Fill input</h3>
+              <div class="code-block"><pre>Enter "&lt;value&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Click</span>
+              <h3>Click target</h3>
+              <div class="code-block"><pre>Click "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Select</span>
+              <h3>Select dropdown option</h3>
+              <div class="code-block"><pre>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Checkbox</span>
+              <h3>Check / Uncheck</h3>
+              <div class="code-block"><pre>Check "&lt;label&gt;" checkbox using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Hover</span>
+              <h3>Hover target</h3>
+              <div class="code-block"><pre>Hover over "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Press</span>
+              <h3>Press key (optional target)</h3>
+              <div class="code-block"><pre>Press "&lt;key&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Upload</span>
+              <h3>Upload file(s)</h3>
+              <div class="code-block"><pre>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input using &lt;locator-kind&gt;</pre></div>
+            </article>
+            <article class="card">
+              <span class="tag">Network / Download</span>
+              <h3>Wait after click</h3>
+              <div class="code-block"><pre>Wait for request "&lt;METHOD pattern&gt;" after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 10s
+Wait for download after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 15s</pre></div>
+            </article>
+          </div>
 
-        <article class="step-card">
-          <span class="meta">Keyboard</span>
-          <p class="syntax"><code>Press "&lt;key&gt;"</code> optionally <code>in "&lt;field&gt;" field</code></p>
-          <ul class="examples">
-            <li><code>Press "Control+K"</code></li>
-            <li><code>Press "Enter" in "Search" field</code></li>
-          </ul>
-        </article>
+          <div class="section">
+            <h2>Non-Element Actions (No Locator Suffix)</h2>
+            <div class="code-block"><pre>Go to /checkout
+Expect "Successfully added to cart" within 10s
+Accept browser dialog
+Dismiss browser dialog</pre></div>
+          </div>
 
-        <article class="step-card">
-          <span class="meta">Upload</span>
-          <p class="syntax"><code>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input</code></p>
-          <ul class="examples">
-            <li><code>Upload file "C:/fixtures/invoice.pdf" to "Receipt" input</code></li>
-            <li><code>Upload files "C:/a.png,C:/b.png" to "Attachments" input</code></li>
-          </ul>
-        </article>
+          <div class="section">
+            <h2>Generated Playwright Code Shape (Default)</h2>
+            <div class="code-block"><pre>import { test, expect } from '@playwright/test';
 
-        <article class="step-card">
-          <span class="meta">Browser Dialog</span>
-          <p class="syntax"><code>Accept browser dialog</code> or <code>Dismiss browser dialog</code></p>
-          <p class="syntax"><code>Enter "&lt;text&gt;" in prompt dialog and accept</code></p>
-          <ul class="examples">
-            <li><code>Enter "CONFIRM" in prompt dialog and accept</code></li>
-          </ul>
-        </article>
+test('Add headphone to cart', async ({ page }) => {
+  // Enter "headphone" in "Search" field using placeholder
+  await page.getByPlaceholder('Search').fill('headphone');
 
-        <article class="step-card">
-          <span class="meta">Wait For Request</span>
-          <p class="syntax">
-            <code>Wait for request "&lt;METHOD pattern&gt;" and expect status "200"</code>
-          </p>
-          <p class="syntax">
-            <code>Wait for request "&lt;pattern&gt;" after clicking "&lt;target&gt;" within 10s</code>
-          </p>
-          <ul class="examples">
-            <li><code>Wait for request "POST **/api/login" and expect status "200"</code></li>
-            <li><code>Wait for request "**/api/profile" after clicking "Load profile" within 10s</code></li>
-          </ul>
-        </article>
+  // Click "Search"
+  await page.getByRole('button', { name: 'Search' }).click();
 
-        <article class="step-card">
-          <span class="meta">Wait For Download</span>
-          <p class="syntax"><code>Wait for download after clicking "&lt;target&gt;"</code></p>
-          <ul class="examples">
-            <li><code>Wait for download after clicking "Export CSV" within 15s</code></li>
-          </ul>
-        </article>
-      </section>
+  // Click "Wireless Bluetooth Headphone"
+  await page.getByRole('button', { name: 'Wireless Bluetooth Headphone' }).click();
 
-      <section class="card" style="margin-top: 16px">
-        <h2>Natural-Language Fallback and Troubleshooting</h2>
-        <p>
-          The parser accepts many natural phrasings (such as <code>Tap the continue button</code>,
-          <code>Visit /orders</code>, <code>Type 123456 into OTP field</code>), but strict syntax is more
-          deterministic.
-        </p>
-        <ul>
-          <li>If parse preview fails, convert the step to one of the strict formats above.</li>
-          <li>If click targets are unstable, switch to class/ID selector forms.</li>
-          <li>If assertions or network waits fail intermittently, add explicit timeout clauses.</li>
-          <li>If upload fails, verify the file path exists on the machine running the app.</li>
-        </ul>
+  // Click "Add to Cart"
+  await page.getByRole('button', { name: 'Add to Cart' }).click();
+
+  // Expect "Successfully added to cart" within 10s
+  await expect(page.getByText('Successfully added to cart')).toBeVisible({ timeout: 10000 });
+});</pre></div>
+          </div>
+
+          <div class="note">
+            Legacy shorthand (for example <code>Click "Search"</code>) remains supported and runnable. The app now surfaces an inline warning with a deterministic explicit rewrite suggestion.
+          </div>
+        </section>
       </section>
     </main>
   </body>

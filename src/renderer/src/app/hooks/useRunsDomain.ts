@@ -25,6 +25,10 @@ export interface RunUpdateEffects {
   refreshActiveRunContext: boolean;
 }
 
+export function shouldNotifyForRunUpdate(update: RunUpdateEvent): boolean {
+  return update.type === 'run-started' || update.type === 'run-finished';
+}
+
 export function deriveRunUpdateEffects(
   update: RunUpdateEvent,
   selectedRunId: string,
@@ -281,7 +285,7 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
         void refreshActiveRunContext();
       }
 
-      if (update.message) {
+      if (update.message && shouldNotifyForRunUpdate(update)) {
         onMessage(update.message);
       }
     },
@@ -389,7 +393,6 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
       return;
     }
 
-    onMessage('Run started.');
     setActiveRunId(result.data.id);
     setSelectedRunId(result.data.id);
     await refreshRuns();
@@ -418,7 +421,6 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
       return;
     }
 
-    onMessage('Run cancelled immediately.');
     setActiveRunId('');
     await refreshRuns();
     await refreshStepResults();

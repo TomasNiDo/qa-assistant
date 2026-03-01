@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunUpdateEvent } from '@shared/types';
-import { deriveRunUpdateEffects } from './useRunsDomain';
+import { deriveRunUpdateEffects, shouldNotifyForRunUpdate } from './useRunsDomain';
 
 describe('useRunsDomain logic helpers', () => {
   it('refreshes run and steps when run starts', () => {
@@ -53,5 +53,34 @@ describe('useRunsDomain logic helpers', () => {
       refreshBrowserStates: true,
       refreshActiveRunContext: true,
     });
+  });
+
+  it('only notifies for run-level updates', () => {
+    const runStarted: RunUpdateEvent = {
+      runId: 'run-1',
+      type: 'run-started',
+      timestamp: '2026-02-01T00:00:00.000Z',
+      message: 'Running 2 step(s).',
+    };
+    const stepFinished: RunUpdateEvent = {
+      runId: 'run-1',
+      type: 'step-finished',
+      timestamp: '2026-02-01T00:00:01.000Z',
+      stepId: 'step-1',
+      stepOrder: 1,
+      stepStatus: 'failed',
+      message: 'Locator timeout',
+    };
+    const runFinished: RunUpdateEvent = {
+      runId: 'run-1',
+      type: 'run-finished',
+      timestamp: '2026-02-01T00:00:02.000Z',
+      runStatus: 'failed',
+      message: 'Locator timeout',
+    };
+
+    expect(shouldNotifyForRunUpdate(runStarted)).toBe(true);
+    expect(shouldNotifyForRunUpdate(stepFinished)).toBe(false);
+    expect(shouldNotifyForRunUpdate(runFinished)).toBe(true);
   });
 });
