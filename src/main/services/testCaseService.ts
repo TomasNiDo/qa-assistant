@@ -57,6 +57,7 @@ export class TestCaseService {
       title: input.title.trim(),
       testType: input.testType ?? 'positive',
       priority: input.priority ?? 'medium',
+      planningStatus: input.planningStatus ?? 'drafted',
       isAiGenerated: Boolean(input.isAiGenerated),
       generatedCode: codeFields.generatedCode,
       customCode: codeFields.customCode,
@@ -75,6 +76,7 @@ export class TestCaseService {
              title,
              test_type,
              priority,
+             planning_status,
              is_ai_generated,
              generated_code,
              custom_code,
@@ -89,6 +91,7 @@ export class TestCaseService {
              @title,
              @testType,
              @priority,
+             @planningStatus,
              @isAiGenerated,
              @generatedCode,
              @customCode,
@@ -141,6 +144,7 @@ export class TestCaseService {
       title: input.title.trim(),
       testType: input.testType ?? existing.testType,
       priority: input.priority ?? existing.priority,
+      planningStatus: input.planningStatus ?? existing.planningStatus,
       isAiGenerated: input.isAiGenerated ?? existing.isAiGenerated,
       updatedAt: nowIso(),
       ...codeFields,
@@ -155,6 +159,7 @@ export class TestCaseService {
                title = @title,
                test_type = @testType,
                priority = @priority,
+               planning_status = @planningStatus,
                is_ai_generated = @isAiGenerated,
                generated_code = @generatedCode,
                custom_code = @customCode,
@@ -204,6 +209,7 @@ export class TestCaseService {
                 title,
                 test_type,
                 priority,
+                planning_status,
                 is_ai_generated,
                 generated_code,
                 custom_code,
@@ -228,6 +234,7 @@ export class TestCaseService {
                 title,
                 test_type,
                 priority,
+                planning_status,
                 is_ai_generated,
                 generated_code,
                 custom_code,
@@ -277,6 +284,7 @@ export class TestCaseService {
                 title,
                 test_type,
                 priority,
+                planning_status,
                 is_ai_generated,
                 generated_code,
                 custom_code,
@@ -354,6 +362,7 @@ interface TestCaseRow {
   title: string;
   test_type: TestCase['testType'];
   priority: TestCase['priority'];
+  planning_status: TestCase['planningStatus'];
   is_ai_generated: number;
   generated_code: string;
   custom_code: string | null;
@@ -375,6 +384,7 @@ function toTestCase(row: TestCaseRow): TestCase {
     title: row.title,
     testType: row.test_type,
     priority: row.priority,
+    planningStatus: row.planning_status,
     isAiGenerated: row.is_ai_generated === 1,
     generatedCode,
     customCode,

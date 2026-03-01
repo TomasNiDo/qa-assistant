@@ -58,6 +58,7 @@ describe('TestCaseService', () => {
     expect(created.featureId).toBe(featureId);
     expect(created.testType).toBe('positive');
     expect(created.priority).toBe('high');
+    expect(created.planningStatus).toBe('drafted');
     expect(created.isAiGenerated).toBe(true);
     expect(created.generatedCode).toContain("import { test, expect } from '@playwright/test';");
     expect(testCaseService.listByFeature(featureId)).toHaveLength(1);
@@ -80,6 +81,7 @@ describe('TestCaseService', () => {
 
     expect(created.testType).toBe('edge');
     expect(created.priority).toBe('low');
+    expect(created.planningStatus).toBe('drafted');
     expect(testCaseService.listSteps(created.id)).toHaveLength(0);
   });
 
@@ -111,6 +113,7 @@ describe('TestCaseService', () => {
     expect(updated.featureId).toBe(secondFeature.id);
     expect(updated.testType).toBe('negative');
     expect(updated.isAiGenerated).toBe(true);
+    expect(updated.planningStatus).toBe('drafted');
 
     const steps = testCaseService.listSteps(created.id);
     expect(steps.map((step) => step.rawText)).toEqual([
@@ -156,6 +159,33 @@ describe('TestCaseService', () => {
     expect(restored.isCustomized).toBe(false);
     expect(restored.customCode).toBeNull();
     expect(restored.generatedCode).not.toBe(generatedBeforeCustomize);
+  });
+
+  it('updates planning status between drafted and approved', () => {
+    const { testCaseService, featureId } = createProjectAndFeature();
+
+    const created = testCaseService.create({
+      featureId,
+      title: 'Checkout triage flow',
+      steps: ['Click "Checkout"'],
+    });
+    expect(created.planningStatus).toBe('drafted');
+
+    const approved = testCaseService.update({
+      id: created.id,
+      featureId,
+      title: created.title,
+      planningStatus: 'approved',
+    });
+    expect(approved.planningStatus).toBe('approved');
+
+    const movedBack = testCaseService.update({
+      id: created.id,
+      featureId,
+      title: created.title,
+      planningStatus: 'drafted',
+    });
+    expect(movedBack.planningStatus).toBe('drafted');
   });
 
   it('rejects customized code with syntax errors', () => {

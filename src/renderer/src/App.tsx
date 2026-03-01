@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
-import type { Feature, TestCase } from '@shared/types';
+import type { Feature, TestCase, TestPlanningStatus } from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
 import {
   DraftedTestCaseModal,
@@ -43,6 +43,17 @@ function buildFeatureSignature(
   ].join('::');
 }
 
+function mapTestPlanningStatusUpdateError(message: string): string {
+  if (
+    message.includes('Invalid test.update payload') &&
+    message.includes("Unrecognized key(s) in object: 'planningStatus'")
+  ) {
+    return 'Approving test cases requires the latest main-process handlers. Restart QA Assistant and try again.';
+  }
+
+  return message;
+}
+
 export function App(): JSX.Element {
   const [message, setMessage] = useState('');
   const [selectedTestId, setSelectedTestId] = useState('');
@@ -59,6 +70,7 @@ export function App(): JSX.Element {
   const [draftedTestCaseForm, setDraftedTestCaseForm] = useState<DraftedTestCaseFormState>(
     DEFAULT_DRAFTED_TEST_CASE_FORM,
   );
+  const [selectedDraftedTestIds, setSelectedDraftedTestIds] = useState<string[]>([]);
 
   const hasInitializedSidebar = useRef(false);
   const featureAutoSaveVersion = useRef(0);
@@ -142,6 +154,20 @@ export function App(): JSX.Element {
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
+  );
+  const draftedTests = useMemo(
+    () =>
+      selectedFeatureTests.filter(
+        (testCase) => (testCase.planningStatus ?? 'drafted') === 'drafted',
+      ),
+    [selectedFeatureTests],
+  );
+  const approvedTests = useMemo(
+    () =>
+      selectedFeatureTests.filter(
+        (testCase) => (testCase.planningStatus ?? 'drafted') === 'approved',
+      ),
+    [selectedFeatureTests],
   );
 
   const draftedTestCaseTitleError = draftedTestCaseForm.title.trim()
@@ -241,6 +267,17 @@ export function App(): JSX.Element {
     toast(message);
     setMessage('');
   }, [message]);
+
+  useEffect(() => {
+    setSelectedDraftedTestIds([]);
+  }, [selectedFeatureId]);
+
+  useEffect(() => {
+    const draftedIdSet = new Set(draftedTests.map((testCase) => testCase.id));
+    setSelectedDraftedTestIds((previous) =>
+      previous.filter((testCaseId) => draftedIdSet.has(testCaseId)),
+    );
+  }, [draftedTests]);
 
   useEffect(() => {
     if (!selectedFeature) {
@@ -472,16 +509,11 @@ export function App(): JSX.Element {
     setIsDraftedTestCaseModalOpen(true);
   }, [onMessage, selectedFeatureId]);
 
-  const handleOpenEditDraftedTestCaseModal = useCallback((testCase: TestCase): void => {
-    setDraftedTestCaseModalMode('edit');
-    setDraftedTestCaseForm({
-      id: testCase.id,
-      title: testCase.title,
-      testType: testCase.testType,
-      priority: testCase.priority,
-    });
-    setIsDraftedTestCaseModalOpen(true);
-  }, []);
+  const findSelectedFeatureTestCase = useCallback(
+    (testCaseId: string): TestCase | undefined =>
+      selectedFeatureTests.find((testCase) => testCase.id === testCaseId),
+    [selectedFeatureTests],
+  );
 
   const handleSubmitDraftedTestCase = useCallback(async (): Promise<void> => {
     if (!selectedFeatureId) {
@@ -502,6 +534,7 @@ export function App(): JSX.Element {
               title: draftedTestCaseForm.title.trim(),
               testType: draftedTestCaseForm.testType,
               priority: draftedTestCaseForm.priority,
+              planningStatus: 'drafted',
               isAiGenerated: false,
             })
           : await window.qaApi.testUpdate({
@@ -510,6 +543,8 @@ export function App(): JSX.Element {
               title: draftedTestCaseForm.title.trim(),
               testType: draftedTestCaseForm.testType,
               priority: draftedTestCaseForm.priority,
+              planningStatus:
+                findSelectedFeatureTestCase(draftedTestCaseForm.id)?.planningStatus ?? 'drafted',
               isAiGenerated: false,
             });
 
@@ -538,11 +573,150 @@ export function App(): JSX.Element {
     onMessage,
     refreshSidebar,
     resetDraftedTestCaseModal,
+    findSelectedFeatureTestCase,
     selectedFeatureId,
     selectedProjectId,
   ]);
 
-  const handleDeleteDraftedTestCase = useCallback(
+  const handleToggleDraftedSelection = useCallback(
+    (testCaseId: string, checked: boolean): void => {
+      setSelectedDraftedTestIds((previous) => {
+        if (checked) {
+          if (previous.includes(testCaseId)) {
+            return previous;
+          }
+          return [...previous, testCaseId];
+        }
+        return previous.filter((id) => id !== testCaseId);
+      });
+    },
+    [],
+  );
+
+  const updateTestCasePlanningStatus = useCallback(
+    async (
+      testCaseId: string,
+      planningStatus: TestPlanningStatus,
+      successMessage: string,
+    ): Promise<void> => {
+      const testCase = findSelectedFeatureTestCase(testCaseId);
+      if (!testCase) {
+        onMessage('Test case not found.');
+        return;
+      }
+
+      try {
+        const result = await window.qaApi.testUpdate({
+          id: testCase.id,
+          featureId: testCase.featureId,
+          title: testCase.title,
+          testType: testCase.testType,
+          priority: testCase.priority,
+          planningStatus,
+          isAiGenerated: testCase.isAiGenerated,
+        });
+
+        if (!result.ok) {
+          onMessage(mapTestPlanningStatusUpdateError(result.error.message));
+          return;
+        }
+
+        setSelectedDraftedTestIds((previous) =>
+          previous.filter((selectedTestId) => selectedTestId !== testCaseId),
+        );
+        await refreshSidebar(selectedProjectId, selectedFeatureId, result.data.id);
+        onMessage(successMessage);
+      } catch (error) {
+        onMessage(`Updating test case status failed: ${toErrorMessage(error)}`);
+      }
+    },
+    [
+      findSelectedFeatureTestCase,
+      onMessage,
+      refreshSidebar,
+      selectedFeatureId,
+      selectedProjectId,
+    ],
+  );
+
+  const handleApproveDraftedTestCase = useCallback(
+    async (testCaseId: string): Promise<void> => {
+      await updateTestCasePlanningStatus(
+        testCaseId,
+        'approved',
+        'Test case moved to approved.',
+      );
+    },
+    [updateTestCasePlanningStatus],
+  );
+
+  const handleApproveSelectedDraftedTests = useCallback(async (): Promise<void> => {
+    if (selectedDraftedTestIds.length === 0) {
+      onMessage('Select drafted test cases first.');
+      return;
+    }
+
+    const selectedCases = draftedTests.filter((testCase) =>
+      selectedDraftedTestIds.includes(testCase.id),
+    );
+    if (selectedCases.length === 0) {
+      onMessage('Selected drafted test cases are no longer available.');
+      setSelectedDraftedTestIds([]);
+      return;
+    }
+
+    try {
+      const responses = await Promise.all(
+        selectedCases.map((testCase) =>
+          window.qaApi.testUpdate({
+            id: testCase.id,
+            featureId: testCase.featureId,
+            title: testCase.title,
+            testType: testCase.testType,
+            priority: testCase.priority,
+            planningStatus: 'approved',
+            isAiGenerated: testCase.isAiGenerated,
+          }),
+        ),
+      );
+
+      const failed = responses.find((response) => !response.ok);
+      if (failed && !failed.ok) {
+        onMessage(mapTestPlanningStatusUpdateError(failed.error.message));
+        return;
+      }
+
+      setSelectedDraftedTestIds([]);
+      await refreshSidebar(selectedProjectId, selectedFeatureId);
+      onMessage(
+        selectedCases.length === 1
+          ? '1 test case moved to approved.'
+          : `${selectedCases.length} test cases moved to approved.`,
+      );
+    } catch (error) {
+      onMessage(`Bulk approve failed: ${toErrorMessage(error)}`);
+    }
+  }, [
+    draftedTests,
+    onMessage,
+    refreshSidebar,
+    selectedDraftedTestIds,
+    selectedFeatureId,
+    selectedProjectId,
+  ]);
+
+  const handleMoveBackApprovedTestCase = useCallback(
+    async (testCaseId: string): Promise<void> => {
+      await updateTestCasePlanningStatus(
+        testCaseId,
+        'drafted',
+        'Test case moved back to drafted.',
+      );
+    },
+    [updateTestCasePlanningStatus],
+  );
+
+  const handleDeleteTestCase = useCallback(
     async (testCaseId: string): Promise<void> => {
       if (activeRunContext?.testCaseId === testCaseId) {
         onMessage('Cannot delete this test case while it is running.');
@@ -564,6 +738,9 @@ export function App(): JSX.Element {
           setSelectedTestId('');
           clearRunSelectionState();
         }
+        setSelectedDraftedTestIds((previous) =>
+          previous.filter((selectedId) => selectedId !== testCaseId),
+        );
 
         await refreshSidebar(selectedProjectId, selectedFeatureId);
         onMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
@@ -660,6 +837,7 @@ export function App(): JSX.Element {
           onCreateFeatureForProject={(projectId) => {
             handleSelectProject(projectId);
             beginCreateFeature();
+            setSelectedDraftedTestIds([]);
             lastSavedFeatureSignatureRef.current = '';
             setFeatureAutoSaveStatus('saved');
             setFeatureAutoSaveMessage('Saved');
@@ -694,13 +872,24 @@ export function App(): JSX.Element {
               featureAcceptanceCriteriaError={featureAcceptanceCriteriaError}
               featureAutoSaveStatus={featureAutoSaveStatus}
               featureAutoSaveMessage={featureAutoSaveMessage}
-              draftedTests={selectedFeatureTests}
+              draftedTests={draftedTests}
+              approvedTests={approvedTests}
+              selectedDraftedTestIds={selectedDraftedTestIds}
               canManageDraftedTests={Boolean(selectedFeatureId)}
               isTestDeleteBlocked={(testCaseId) => activeRunContext?.testCaseId === testCaseId}
               onAddTestCase={handleOpenAddDraftedTestCaseModal}
-              onEditDraftedTestCase={handleOpenEditDraftedTestCaseModal}
-              onDeleteDraftedTestCase={(testCaseId) => {
-                void handleDeleteDraftedTestCase(testCaseId);
+              onToggleDraftedSelection={handleToggleDraftedSelection}
+              onApproveDraftedTestCase={(testCaseId) => {
+                void handleApproveDraftedTestCase(testCaseId);
+              }}
+              onApproveSelectedDraftedTests={() => {
+                void handleApproveSelectedDraftedTests();
+              }}
+              onMoveBackApprovedTestCase={(testCaseId) => {
+                void handleMoveBackApprovedTestCase(testCaseId);
+              }}
+              onDeleteTestCase={(testCaseId) => {
+                void handleDeleteTestCase(testCaseId);
               }}
             />
           )}

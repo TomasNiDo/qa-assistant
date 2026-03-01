@@ -55,6 +55,7 @@ export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled'
 export type StepStatus = 'pending' | 'passed' | 'failed' | 'cancelled';
 export type TestType = 'positive' | 'negative' | 'edge';
 export type TestPriority = 'high' | 'medium' | 'low';
+export type TestPlanningStatus = 'drafted' | 'approved';
 
 export interface Project {
   id: string;
@@ -83,6 +84,7 @@ export interface TestCase {
   title: string;
   testType: TestType;
   priority: TestPriority;
+  planningStatus: TestPlanningStatus;
   isAiGenerated: boolean;
   generatedCode: string;
   customCode: string | null;
@@ -206,6 +208,7 @@ export interface CreateTestInput {
   title: string;
   testType?: TestType;
   priority?: TestPriority;
+  planningStatus?: TestPlanningStatus;
   isAiGenerated?: boolean;
   steps?: string[];
   customCode?: string | null;

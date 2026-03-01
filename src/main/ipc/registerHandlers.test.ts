@@ -37,17 +37,49 @@ function createServicesMock() {
     createdAt: '2025-01-01T00:00:00.000Z',
   }));
 
-  const testCreate = vi.fn((input: { title: string; steps?: string[]; featureId: string }) => ({
+  const testCreate = vi.fn((input: {
+    title: string;
+    steps?: string[];
+    featureId: string;
+    planningStatus?: 'drafted' | 'approved';
+  }) => ({
     id: 'test-1',
     projectId: 'project-1',
     featureId: input.featureId,
     title: input.title,
     testType: 'positive',
     priority: 'medium',
+    planningStatus: input.planningStatus ?? 'drafted',
     isAiGenerated: false,
     generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
     customCode: null,
     isCustomized: false,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+  }));
+
+  const testUpdate = vi.fn((input: {
+    id: string;
+    title: string;
+    featureId: string;
+    planningStatus?: 'drafted' | 'approved';
+    testType?: 'positive' | 'negative' | 'edge';
+    priority?: 'high' | 'medium' | 'low';
+    isAiGenerated?: boolean;
+    customCode?: string | null;
+    isCustomized?: boolean;
+  }) => ({
+    id: input.id,
+    projectId: 'project-1',
+    featureId: input.featureId,
+    title: input.title,
+    testType: input.testType ?? 'positive',
+    priority: input.priority ?? 'medium',
+    planningStatus: input.planningStatus ?? 'drafted',
+    isAiGenerated: Boolean(input.isAiGenerated),
+    generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
+    customCode: input.customCode ?? null,
+    isCustomized: Boolean(input.isCustomized),
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
   }));
@@ -166,20 +198,7 @@ function createServicesMock() {
     },
     testCaseService: {
       create: testCreate,
-      update: vi.fn((input) => ({
-        id: input.id,
-        projectId: 'project-1',
-        featureId: input.featureId,
-        title: input.title,
-        testType: input.testType ?? 'positive',
-        priority: input.priority ?? 'medium',
-        isAiGenerated: Boolean(input.isAiGenerated),
-        generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
-        customCode: input.customCode ?? null,
-        isCustomized: Boolean(input.isCustomized),
-        createdAt: '2025-01-01T00:00:00.000Z',
-        updatedAt: '2025-01-01T00:00:00.000Z',
-      })),
+      update: testUpdate,
       delete: vi.fn(() => true),
       listByFeature: vi.fn(() => []),
       listByProject: vi.fn(() => []),
@@ -225,6 +244,7 @@ function createServicesMock() {
   const spies = {
     projectCreate,
     testCreate,
+    testUpdate,
     runStart,
     runInstallBrowser,
     aiGenerateSteps,
@@ -331,6 +351,50 @@ describe('registerHandlers IPC input validation', () => {
       featureId: 'feature-1',
       title: 'Checkout flow',
       steps: [],
+    });
+  });
+
+  it('accepts planning status values on test create payloads', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.testCreate, {
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ planningStatus: 'approved' }),
+    });
+    expect(spies.testCreate).toHaveBeenCalledWith({
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+  });
+
+  it('accepts planning status values on test update payloads', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.testUpdate, {
+      id: 'test-1',
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ planningStatus: 'approved' }),
+    });
+    expect(spies.testUpdate).toHaveBeenCalledWith({
+      id: 'test-1',
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
     });
   });
 

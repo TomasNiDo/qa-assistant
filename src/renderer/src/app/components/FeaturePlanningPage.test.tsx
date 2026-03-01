@@ -7,10 +7,15 @@ import { FeaturePlanningPage } from './FeaturePlanningPage';
 
 function FeaturePlanningPageHarness(props: {
   draftedTests?: TestCase[];
+  approvedTests?: TestCase[];
+  selectedDraftedTestIds?: string[];
   canManageDraftedTests?: boolean;
   onAddTestCase?: () => void;
-  onEditDraftedTestCase?: (testCase: TestCase) => void;
-  onDeleteDraftedTestCase?: (testCaseId: string) => void;
+  onToggleDraftedSelection?: (testCaseId: string, checked: boolean) => void;
+  onApproveDraftedTestCase?: (testCaseId: string) => void;
+  onApproveSelectedDraftedTests?: () => void;
+  onMoveBackApprovedTestCase?: (testCaseId: string) => void;
+  onDeleteTestCase?: (testCaseId: string) => void;
 }): JSX.Element {
   const [featureForm, setFeatureForm] = useState<FeatureFormState>({
     id: 'feature-1',
@@ -32,11 +37,16 @@ function FeaturePlanningPageHarness(props: {
       featureAutoSaveStatus="saved"
       featureAutoSaveMessage="Saved"
       draftedTests={props.draftedTests ?? []}
+      approvedTests={props.approvedTests ?? []}
+      selectedDraftedTestIds={props.selectedDraftedTestIds ?? []}
       canManageDraftedTests={props.canManageDraftedTests ?? true}
       isTestDeleteBlocked={() => false}
       onAddTestCase={props.onAddTestCase ?? vi.fn()}
-      onEditDraftedTestCase={props.onEditDraftedTestCase ?? vi.fn()}
-      onDeleteDraftedTestCase={props.onDeleteDraftedTestCase ?? vi.fn()}
+      onToggleDraftedSelection={props.onToggleDraftedSelection ?? vi.fn()}
+      onApproveDraftedTestCase={props.onApproveDraftedTestCase ?? vi.fn()}
+      onApproveSelectedDraftedTests={props.onApproveSelectedDraftedTests ?? vi.fn()}
+      onMoveBackApprovedTestCase={props.onMoveBackApprovedTestCase ?? vi.fn()}
+      onDeleteTestCase={props.onDeleteTestCase ?? vi.fn()}
     />
   );
 }
@@ -62,9 +72,11 @@ describe('FeaturePlanningPage', () => {
     ).toBe('Checkout edge planning');
   });
 
-  it('renders drafted test case rows and action callbacks', () => {
-    const onEditDraftedTestCase = vi.fn();
-    const onDeleteDraftedTestCase = vi.fn();
+  it('renders drafted and approved sections with actions', () => {
+    const onApproveDraftedTestCase = vi.fn();
+    const onMoveBackApprovedTestCase = vi.fn();
+    const onDeleteTestCase = vi.fn();
+    const onToggleDraftedSelection = vi.fn();
 
     render(
       <FeaturePlanningPageHarness
@@ -76,6 +88,7 @@ describe('FeaturePlanningPage', () => {
             title: 'Checkout works',
             testType: 'positive',
             priority: 'high',
+            planningStatus: 'drafted',
             isAiGenerated: false,
             generatedCode: '',
             customCode: null,
@@ -84,30 +97,55 @@ describe('FeaturePlanningPage', () => {
             updatedAt: '2026-02-20T00:00:00.000Z',
           },
         ]}
-        onEditDraftedTestCase={onEditDraftedTestCase}
-        onDeleteDraftedTestCase={onDeleteDraftedTestCase}
+        approvedTests={[
+          {
+            id: 'test-2',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Checkout approved',
+            testType: 'edge',
+            priority: 'medium',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+        selectedDraftedTestIds={['test-1']}
+        onApproveDraftedTestCase={onApproveDraftedTestCase}
+        onMoveBackApprovedTestCase={onMoveBackApprovedTestCase}
+        onDeleteTestCase={onDeleteTestCase}
+        onToggleDraftedSelection={onToggleDraftedSelection}
       />, 
     );
 
-    expect(screen.getByText('Checkout works')).toBeTruthy();
-    expect(screen.getByText('Positive')).toBeTruthy();
-    expect(screen.getByText('High')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Drafted Test Cases' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Approved Test Cases' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-    expect(onEditDraftedTestCase).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Checkout works' }));
+    expect(onApproveDraftedTestCase).toHaveBeenCalledWith('test-1');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    expect(onDeleteDraftedTestCase).toHaveBeenCalledWith('test-1');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move Checkout approved back to drafted' }),
+    );
+    expect(onMoveBackApprovedTestCase).toHaveBeenCalledWith('test-2');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+    expect(onDeleteTestCase).toHaveBeenCalledWith('test-1');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Checkout works' }));
+    expect(onToggleDraftedSelection).toHaveBeenCalledWith('test-1', false);
   });
 
-  it('disables add test case when feature is not yet saved', () => {
-    render(<FeaturePlanningPageHarness canManageDraftedTests={false} />);
+  it('disables bulk approval when no drafted selections', () => {
+    render(<FeaturePlanningPageHarness selectedDraftedTestIds={[]} />);
 
     expect(
-      (screen.getByRole('button', { name: 'Add Test Case' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Approved Test Cases' }) as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
-    expect(
-      screen.getByText('Save the feature title and acceptance criteria first to add drafted test cases.'),
-    ).toBeTruthy();
   });
 });

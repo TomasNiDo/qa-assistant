@@ -27,6 +27,7 @@ interface TestCaseRow {
   title: string;
   test_type: 'positive' | 'negative' | 'edge';
   priority: 'high' | 'medium' | 'low';
+  planning_status: 'drafted' | 'approved';
   is_ai_generated: number;
   generated_code: string;
   custom_code: string | null;
@@ -317,6 +318,7 @@ class FakeDatabase {
             title: string;
             testType?: 'positive' | 'negative' | 'edge';
             priority?: 'high' | 'medium' | 'low';
+            planningStatus?: 'drafted' | 'approved';
             isAiGenerated?: number | boolean;
             generatedCode?: string;
             customCode?: string | null;
@@ -332,6 +334,7 @@ class FakeDatabase {
             title: testCase.title,
             test_type: testCase.testType ?? 'positive',
             priority: testCase.priority ?? 'medium',
+            planning_status: testCase.planningStatus ?? 'drafted',
             is_ai_generated: Number(testCase.isAiGenerated ?? 0),
             generated_code: testCase.generatedCode ?? '',
             custom_code: testCase.customCode ?? null,
@@ -356,6 +359,7 @@ class FakeDatabase {
             title: string;
             testType: 'positive' | 'negative' | 'edge';
             priority: 'high' | 'medium' | 'low';
+            planningStatus: 'drafted' | 'approved';
             isAiGenerated: number;
             generatedCode: string;
             customCode: string | null;
@@ -375,6 +379,7 @@ class FakeDatabase {
             title: testCase.title,
             test_type: testCase.testType,
             priority: testCase.priority,
+            planning_status: testCase.planningStatus,
             is_ai_generated: testCase.isAiGenerated,
             generated_code: testCase.generatedCode,
             custom_code: testCase.customCode,

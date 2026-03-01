@@ -20,11 +20,16 @@ interface FeaturePlanningPageProps {
   featureAutoSaveStatus: 'saving' | 'saved' | 'error';
   featureAutoSaveMessage: string;
   draftedTests: TestCase[];
+  approvedTests: TestCase[];
+  selectedDraftedTestIds: string[];
   canManageDraftedTests: boolean;
   isTestDeleteBlocked: (testCaseId: string) => boolean;
   onAddTestCase: () => void;
-  onEditDraftedTestCase: (testCase: TestCase) => void;
-  onDeleteDraftedTestCase: (testCaseId: string) => void;
+  onToggleDraftedSelection: (testCaseId: string, checked: boolean) => void;
+  onApproveDraftedTestCase: (testCaseId: string) => void;
+  onApproveSelectedDraftedTests: () => void;
+  onMoveBackApprovedTestCase: (testCaseId: string) => void;
+  onDeleteTestCase: (testCaseId: string) => void;
 }
 
 function formatEnumLabel(value: string): string {
@@ -42,11 +47,16 @@ export function FeaturePlanningPage({
   featureAutoSaveStatus,
   featureAutoSaveMessage,
   draftedTests,
+  approvedTests,
+  selectedDraftedTestIds,
   canManageDraftedTests,
   isTestDeleteBlocked,
   onAddTestCase,
-  onEditDraftedTestCase,
-  onDeleteDraftedTestCase,
+  onToggleDraftedSelection,
+  onApproveDraftedTestCase,
+  onApproveSelectedDraftedTests,
+  onMoveBackApprovedTestCase,
+  onDeleteTestCase,
 }: FeaturePlanningPageProps): JSX.Element {
   if (!hasSelectedProject) {
     return (
@@ -154,15 +164,25 @@ export function FeaturePlanningPage({
 
       <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">Drafted Test Case</h2>
-          <button
-            type="button"
-            className={primaryButtonClass}
-            onClick={onAddTestCase}
-            disabled={!canManageDraftedTests}
-          >
-            Add Test Case
-          </button>
+          <h2 className="text-[15px] font-semibold text-[#e7eef8]">Drafted Test Cases</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={subtleButtonClass}
+              onClick={onApproveSelectedDraftedTests}
+              disabled={!canManageDraftedTests || selectedDraftedTestIds.length === 0}
+            >
+              Approved Test Cases
+            </button>
+            <button
+              type="button"
+              className={primaryButtonClass}
+              onClick={onAddTestCase}
+              disabled={!canManageDraftedTests}
+            >
+              Add Test Case
+            </button>
+          </div>
         </div>
 
         {!canManageDraftedTests ? (
@@ -174,6 +194,82 @@ export function FeaturePlanningPage({
         ) : (
           <ul className="space-y-2">
             {draftedTests.map((testCase) => (
+              <li
+                key={testCase.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
+              >
+                <div className="min-w-0 flex flex-1 items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-3.5 w-3.5 accent-[#5eb0ff]"
+                    checked={selectedDraftedTestIds.includes(testCase.id)}
+                    onChange={(event) =>
+                      onToggleDraftedSelection(testCase.id, event.target.checked)
+                    }
+                    aria-label={`Select ${testCase.title}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[#dce8f8]">
+                      {testCase.title}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
+                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
+                        {formatEnumLabel(testCase.testType)}
+                      </span>
+                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
+                        {formatEnumLabel(testCase.priority)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={subtleButtonClass}
+                    onClick={() => onApproveDraftedTestCase(testCase.id)}
+                    aria-label={`Approve ${testCase.title}`}
+                    title="Approve test case"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                      <path
+                        d="M20 6L9 17l-5-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={dangerButtonClass}
+                    disabled={isTestDeleteBlocked(testCase.id)}
+                    onClick={() => onDeleteTestCase(testCase.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold text-[#e7eef8]">Approved Test Cases</h2>
+        </div>
+
+        {!canManageDraftedTests ? (
+          <p className="text-xs text-[#94a8c2]">
+            Approved cases will appear once the feature and drafted tests are saved.
+          </p>
+        ) : approvedTests.length === 0 ? (
+          <p className="text-xs text-[#94a8c2]">No approved test cases yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {approvedTests.map((testCase) => (
               <li
                 key={testCase.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
@@ -193,15 +289,26 @@ export function FeaturePlanningPage({
                   <button
                     type="button"
                     className={subtleButtonClass}
-                    onClick={() => onEditDraftedTestCase(testCase)}
+                    onClick={() => onMoveBackApprovedTestCase(testCase.id)}
+                    aria-label={`Move ${testCase.title} back to drafted`}
+                    title="Move back to drafted"
                   >
-                    Edit
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                      <path
+                        d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-2"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </button>
                   <button
                     type="button"
                     className={dangerButtonClass}
                     disabled={isTestDeleteBlocked(testCase.id)}
-                    onClick={() => onDeleteDraftedTestCase(testCase.id)}
+                    onClick={() => onDeleteTestCase(testCase.id)}
                   >
                     Delete
                   </button>

@@ -28,6 +28,7 @@ const featureInputShape = {
 };
 const testTypeSchema = z.enum(['positive', 'negative', 'edge']);
 const testPrioritySchema = z.enum(['high', 'medium', 'low']);
+const testPlanningStatusSchema = z.enum(['drafted', 'approved']);
 
 function normalizeProjectInput<T extends { envLabel?: string }>(input: T): T & { envLabel: string } {
   return {
@@ -75,6 +76,7 @@ export const testCreateInputSchema = z
     title: nonEmptyTrimmedString('Test title is required.'),
     testType: testTypeSchema.optional(),
     priority: testPrioritySchema.optional(),
+    planningStatus: testPlanningStatusSchema.optional(),
     isAiGenerated: z.boolean().optional(),
     steps: z.array(nonEmptyTrimmedString('Step cannot be empty.')).optional(),
     customCode: z.string().optional().nullable(),
@@ -89,6 +91,7 @@ export const testUpdateInputSchema = z
     title: nonEmptyTrimmedString('Test title is required.'),
     testType: testTypeSchema.optional(),
     priority: testPrioritySchema.optional(),
+    planningStatus: testPlanningStatusSchema.optional(),
     isAiGenerated: z.boolean().optional(),
     steps: z.array(nonEmptyTrimmedString('Step cannot be empty.')).optional(),
     customCode: z.string().optional().nullable(),
