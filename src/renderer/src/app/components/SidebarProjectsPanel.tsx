@@ -1,22 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Feature, Project, RunStatus, TestCase } from '@shared/types';
+import type { Feature, Project } from '@shared/types';
 
 interface SidebarProjectsPanelProps {
   projects: Project[];
   featuresByProject: Record<string, Feature[]>;
-  testCasesByFeature: Record<string, TestCase[]>;
-  latestRunStatusByTestId: Record<string, RunStatus>;
   selectedProjectId: string;
   selectedFeatureId: string;
-  selectedTestId: string;
   appVersion: string;
   isProjectDeleteBlocked: (projectId: string) => boolean;
   onSelectProject: (projectId: string) => void;
   onSelectFeature: (projectId: string, featureId: string) => void;
-  onSelectTest: (projectId: string, featureId: string, testId: string) => void;
   onBeginCreateProject: () => void;
   onCreateFeatureForProject: (projectId: string) => void;
-  onCreateTestForFeature: (projectId: string, featureId: string) => void;
   onBeginEditProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
   onBeginEditFeature: (featureId: string) => void;
@@ -28,19 +23,14 @@ interface SidebarProjectsPanelProps {
 export function SidebarProjectsPanel({
   projects,
   featuresByProject,
-  testCasesByFeature,
-  latestRunStatusByTestId,
   selectedProjectId,
   selectedFeatureId,
-  selectedTestId,
   appVersion,
   isProjectDeleteBlocked,
   onSelectProject,
   onSelectFeature,
-  onSelectTest,
   onBeginCreateProject,
   onCreateFeatureForProject,
-  onCreateTestForFeature,
   onBeginEditProject,
   onDeleteProject,
   onBeginEditFeature,
@@ -65,18 +55,6 @@ export function SidebarProjectsPanel({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  function getTestIndicatorClass(status: RunStatus | undefined): string {
-    if (status === 'passed') {
-      return 'bg-[#2bb673]';
-    }
-
-    if (status === 'failed') {
-      return 'bg-[#d85b75]';
-    }
-
-    return 'bg-[#6f7f95]';
-  }
 
   return (
     <aside className="flex h-full min-h-0 flex-col bg-[#0e131b]/95 px-3 py-2">
@@ -241,7 +219,6 @@ export function SidebarProjectsPanel({
               {features.length > 0 ? (
                 <ul className="space-y-1 pl-2">
                   {features.map((feature) => {
-                    const tests = testCasesByFeature[feature.id] ?? [];
                     const isSelectedFeature = feature.id === selectedFeatureId;
                     const isFeatureMenuOpen = openMenuFeatureId === feature.id;
                     const featureActionVisibilityClass = isFeatureMenuOpen
@@ -263,22 +240,6 @@ export function SidebarProjectsPanel({
                             onClick={() => onSelectFeature(project.id, feature.id)}
                           >
                             {feature.title}
-                          </button>
-
-                          <button
-                            type="button"
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-secondary/60 text-[#c2d0e6] transition hover:bg-secondary/85 ${featureActionVisibilityClass}`}
-                            title="Create test case"
-                            aria-label={`Create test case in feature ${feature.title}`}
-                            data-testid={`feature-create-test-${feature.id}`}
-                            onClick={() => {
-                              onSelectFeature(project.id, feature.id);
-                              onCreateTestForFeature(project.id, feature.id);
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" className="h-3 w-3" aria-hidden="true">
-                              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
                           </button>
 
                           <button
@@ -327,37 +288,6 @@ export function SidebarProjectsPanel({
                             </div>
                           ) : null}
                         </div>
-
-                        {tests.length > 0 ? (
-                          <ul className="space-y-1 pl-2">
-                            {tests.map((testCase) => (
-                              <li key={testCase.id}>
-                                <button
-                                  type="button"
-                                  className={`w-full rounded-xl px-2 py-1 text-left text-xs transition ${
-                                    testCase.id === selectedTestId
-                                      ? 'bg-[#173452]/75 text-[#e4edf9]'
-                                      : 'text-[#b8c2cf] hover:bg-[#131c2b]/75'
-                                  }`}
-                                  onClick={() =>
-                                    onSelectTest(project.id, feature.id, testCase.id)
-                                  }
-                                >
-                                  <span
-                                    className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${getTestIndicatorClass(
-                                      latestRunStatusByTestId[testCase.id],
-                                    )}`}
-                                    data-testid={`test-status-${testCase.id}`}
-                                    aria-hidden="true"
-                                  />
-                                  <span className="align-middle">{testCase.title}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="pl-2 text-[11px] text-[#6f7d91]">No test cases yet</p>
-                        )}
                       </li>
                     );
                   })}

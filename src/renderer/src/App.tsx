@@ -1,51 +1,80 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
-import type { Feature, RunStatus, TestCase } from '@shared/types';
+import type { Feature, TestCase } from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
-import { BugReportModal } from './app/components/BugReportModal';
-import { FeatureModal } from './app/components/FeatureModal';
+import {
+  DraftedTestCaseModal,
+  type DraftedTestCaseFormState,
+} from './app/components/DraftedTestCaseModal';
+import { FeaturePlanningPage } from './app/components/FeaturePlanningPage';
 import { LoadingScreen } from './app/components/LoadingScreen';
 import { ProjectModal } from './app/components/ProjectModal';
 import { ProjectSetupScreen } from './app/components/ProjectSetupScreen';
-import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
-import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
-import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useFeaturesDomain } from './app/hooks/useFeaturesDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
+import { toErrorMessage } from './app/utils';
 import { appShellClass } from './app/uiClasses';
+
+const DEFAULT_DRAFTED_TEST_CASE_FORM: DraftedTestCaseFormState = {
+  id: '',
+  title: '',
+  testType: 'positive',
+  priority: 'medium',
+};
+
+function buildFeatureSignature(
+  projectId: string,
+  featureId: string,
+  title: string,
+  acceptanceCriteria: string,
+  requirements: string,
+  notes: string,
+): string {
+  return [
+    projectId,
+    featureId,
+    title.trim(),
+    acceptanceCriteria.trim(),
+    requirements.trim(),
+    notes.trim(),
+  ].join('::');
+}
 
 export function App(): JSX.Element {
   const [message, setMessage] = useState('');
   const [selectedTestId, setSelectedTestId] = useState('');
-  const [latestRunStatusByTestId, setLatestRunStatusByTestId] = useState<
-    Record<string, RunStatus>
-  >({});
   const [appVersion, setAppVersion] = useState('0.0.0');
   const [isBrowserInstallScreenOpen, setIsBrowserInstallScreenOpen] = useState(false);
+  const [featureAutoSaveStatus, setFeatureAutoSaveStatus] = useState<
+    'saving' | 'saved' | 'error'
+  >('saved');
+  const [featureAutoSaveMessage, setFeatureAutoSaveMessage] = useState('Saved');
+  const [isDraftedTestCaseModalOpen, setIsDraftedTestCaseModalOpen] = useState(false);
+  const [draftedTestCaseModalMode, setDraftedTestCaseModalMode] = useState<'create' | 'edit'>(
+    'create',
+  );
+  const [draftedTestCaseForm, setDraftedTestCaseForm] = useState<DraftedTestCaseFormState>(
+    DEFAULT_DRAFTED_TEST_CASE_FORM,
+  );
+
   const hasInitializedSidebar = useRef(false);
+  const featureAutoSaveVersion = useRef(0);
+  const lastSavedFeatureSignatureRef = useRef('');
 
   const onMessage = useCallback((nextMessage: string) => {
     setMessage(nextMessage);
   }, []);
 
   const {
-    runs,
-    selectedRunId,
-    setSelectedRunId,
-    selectedRun,
-    stepResults,
     browserStates,
     browserInstallProgress,
     isBrowserStatesLoaded,
     hasInstalledBrowser,
-    activeRunId,
     activeRunContext,
     refreshActiveRunContext,
-    startRun,
-    cancelRun,
     installBrowser,
     clearRunSelectionState,
   } = useRunsDomain({
@@ -81,10 +110,10 @@ export function App(): JSX.Element {
     featuresByProject,
     selectedFeatureId,
     setSelectedFeatureId,
+    selectedFeature,
     featureForm,
     setFeatureForm,
     featureFormMode,
-    isFeatureFormOpen,
     featureTitleError,
     featureAcceptanceCriteriaError,
     canSaveFeature,
@@ -92,7 +121,6 @@ export function App(): JSX.Element {
     selectProject,
     beginCreateFeature,
     beginEditSelectedFeature,
-    closeFeatureForm,
     createFeature,
     updateSelectedFeature,
     deleteSelectedFeature,
@@ -101,20 +129,7 @@ export function App(): JSX.Element {
     onMessage,
   });
 
-  const {
-    testCasesByFeature,
-    selectedTest,
-    selectedTestHasSteps,
-    testForm,
-    setTestForm,
-    testTitleError,
-    autoSaveStatus,
-    isSelectedTestDeleteBlocked,
-    refreshTestsTree,
-    selectFeature,
-    beginCreateTest,
-    deleteSelectedTest,
-  } = useTestsDomain({
+  const { selectedFeatureTests, refreshTestsTree, selectFeature } = useTestsDomain({
     featuresByProject,
     selectedProjectId,
     selectedFeatureId,
@@ -124,50 +139,14 @@ export function App(): JSX.Element {
     onMessage,
   });
 
-  const {
-    bugReport,
-    bugReportDraft,
-    setBugReportDraft,
-    isGeneratingBugReport,
-    generateBugReport,
-    copyBugReport,
-    closeBugReportDraft,
-    clearBugReportState,
-  } = useBugReportDomain({ onMessage });
-
-  const refreshLatestRunStatusByTestId = useCallback(
-    async (tree: Record<string, TestCase[]>): Promise<void> => {
-      const testIds = Object.values(tree).flatMap((testCases) =>
-        testCases.map((testCase) => testCase.id),
-      );
-      if (testIds.length === 0) {
-        setLatestRunStatusByTestId({});
-        return;
-      }
-
-      const responses = await Promise.all(
-        testIds.map(async (testId) => {
-          const result = await window.qaApi.runHistory(testId);
-          if (!result.ok || result.data.length === 0) {
-            return [testId, undefined] as const;
-          }
-
-          const latestRun = result.data[result.data.length - 1];
-          return [testId, latestRun.status] as const;
-        }),
-      );
-
-      const nextMap: Record<string, RunStatus> = {};
-      for (const [testId, status] of responses) {
-        if (status) {
-          nextMap[testId] = status;
-        }
-      }
-
-      setLatestRunStatusByTestId(nextMap);
-    },
-    [],
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
   );
+
+  const draftedTestCaseTitleError = draftedTestCaseForm.title.trim()
+    ? null
+    : 'Test title is required.';
 
   const resolvePreferredFeatureId = useCallback(
     (
@@ -219,18 +198,12 @@ export function App(): JSX.Element {
         preferredFeatureId || undefined,
       );
 
-      const nextTests = await refreshTestsTree(
-        featuresTree,
-        nextFeatureId,
-        preferredTestId,
-      );
-      await refreshLatestRunStatusByTestId(nextTests);
+      await refreshTestsTree(featuresTree, nextFeatureId, preferredTestId);
       await refreshActiveRunContext();
     },
     [
       refreshActiveRunContext,
       refreshFeaturesTree,
-      refreshLatestRunStatusByTestId,
       refreshProjects,
       refreshTestsTree,
       resolvePreferredFeatureId,
@@ -270,38 +243,118 @@ export function App(): JSX.Element {
   }, [message]);
 
   useEffect(() => {
-    if (!selectedTestId) {
+    if (!selectedFeature) {
       return;
     }
 
-    const latestRun = runs[0];
-    setLatestRunStatusByTestId((previous) => {
-      if (!latestRun) {
-        if (!(selectedTestId in previous)) {
-          return previous;
+    lastSavedFeatureSignatureRef.current = buildFeatureSignature(
+      selectedFeature.projectId,
+      selectedFeature.id,
+      selectedFeature.title,
+      selectedFeature.acceptanceCriteria,
+      selectedFeature.requirements ?? '',
+      selectedFeature.notes ?? '',
+    );
+  }, [selectedFeature]);
+
+  useEffect(() => {
+    const hasUserInput =
+      featureForm.id.length > 0 ||
+      featureForm.title.trim().length > 0 ||
+      featureForm.acceptanceCriteria.trim().length > 0 ||
+      featureForm.requirements.trim().length > 0 ||
+      featureForm.notes.trim().length > 0;
+
+    if (!selectedProjectId || !hasUserInput) {
+      setFeatureAutoSaveStatus('saved');
+      setFeatureAutoSaveMessage('Saved');
+      return;
+    }
+
+    if (!canSaveFeature) {
+      setFeatureAutoSaveStatus('saved');
+      setFeatureAutoSaveMessage('Fill required fields to autosave.');
+      return;
+    }
+
+    const currentSignature = buildFeatureSignature(
+      selectedProjectId,
+      featureForm.id,
+      featureForm.title,
+      featureForm.acceptanceCriteria,
+      featureForm.requirements,
+      featureForm.notes,
+    );
+
+    if (currentSignature === lastSavedFeatureSignatureRef.current) {
+      setFeatureAutoSaveStatus('saved');
+      if (featureAutoSaveMessage !== 'Fill required fields to autosave.') {
+        setFeatureAutoSaveMessage('Saved');
+      }
+      return;
+    }
+
+    const currentAutoSaveVersion = featureAutoSaveVersion.current + 1;
+    featureAutoSaveVersion.current = currentAutoSaveVersion;
+    setFeatureAutoSaveStatus('saving');
+    setFeatureAutoSaveMessage('Saving...');
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const isCreateMode = featureFormMode === 'create';
+        const result = isCreateMode ? await createFeature() : await updateSelectedFeature();
+
+        if (currentAutoSaveVersion !== featureAutoSaveVersion.current) {
+          return;
         }
 
-        const nextMap = { ...previous };
-        delete nextMap[selectedTestId];
-        return nextMap;
-      }
+        if (!result) {
+          setFeatureAutoSaveStatus('error');
+          setFeatureAutoSaveMessage('Autosave failed.');
+          return;
+        }
 
-      if (previous[selectedTestId] === latestRun.status) {
-        return previous;
-      }
+        if (isCreateMode) {
+          await refreshSidebar(result.projectId, result.id);
+        }
 
-      return {
-        ...previous,
-        [selectedTestId]: latestRun.status,
-      };
-    });
-  }, [runs, selectedTestId]);
+        lastSavedFeatureSignatureRef.current = buildFeatureSignature(
+          result.projectId,
+          result.id,
+          result.title,
+          result.acceptanceCriteria,
+          result.requirements ?? '',
+          result.notes ?? '',
+        );
+        setFeatureAutoSaveStatus('saved');
+        setFeatureAutoSaveMessage(
+          `Saved at ${new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}`,
+        );
+      })();
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    canSaveFeature,
+    createFeature,
+    featureAutoSaveMessage,
+    featureForm.acceptanceCriteria,
+    featureForm.id,
+    featureForm.notes,
+    featureForm.requirements,
+    featureForm.title,
+    featureFormMode,
+    refreshSidebar,
+    selectedProjectId,
+    updateSelectedFeature,
+  ]);
 
   const hasAtLeastOneProject = projects.length > 0;
-  const hasAtLeastOneTestCase = Object.values(testCasesByFeature).some(
-    (tests) => tests.length > 0,
-  );
-  const canStartRun = Boolean(selectedTestId) && selectedTestHasSteps;
 
   const activeScreen: 'loading' | 'install' | 'empty' | 'main' = !isBrowserStatesLoaded
     ? 'loading'
@@ -323,18 +376,10 @@ export function App(): JSX.Element {
     (projectId: string, featureId: string): void => {
       setSelectedProjectId(projectId);
       setSelectedFeatureId(featureId);
+      beginEditSelectedFeature(featureId);
       selectFeature(featureId);
     },
-    [selectFeature, setSelectedFeatureId, setSelectedProjectId],
-  );
-
-  const handleSelectTest = useCallback(
-    (projectId: string, featureId: string, testId: string): void => {
-      setSelectedProjectId(projectId);
-      setSelectedFeatureId(featureId);
-      setSelectedTestId(testId);
-    },
-    [setSelectedFeatureId, setSelectedProjectId],
+    [beginEditSelectedFeature, selectFeature, setSelectedFeatureId, setSelectedProjectId],
   );
 
   const handleCreateProject = useCallback(async (): Promise<void> => {
@@ -366,7 +411,7 @@ export function App(): JSX.Element {
             setSelectedFeatureId('');
             setSelectedTestId('');
             clearRunSelectionState();
-            clearBugReportState();
+            beginCreateFeature();
           }
           await refreshSidebar(shouldClearSelection ? '' : selectedProjectId);
         },
@@ -374,7 +419,7 @@ export function App(): JSX.Element {
       );
     },
     [
-      clearBugReportState,
+      beginCreateFeature,
       clearRunSelectionState,
       deleteSelectedProject,
       refreshSidebar,
@@ -383,26 +428,6 @@ export function App(): JSX.Element {
     ],
   );
 
-  const handleCreateFeature = useCallback(async (): Promise<void> => {
-    const created = await createFeature();
-    if (!created) {
-      return;
-    }
-
-    await refreshSidebar(created.projectId, created.id);
-    onMessage('Feature created.');
-  }, [createFeature, onMessage, refreshSidebar]);
-
-  const handleUpdateFeature = useCallback(async (): Promise<void> => {
-    const updated = await updateSelectedFeature();
-    if (!updated) {
-      return;
-    }
-
-    await refreshSidebar(updated.projectId, updated.id, selectedTestId || undefined);
-    onMessage('Feature updated.');
-  }, [onMessage, refreshSidebar, selectedTestId, updateSelectedFeature]);
-
   const handleDeleteFeatureById = useCallback(
     async (featureId: string): Promise<void> => {
       await deleteSelectedFeature(async () => {
@@ -410,7 +435,7 @@ export function App(): JSX.Element {
         if (shouldClearSelection) {
           setSelectedTestId('');
           clearRunSelectionState();
-          clearBugReportState();
+          beginCreateFeature();
         }
         await refreshSidebar(
           selectedProjectId,
@@ -420,7 +445,7 @@ export function App(): JSX.Element {
       }, featureId);
     },
     [
-      clearBugReportState,
+      beginCreateFeature,
       clearRunSelectionState,
       deleteSelectedFeature,
       refreshSidebar,
@@ -430,24 +455,132 @@ export function App(): JSX.Element {
     ],
   );
 
-  const handleDeleteSelectedTest = useCallback(async (): Promise<void> => {
-    await deleteSelectedTest(async () => {
-      clearRunSelectionState();
-      clearBugReportState();
-      await refreshSidebar(selectedProjectId, selectedFeatureId);
+  const resetDraftedTestCaseModal = useCallback((): void => {
+    setDraftedTestCaseForm(DEFAULT_DRAFTED_TEST_CASE_FORM);
+    setDraftedTestCaseModalMode('create');
+    setIsDraftedTestCaseModalOpen(false);
+  }, []);
+
+  const handleOpenAddDraftedTestCaseModal = useCallback((): void => {
+    if (!selectedFeatureId) {
+      onMessage('Save the feature first before adding drafted test cases.');
+      return;
+    }
+
+    setDraftedTestCaseModalMode('create');
+    setDraftedTestCaseForm(DEFAULT_DRAFTED_TEST_CASE_FORM);
+    setIsDraftedTestCaseModalOpen(true);
+  }, [onMessage, selectedFeatureId]);
+
+  const handleOpenEditDraftedTestCaseModal = useCallback((testCase: TestCase): void => {
+    setDraftedTestCaseModalMode('edit');
+    setDraftedTestCaseForm({
+      id: testCase.id,
+      title: testCase.title,
+      testType: testCase.testType,
+      priority: testCase.priority,
     });
+    setIsDraftedTestCaseModalOpen(true);
+  }, []);
+
+  const handleSubmitDraftedTestCase = useCallback(async (): Promise<void> => {
+    if (!selectedFeatureId) {
+      onMessage('Save the feature first before adding drafted test cases.');
+      return;
+    }
+
+    if (draftedTestCaseTitleError) {
+      onMessage(draftedTestCaseTitleError);
+      return;
+    }
+
+    try {
+      const result =
+        draftedTestCaseModalMode === 'create'
+          ? await window.qaApi.testCreate({
+              featureId: selectedFeatureId,
+              title: draftedTestCaseForm.title.trim(),
+              testType: draftedTestCaseForm.testType,
+              priority: draftedTestCaseForm.priority,
+              isAiGenerated: false,
+            })
+          : await window.qaApi.testUpdate({
+              id: draftedTestCaseForm.id,
+              featureId: selectedFeatureId,
+              title: draftedTestCaseForm.title.trim(),
+              testType: draftedTestCaseForm.testType,
+              priority: draftedTestCaseForm.priority,
+              isAiGenerated: false,
+            });
+
+      if (!result.ok) {
+        onMessage(result.error.message);
+        return;
+      }
+
+      resetDraftedTestCaseModal();
+      await refreshSidebar(selectedProjectId, selectedFeatureId, result.data.id);
+      onMessage(
+        draftedTestCaseModalMode === 'create'
+          ? 'Drafted test case created.'
+          : 'Drafted test case updated.',
+      );
+    } catch (error) {
+      onMessage(`Saving drafted test case failed: ${toErrorMessage(error)}`);
+    }
   }, [
-    clearBugReportState,
-    clearRunSelectionState,
-    deleteSelectedTest,
+    draftedTestCaseForm.id,
+    draftedTestCaseForm.priority,
+    draftedTestCaseForm.testType,
+    draftedTestCaseForm.title,
+    draftedTestCaseModalMode,
+    draftedTestCaseTitleError,
+    onMessage,
     refreshSidebar,
+    resetDraftedTestCaseModal,
     selectedFeatureId,
     selectedProjectId,
   ]);
 
-  const handleGenerateBugReport = useCallback(async (): Promise<void> => {
-    await generateBugReport(selectedRunId);
-  }, [generateBugReport, selectedRunId]);
+  const handleDeleteDraftedTestCase = useCallback(
+    async (testCaseId: string): Promise<void> => {
+      if (activeRunContext?.testCaseId === testCaseId) {
+        onMessage('Cannot delete this test case while it is running.');
+        return;
+      }
+
+      if (!window.confirm('Delete this test case?')) {
+        return;
+      }
+
+      try {
+        const result = await window.qaApi.testDelete(testCaseId);
+        if (!result.ok) {
+          onMessage(result.error.message);
+          return;
+        }
+
+        if (selectedTestId === testCaseId) {
+          setSelectedTestId('');
+          clearRunSelectionState();
+        }
+
+        await refreshSidebar(selectedProjectId, selectedFeatureId);
+        onMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
+      } catch (error) {
+        onMessage(`Delete test case failed: ${toErrorMessage(error)}`);
+      }
+    },
+    [
+      activeRunContext?.testCaseId,
+      clearRunSelectionState,
+      onMessage,
+      refreshSidebar,
+      selectedFeatureId,
+      selectedProjectId,
+      selectedTestId,
+    ],
+  );
 
   const handleOpenStepDocs = useCallback(async (): Promise<void> => {
     const result = await window.qaApi.openStepDocs();
@@ -517,24 +650,19 @@ export function App(): JSX.Element {
         <SidebarProjectsPanel
           projects={projects}
           featuresByProject={featuresByProject}
-          testCasesByFeature={testCasesByFeature}
-          latestRunStatusByTestId={latestRunStatusByTestId}
           selectedProjectId={selectedProjectId}
           selectedFeatureId={selectedFeatureId}
-          selectedTestId={selectedTestId}
           appVersion={appVersion}
           isProjectDeleteBlocked={isProjectDeleteBlocked}
           onSelectProject={handleSelectProject}
           onSelectFeature={handleSelectFeature}
-          onSelectTest={handleSelectTest}
           onBeginCreateProject={beginCreateProject}
           onCreateFeatureForProject={(projectId) => {
             handleSelectProject(projectId);
             beginCreateFeature();
-          }}
-          onCreateTestForFeature={(projectId, featureId) => {
-            handleSelectFeature(projectId, featureId);
-            beginCreateTest();
+            lastSavedFeatureSignatureRef.current = '';
+            setFeatureAutoSaveStatus('saved');
+            setFeatureAutoSaveMessage('Saved');
           }}
           onBeginEditProject={(projectId) => beginEditSelectedProject(projectId)}
           onDeleteProject={(projectId) => {
@@ -556,87 +684,25 @@ export function App(): JSX.Element {
           {activeScreen === 'empty' ? (
             <ProjectSetupScreen onBeginCreateProject={beginCreateProject} />
           ) : (
-            <div className="space-y-4">
-              <header className="flex items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-semibold text-[#edf3fb]">
-                    Feature Planning Workspace
-                  </h1>
-                  <p className="text-sm text-[#a9b8cb]">
-                    Define feature acceptance criteria and plan test cases before step authoring.
-                  </p>
-                </div>
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#121c2a]/75 px-3 py-1.5 text-xs font-semibold text-[#d9e4f5]">
-                  <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      autoSaveStatus === 'saving' ? 'animate-pulse bg-warning' : 'bg-success'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  {autoSaveStatus === 'saving' ? 'Saving...' : 'Saved'}
-                </span>
-              </header>
-
-              <section className="rounded-2xl bg-[#101722]/55 px-3 py-2.5">
-                <p className="text-[11px] font-semibold tracking-wide text-[#90a7c3]">
-                  Planning Workflow
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[#17314f]/85 px-2.5 py-1 text-[11px] font-semibold text-[#9fd1ff]">
-                    1. Project
-                  </span>
-                  <span className="rounded-full bg-[#17314f]/85 px-2.5 py-1 text-[11px] font-semibold text-[#9fd1ff]">
-                    2. Feature
-                  </span>
-                  <span className="rounded-full bg-[#121c2a]/70 px-2.5 py-1 text-[11px] font-medium text-[#aac0db]">
-                    3. Test Planning
-                  </span>
-                  <span className="rounded-full bg-[#121c2a]/70 px-2.5 py-1 text-[11px] font-medium text-[#aac0db]">
-                    4. Execution (later)
-                  </span>
-                </div>
-              </section>
-
-              <TestCaseEditorPanel
-                testCasePanelTitle="Planning Test Case"
-                testCasePanelDescription="Capture the test intent and metadata for the selected feature."
-                testForm={testForm}
-                setTestForm={setTestForm}
-                testTitleError={testTitleError}
-                hasSelectedTest={Boolean(selectedTest)}
-                isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
-                selectedTestHasSteps={selectedTestHasSteps}
-                canStartRun={canStartRun && hasAtLeastOneTestCase}
-                onBeginCreateTest={beginCreateTest}
-                onDeleteSelectedTest={() => {
-                  void handleDeleteSelectedTest();
-                }}
-                onStartRun={() => {
-                  void startRun();
-                }}
-              />
-
-              <RunCenterPanel
-                runs={runs}
-                selectedRunId={selectedRunId}
-                setSelectedRunId={setSelectedRunId}
-                selectedRun={selectedRun}
-                stepResults={stepResults}
-                activeRunId={activeRunId}
-                onCancelRun={() => {
-                  void cancelRun();
-                }}
-                onRerun={() => {
-                  void startRun();
-                }}
-                canRerun={canStartRun}
-                onGenerateBugReport={() => {
-                  void handleGenerateBugReport();
-                }}
-                isGeneratingBugReport={isGeneratingBugReport}
-                canGenerateBugReport={Boolean(selectedRun && selectedRun.status === 'failed')}
-              />
-            </div>
+            <FeaturePlanningPage
+              hasSelectedProject={Boolean(selectedProjectId)}
+              selectedProjectName={selectedProject?.name ?? 'Unselected'}
+              featureForm={featureForm}
+              setFeatureForm={setFeatureForm}
+              featureFormMode={featureFormMode}
+              featureTitleError={featureTitleError}
+              featureAcceptanceCriteriaError={featureAcceptanceCriteriaError}
+              featureAutoSaveStatus={featureAutoSaveStatus}
+              featureAutoSaveMessage={featureAutoSaveMessage}
+              draftedTests={selectedFeatureTests}
+              canManageDraftedTests={Boolean(selectedFeatureId)}
+              isTestDeleteBlocked={(testCaseId) => activeRunContext?.testCaseId === testCaseId}
+              onAddTestCase={handleOpenAddDraftedTestCaseModal}
+              onEditDraftedTestCase={handleOpenEditDraftedTestCaseModal}
+              onDeleteDraftedTestCase={(testCaseId) => {
+                void handleDeleteDraftedTestCase(testCaseId);
+              }}
+            />
           )}
         </section>
       </div>
@@ -659,31 +725,15 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      {isFeatureFormOpen ? (
-        <FeatureModal
-          featureForm={featureForm}
-          setFeatureForm={setFeatureForm}
-          featureFormMode={featureFormMode}
-          featureTitleError={featureTitleError}
-          featureAcceptanceCriteriaError={featureAcceptanceCriteriaError}
-          canSaveFeature={canSaveFeature}
-          onClose={closeFeatureForm}
-          onCreateFeature={() => {
-            void handleCreateFeature();
-          }}
-          onUpdateFeature={() => {
-            void handleUpdateFeature();
-          }}
-        />
-      ) : null}
-
-      {bugReport ? (
-        <BugReportModal
-          draft={bugReportDraft}
-          setDraft={setBugReportDraft}
-          onClose={closeBugReportDraft}
-          onCopy={() => {
-            void copyBugReport();
+      {isDraftedTestCaseModalOpen ? (
+        <DraftedTestCaseModal
+          mode={draftedTestCaseModalMode}
+          form={draftedTestCaseForm}
+          setForm={setDraftedTestCaseForm}
+          titleError={draftedTestCaseTitleError}
+          onClose={resetDraftedTestCaseModal}
+          onSubmit={() => {
+            void handleSubmitDraftedTestCase();
           }}
         />
       ) : null}

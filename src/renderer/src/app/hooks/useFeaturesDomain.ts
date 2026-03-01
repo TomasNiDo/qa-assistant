@@ -21,7 +21,6 @@ export interface UseFeaturesDomainResult {
   featureForm: FeatureFormState;
   setFeatureForm: Dispatch<SetStateAction<FeatureFormState>>;
   featureFormMode: ProjectFormMode;
-  isFeatureFormOpen: boolean;
   featureTitleError: string | null;
   featureAcceptanceCriteriaError: string | null;
   canSaveFeature: boolean;
@@ -33,7 +32,6 @@ export interface UseFeaturesDomainResult {
   selectProject: (projectId: string) => void;
   beginCreateFeature: () => void;
   beginEditSelectedFeature: (featureId?: string) => void;
-  closeFeatureForm: () => void;
   createFeature: () => Promise<Feature | null>;
   updateSelectedFeature: () => Promise<Feature | null>;
   deleteSelectedFeature: (onFeatureDeleted: () => Promise<void>, featureId?: string) => Promise<boolean>;
@@ -47,7 +45,6 @@ export function useFeaturesDomain({
   const [selectedFeatureId, setSelectedFeatureId] = useState('');
   const [featureForm, setFeatureForm] = useState<FeatureFormState>(DEFAULT_FEATURE_FORM);
   const [featureFormMode, setFeatureFormMode] = useState<ProjectFormMode>('create');
-  const [isFeatureFormOpen, setIsFeatureFormOpen] = useState(false);
 
   const selectedProjectFeatures = useMemo(
     () => (selectedProjectId ? featuresByProject[selectedProjectId] ?? [] : []),
@@ -56,8 +53,10 @@ export function useFeaturesDomain({
 
   const selectedFeature = useMemo(
     () =>
-      selectedProjectFeatures.find((feature) => feature.id === selectedFeatureId) ?? null,
-    [selectedFeatureId, selectedProjectFeatures],
+      Object.values(featuresByProject)
+        .flat()
+        .find((feature) => feature.id === selectedFeatureId) ?? null,
+    [featuresByProject, selectedFeatureId],
   );
 
   const featureTitleError = featureForm.title.trim()
@@ -144,17 +143,17 @@ export function useFeaturesDomain({
   );
 
   const beginCreateFeature = useCallback(() => {
+    setSelectedFeatureId('');
     setFeatureFormMode('create');
     setFeatureForm(DEFAULT_FEATURE_FORM);
-    setIsFeatureFormOpen(true);
   }, []);
 
   const beginEditSelectedFeature = useCallback(
     (featureId?: string) => {
       const targetFeatureId = featureId ?? selectedFeatureId;
-      const featureToEdit = selectedProjectFeatures.find(
-        (feature) => feature.id === targetFeatureId,
-      );
+      const featureToEdit = Object.values(featuresByProject)
+        .flat()
+        .find((feature) => feature.id === targetFeatureId);
       if (!featureToEdit) {
         onMessage('Select a feature first.');
         return;
@@ -169,15 +168,9 @@ export function useFeaturesDomain({
         requirements: featureToEdit.requirements ?? '',
         notes: featureToEdit.notes ?? '',
       });
-      setIsFeatureFormOpen(true);
     },
-    [onMessage, selectedFeatureId, selectedProjectFeatures],
+    [featuresByProject, onMessage, selectedFeatureId],
   );
-
-  const closeFeatureForm = useCallback(() => {
-    setIsFeatureFormOpen(false);
-    setFeatureFormMode('create');
-  }, []);
 
   const createFeature = useCallback(async (): Promise<Feature | null> => {
     if (!selectedProjectId) {
@@ -226,8 +219,14 @@ export function useFeaturesDomain({
     });
 
     setSelectedFeatureId(result.data.id);
-    setFeatureFormMode('create');
-    setIsFeatureFormOpen(false);
+    setFeatureFormMode('edit');
+    setFeatureForm({
+      id: result.data.id,
+      title: result.data.title,
+      acceptanceCriteria: result.data.acceptanceCriteria,
+      requirements: result.data.requirements ?? '',
+      notes: result.data.notes ?? '',
+    });
 
     return result.data;
   }, [
@@ -292,8 +291,14 @@ export function useFeaturesDomain({
       };
     });
 
-    setFeatureFormMode('create');
-    setIsFeatureFormOpen(false);
+    setFeatureFormMode('edit');
+    setFeatureForm({
+      id: result.data.id,
+      title: result.data.title,
+      acceptanceCriteria: result.data.acceptanceCriteria,
+      requirements: result.data.requirements ?? '',
+      notes: result.data.notes ?? '',
+    });
     return result.data;
   }, [
     canSaveFeature,
@@ -351,7 +356,6 @@ export function useFeaturesDomain({
     featureForm,
     setFeatureForm,
     featureFormMode,
-    isFeatureFormOpen,
     featureTitleError,
     featureAcceptanceCriteriaError,
     canSaveFeature,
@@ -359,7 +363,6 @@ export function useFeaturesDomain({
     selectProject,
     beginCreateFeature,
     beginEditSelectedFeature,
-    closeFeatureForm,
     createFeature,
     updateSelectedFeature,
     deleteSelectedFeature,
