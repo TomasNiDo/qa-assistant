@@ -26116,12 +26116,12 @@
     {
       "type": "text",
       "id": "pdXNK",
-      "x": -1146,
-      "y": 1821,
+      "x": -1846,
+      "y": 1820,
       "fill": "#ffffff",
-      "content": "V2 DESIGNS",
+      "content": "V2 DESIGNS - DARK MODE",
       "fontFamily": "Inter",
-      "fontSize": 50,
+      "fontSize": 100,
       "fontWeight": "normal"
     },
     {
@@ -40974,12 +40974,12 @@
     {
       "type": "text",
       "id": "JLFS8",
-      "x": -1146,
-      "y": 2950,
+      "x": -1846,
+      "y": 2889,
       "fill": "#ffffff",
       "content": "V2 DESIGNS - LIGHT MODE",
       "fontFamily": "Inter",
-      "fontSize": 50,
+      "fontSize": 100,
       "fontWeight": "normal"
     },
     {
