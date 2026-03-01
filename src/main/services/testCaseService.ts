@@ -37,7 +37,9 @@ export class TestCaseService {
 
   create(input: CreateTestInput): TestCase {
     const timestamp = nowIso();
-    const parsedSteps = this.parseSteps(input.steps);
+    const feature = this.getFeatureOwnership(input.featureId);
+    const rawSteps = input.steps ?? [];
+    const parsedSteps = this.parseSteps(rawSteps);
     const generatedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
       testTitle: input.title.trim(),
       stepComments: parsedSteps.map((step) => step.rawText),
@@ -50,8 +52,12 @@ export class TestCaseService {
 
     const testCase: TestCase = {
       id: createId(),
-      projectId: input.projectId,
+      projectId: feature.projectId,
+      featureId: feature.featureId,
       title: input.title.trim(),
+      testType: input.testType ?? 'positive',
+      priority: input.priority ?? 'medium',
+      isAiGenerated: Boolean(input.isAiGenerated),
       generatedCode: codeFields.generatedCode,
       customCode: codeFields.customCode,
       isCustomized: codeFields.isCustomized,
@@ -65,16 +71,37 @@ export class TestCaseService {
           `INSERT INTO test_cases (
              id,
              project_id,
+             feature_id,
              title,
+             test_type,
+             priority,
+             is_ai_generated,
              generated_code,
              custom_code,
              is_customized,
              created_at,
              updated_at
            )
-           VALUES (@id, @projectId, @title, @generatedCode, @customCode, @isCustomized, @createdAt, @updatedAt)`,
+           VALUES (
+             @id,
+             @projectId,
+             @featureId,
+             @title,
+             @testType,
+             @priority,
+             @isAiGenerated,
+             @generatedCode,
+             @customCode,
+             @isCustomized,
+             @createdAt,
+             @updatedAt
+           )`,
         )
-        .run({ ...testCase, isCustomized: testCase.isCustomized ? 1 : 0 });
+        .run({
+          ...testCase,
+          isAiGenerated: testCase.isAiGenerated ? 1 : 0,
+          isCustomized: testCase.isCustomized ? 1 : 0,
+        });
 
       this.saveParsedSteps(testCase.id, payloadParsedSteps);
     });
@@ -89,18 +116,17 @@ export class TestCaseService {
       throw new Error('Test case not found.');
     }
 
-    const updated: TestCase = {
-      ...existing,
-      projectId: input.projectId,
-      title: input.title.trim(),
-      updatedAt: nowIso(),
-    };
+    const feature = this.getFeatureOwnership(input.featureId);
+    const updateSteps = input.steps !== undefined;
+    const inputSteps = input.steps ?? [];
+    const parsedSteps = updateSteps ? this.parseSteps(inputSteps) : [];
+    const regeneratedCode = updateSteps
+      ? generatePlaywrightCode(parsedSteps.map((step) => step.action), {
+          testTitle: input.title.trim(),
+          stepComments: parsedSteps.map((step) => step.rawText),
+        })
+      : undefined;
 
-    const parsedSteps = this.parseSteps(input.steps);
-    const regeneratedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
-      testTitle: input.title.trim(),
-      stepComments: parsedSteps.map((step) => step.rawText),
-    });
     const codeFields = resolveCodeFields({
       generatedCode: existing.generatedCode,
       isCustomized: input.isCustomized ?? existing.isCustomized,
@@ -108,12 +134,28 @@ export class TestCaseService {
       regeneratedCode,
     });
 
-    const transaction = this.db.transaction((payloadParsedSteps: ParsedStepRow[]) => {
+    const updated: TestCase = {
+      ...existing,
+      projectId: feature.projectId,
+      featureId: feature.featureId,
+      title: input.title.trim(),
+      testType: input.testType ?? existing.testType,
+      priority: input.priority ?? existing.priority,
+      isAiGenerated: input.isAiGenerated ?? existing.isAiGenerated,
+      updatedAt: nowIso(),
+      ...codeFields,
+    };
+
+    const transaction = this.db.transaction((payloadParsedSteps?: ParsedStepRow[]) => {
       this.db
         .prepare(
           `UPDATE test_cases
            SET project_id = @projectId,
+               feature_id = @featureId,
                title = @title,
+               test_type = @testType,
+               priority = @priority,
+               is_ai_generated = @isAiGenerated,
                generated_code = @generatedCode,
                custom_code = @customCode,
                is_customized = @isCustomized,
@@ -122,19 +164,18 @@ export class TestCaseService {
         )
         .run({
           ...updated,
-          ...codeFields,
-          isCustomized: codeFields.isCustomized ? 1 : 0,
+          isAiGenerated: updated.isAiGenerated ? 1 : 0,
+          isCustomized: updated.isCustomized ? 1 : 0,
         });
 
-      this.db.prepare('DELETE FROM steps WHERE test_case_id = ?').run(updated.id);
-      this.saveParsedSteps(updated.id, payloadParsedSteps);
+      if (payloadParsedSteps) {
+        this.db.prepare('DELETE FROM steps WHERE test_case_id = ?').run(updated.id);
+        this.saveParsedSteps(updated.id, payloadParsedSteps);
+      }
     });
 
-    transaction(parsedSteps);
-    return {
-      ...updated,
-      ...codeFields,
-    };
+    transaction(updateSteps ? parsedSteps : undefined);
+    return updated;
   }
 
   delete(id: string): boolean {
@@ -154,24 +195,50 @@ export class TestCaseService {
     return result.changes > 0;
   }
 
-  list(projectId: string): TestCase[] {
+  listByFeature(featureId: string): TestCase[] {
     const rows = this.db
       .prepare(
-        `SELECT id, project_id, title, generated_code, custom_code, is_customized, created_at, updated_at
+        `SELECT id,
+                project_id,
+                feature_id,
+                title,
+                test_type,
+                priority,
+                is_ai_generated,
+                generated_code,
+                custom_code,
+                is_customized,
+                created_at,
+                updated_at
+         FROM test_cases
+         WHERE feature_id = ?
+         ORDER BY updated_at DESC`,
+      )
+      .all(featureId) as TestCaseRow[];
+
+    return rows.map(toTestCase);
+  }
+
+  listByProject(projectId: string): TestCase[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id,
+                project_id,
+                feature_id,
+                title,
+                test_type,
+                priority,
+                is_ai_generated,
+                generated_code,
+                custom_code,
+                is_customized,
+                created_at,
+                updated_at
          FROM test_cases
          WHERE project_id = ?
          ORDER BY updated_at DESC`,
       )
-      .all(projectId) as Array<{
-      id: string;
-      project_id: string;
-      title: string;
-      generated_code: string;
-      custom_code: string | null;
-      is_customized: number;
-      created_at: string;
-      updated_at: string;
-    }>;
+      .all(projectId) as TestCaseRow[];
 
     return rows.map(toTestCase);
   }
@@ -204,24 +271,48 @@ export class TestCaseService {
   getById(id: string): TestCase | null {
     const row = this.db
       .prepare(
-        `SELECT id, project_id, title, generated_code, custom_code, is_customized, created_at, updated_at
+        `SELECT id,
+                project_id,
+                feature_id,
+                title,
+                test_type,
+                priority,
+                is_ai_generated,
+                generated_code,
+                custom_code,
+                is_customized,
+                created_at,
+                updated_at
          FROM test_cases
          WHERE id = ?`,
       )
-      .get(id) as
+      .get(id) as TestCaseRow | undefined;
+
+    return row ? toTestCase(row) : null;
+  }
+
+  private getFeatureOwnership(featureId: string): { featureId: string; projectId: string } {
+    const row = this.db
+      .prepare(
+        `SELECT id, project_id
+         FROM features
+         WHERE id = ?`,
+      )
+      .get(featureId) as
       | {
           id: string;
           project_id: string;
-          title: string;
-          generated_code: string;
-          custom_code: string | null;
-          is_customized: number;
-          created_at: string;
-          updated_at: string;
         }
       | undefined;
 
-    return row ? toTestCase(row) : null;
+    if (!row) {
+      throw new Error('Feature not found.');
+    }
+
+    return {
+      featureId: row.id,
+      projectId: row.project_id,
+    };
   }
 
   private parseSteps(rawSteps: string[]): ParsedStepRow[] {
@@ -256,16 +347,22 @@ export class TestCaseService {
   }
 }
 
-function toTestCase(row: {
+interface TestCaseRow {
   id: string;
   project_id: string;
+  feature_id: string;
   title: string;
+  test_type: TestCase['testType'];
+  priority: TestCase['priority'];
+  is_ai_generated: number;
   generated_code: string;
   custom_code: string | null;
   is_customized: number;
   created_at: string;
   updated_at: string;
-}): TestCase {
+}
+
+function toTestCase(row: TestCaseRow): TestCase {
   const generatedCode = ensurePlaywrightTestWrapper(row.generated_code, row.title);
   const customCode = row.custom_code
     ? ensurePlaywrightTestWrapper(row.custom_code, row.title)
@@ -274,7 +371,11 @@ function toTestCase(row: {
   return {
     id: row.id,
     projectId: row.project_id,
+    featureId: row.feature_id,
     title: row.title,
+    testType: row.test_type,
+    priority: row.priority,
+    isAiGenerated: row.is_ai_generated === 1,
     generatedCode,
     customCode,
     isCustomized: row.is_customized === 1,

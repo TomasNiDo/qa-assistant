@@ -217,7 +217,15 @@ app.whenReady().then(async () => {
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all() as Array<{ name: string }>;
     const tableNames = new Set(rows.map((row) => row.name));
-    const requiredTables = ['migrations', 'projects', 'test_cases', 'steps', 'runs', 'step_results'];
+    const requiredTables = [
+      'migrations',
+      'projects',
+      'features',
+      'test_cases',
+      'steps',
+      'runs',
+      'step_results',
+    ];
 
     for (const tableName of requiredTables) {
       if (!tableNames.has(tableName)) {

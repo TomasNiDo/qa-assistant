@@ -190,7 +190,8 @@ export class AIService {
                 projects.env_label AS env_label
          FROM runs
          JOIN test_cases ON test_cases.id = runs.test_case_id
-         JOIN projects ON projects.id = test_cases.project_id
+         JOIN features ON features.id = test_cases.feature_id
+         JOIN projects ON projects.id = features.project_id
          WHERE runs.id = ?`,
       )
       .get(input.runId) as

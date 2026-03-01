@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { AIService } from './aiService';
 import { BrowserService } from './browserService';
 import { ConfigService } from './configService';
+import { FeatureService } from './featureService';
 import { parseStep } from './parserService';
 import { ProjectService } from './projectService';
 import { RunService } from './runService';
@@ -10,6 +11,7 @@ import { TestCaseService } from './testCaseService';
 
 export interface Services {
   projectService: ProjectService;
+  featureService: FeatureService;
   testCaseService: TestCaseService;
   runService: RunService;
   aiService: AIService;
@@ -26,17 +28,19 @@ export function createServices(
   configFile: string,
 ): Services {
   const projectService = new ProjectService(db);
+  const featureService = new FeatureService(db);
   const testCaseService = new TestCaseService(db);
   const configService = new ConfigService(configFile);
   const browserService = new BrowserService();
 
   return {
     projectService,
+    featureService,
     testCaseService,
     runService: new RunService(db, artifactsDir, browserService, () => configService.get()),
     aiService: new AIService(db, process.env.GEMINI_API_KEY, process.env.GEMINI_MODEL),
     configService,
-    sampleSeedService: new SampleSeedService(projectService, testCaseService),
+    sampleSeedService: new SampleSeedService(projectService, featureService, testCaseService),
     parserService: {
       parse: parseStep,
     },

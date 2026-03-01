@@ -6,6 +6,7 @@ import type { AppConfig, BrowserInstallState } from '@shared/types';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from '../database';
 import { BrowserService } from '../browserService';
+import { FeatureService } from '../featureService';
 import { ProjectService } from '../projectService';
 import { RunService } from '../runService';
 import { TestCaseService } from '../testCaseService';
@@ -320,20 +321,29 @@ function setupRealDb(): { db: Database.Database; dir: string; artifactsDir: stri
   return { db, dir, artifactsDir };
 }
 
-function seedTestCase(db: Database.Database, steps: string[]): { projectId: string; testCaseId: string } {
+function seedTestCase(
+  db: Database.Database,
+  steps: string[],
+): { projectId: string; featureId: string; testCaseId: string } {
   const projectService = new ProjectService(db);
+  const featureService = new FeatureService(db);
   const testCaseService = new TestCaseService(db);
   const project = projectService.create({
     name: 'Checkout',
     baseUrl: 'https://example.com',
   });
-  const testCase = testCaseService.create({
+  const feature = featureService.create({
     projectId: project.id,
+    title: 'Checkout planning',
+    acceptanceCriteria: 'User can complete checkout.',
+  });
+  const testCase = testCaseService.create({
+    featureId: feature.id,
     title: 'Checkout flow',
     steps,
   });
 
-  return { projectId: project.id, testCaseId: testCase.id };
+  return { projectId: project.id, featureId: feature.id, testCaseId: testCase.id };
 }
 
 describe('RunService integration', () => {
@@ -553,11 +563,14 @@ describe('RunService integration', () => {
     db = ctx.db;
     tempDir = ctx.dir;
 
-    const { projectId, testCaseId } = seedTestCase(db, ['Expect login page', 'Expect dashboard visible']);
+    const { featureId, testCaseId } = seedTestCase(db, [
+      'Expect login page',
+      'Expect dashboard visible',
+    ]);
     const testCaseService = new TestCaseService(db);
     testCaseService.update({
       id: testCaseId,
-      projectId,
+      featureId,
       title: 'Checkout flow custom',
       steps: ['Expect login page', 'Expect dashboard visible'],
       isCustomized: true,

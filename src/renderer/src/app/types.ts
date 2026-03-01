@@ -7,15 +7,20 @@ export interface ProjectFormState {
   envLabel: string;
 }
 
+export interface FeatureFormState {
+  id: string;
+  title: string;
+  acceptanceCriteria: string;
+  requirements: string;
+  notes: string;
+}
+
 export interface TestFormState {
   id: string;
   title: string;
-  stepsText: string;
-  generatedCode: string;
-  customCode: string;
-  isCustomized: boolean;
-  isCodeEditingEnabled: boolean;
-  activeView: 'steps' | 'code';
+  testType: 'positive' | 'negative' | 'edge';
+  priority: 'high' | 'medium' | 'low';
+  isAiGenerated: boolean;
 }
 
 export interface BrowserInstallProgressState {
@@ -37,12 +42,17 @@ export const DEFAULT_PROJECT_FORM: ProjectFormState = {
 export const DEFAULT_TEST_FORM: TestFormState = {
   id: '',
   title: '',
-  stepsText: 'Click "Login"',
-  generatedCode: '',
-  customCode: '',
-  isCustomized: false,
-  isCodeEditingEnabled: false,
-  activeView: 'steps',
+  testType: 'positive',
+  priority: 'medium',
+  isAiGenerated: false,
+};
+
+export const DEFAULT_FEATURE_FORM: FeatureFormState = {
+  id: '',
+  title: '',
+  acceptanceCriteria: '',
+  requirements: '',
+  notes: '',
 };
 
 export type ThemeMode = 'light' | 'dark';

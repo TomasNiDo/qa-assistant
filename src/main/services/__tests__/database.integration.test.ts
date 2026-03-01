@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import DatabaseCtor from 'better-sqlite3';
 import type Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from '../database';
@@ -46,6 +47,7 @@ describe('database integration', () => {
 
     expect(tables.has('migrations')).toBe(true);
     expect(tables.has('projects')).toBe(true);
+    expect(tables.has('features')).toBe(true);
     expect(tables.has('test_cases')).toBe(true);
     expect(tables.has('steps')).toBe(true);
     expect(tables.has('runs')).toBe(true);
@@ -77,10 +79,10 @@ describe('database integration', () => {
     expect(() =>
       ctx.db
         .prepare(
-          `INSERT INTO test_cases (id, project_id, title, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO test_cases (id, project_id, feature_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run('test-orphan', 'missing-project', 'Orphan test', now, now),
+        .run('test-orphan', 'missing-project', 'missing-feature', 'Orphan test', now, now),
     ).toThrow(/FOREIGN KEY/);
 
     ctx.db
@@ -91,10 +93,34 @@ describe('database integration', () => {
       .run('project-1', 'Checkout', 'https://example.com', 'local', '{}', now);
     ctx.db
       .prepare(
-        `INSERT INTO test_cases (id, project_id, title, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO features (
+           id,
+           project_id,
+           title,
+           acceptance_criteria,
+           requirements,
+           notes,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run('test-1', 'project-1', 'Checkout flow', now, now);
+      .run(
+        'feature-1',
+        'project-1',
+        'Checkout planning',
+        'Checkout should complete successfully.',
+        null,
+        null,
+        now,
+        now,
+      );
+    ctx.db
+      .prepare(
+        `INSERT INTO test_cases (id, project_id, feature_id, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run('test-1', 'project-1', 'feature-1', 'Checkout flow', now, now);
     ctx.db
       .prepare(
         `INSERT INTO steps (id, test_case_id, step_order, raw_text, action_json)
@@ -141,5 +167,89 @@ describe('database integration', () => {
     expect(
       (ctx.db.prepare('SELECT COUNT(*) AS count FROM step_results').get() as { count: number }).count,
     ).toBe(0);
+  });
+
+  it('migrates legacy project test cases into Imported features', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qa-assistant-db-migrate-it-'));
+    const file = join(dir, 'qa-assistant.sqlite');
+    cleanupDirs.add(dir);
+    const now = new Date().toISOString();
+    const legacyDb = new DatabaseCtor(file);
+    legacyDb.pragma('foreign_keys = ON');
+    legacyDb.exec(
+      readFileSync(
+        join(process.cwd(), 'src/main/db/migrations/001_initial.sql'),
+        'utf8',
+      ),
+    );
+    legacyDb.exec(
+      readFileSync(
+        join(process.cwd(), 'src/main/db/migrations/002_test_case_code_fields.sql'),
+        'utf8',
+      ),
+    );
+    legacyDb
+      .prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)')
+      .run('001_initial.sql', now);
+    legacyDb
+      .prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)')
+      .run('002_test_case_code_fields.sql', now);
+
+    legacyDb
+      .prepare(
+        `INSERT INTO projects (id, name, base_url, env_label, metadata_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run('project-legacy', 'Legacy Project', 'https://example.com', 'legacy', '{}', now);
+    legacyDb
+      .prepare(
+        `INSERT INTO test_cases (
+           id,
+           project_id,
+           title,
+           generated_code,
+           custom_code,
+           is_customized,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'test-legacy',
+        'project-legacy',
+        'Legacy test',
+        '',
+        null,
+        0,
+        now,
+        now,
+      );
+    legacyDb.close();
+
+    const migrated = openDatabase(file);
+    activeDb = migrated;
+
+    const importedFeature = migrated
+      .prepare(
+        `SELECT id, project_id, title
+         FROM features
+         WHERE project_id = ? AND title = 'Imported'`,
+      )
+      .get('project-legacy') as { id: string; project_id: string; title: string } | undefined;
+
+    expect(importedFeature).toBeDefined();
+
+    const migratedTest = migrated
+      .prepare(
+        `SELECT id, project_id, feature_id
+         FROM test_cases
+         WHERE id = ?`,
+      )
+      .get('test-legacy') as { id: string; project_id: string; feature_id: string } | undefined;
+
+    expect(migratedTest).toBeDefined();
+    expect(migratedTest?.project_id).toBe('project-legacy');
+    expect(migratedTest?.feature_id).toBe(importedFeature?.id);
   });
 });

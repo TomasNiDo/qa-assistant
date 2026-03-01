@@ -44,7 +44,8 @@ class AIServiceTestDb {
     if (
       normalized.includes('FROM runs') &&
       normalized.includes('JOIN test_cases ON test_cases.id = runs.test_case_id') &&
-      normalized.includes('JOIN projects ON projects.id = test_cases.project_id')
+      normalized.includes('JOIN features ON features.id = test_cases.feature_id') &&
+      normalized.includes('JOIN projects ON projects.id = features.project_id')
     ) {
       return {
         get: (...args) => {

@@ -9,6 +9,10 @@ import {
   aiGenerateBugReportInputSchema,
   aiGenerateStepsInputSchema,
   configSetInputSchema,
+  featureCreateInputSchema,
+  featureDeleteIdSchema,
+  featureListProjectIdSchema,
+  featureUpdateInputSchema,
   parseIpcInput,
   projectCreateInputSchema,
   projectDeleteIdSchema,
@@ -25,7 +29,7 @@ import {
   stepResultsRunIdSchema,
   testCreateInputSchema,
   testDeleteIdSchema,
-  testListProjectIdSchema,
+  testListFeatureIdSchema,
   testValidateCustomCodeSyntaxSchema,
   testUpdateInputSchema,
 } from './inputSchemas';
@@ -70,6 +74,34 @@ export function registerHandlers(services: Services, options: RegisterHandlersOp
     }),
   );
   ipcMain.handle(IPC_CHANNELS.projectList, async () => wrap(() => services.projectService.list()));
+  ipcMain.handle(IPC_CHANNELS.featureCreate, async (_event, input) =>
+    wrap(() => {
+      const validated = parseIpcInput(featureCreateInputSchema, input, 'feature.create payload');
+      return services.featureService.create(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.featureUpdate, async (_event, input) =>
+    wrap(() => {
+      const validated = parseIpcInput(featureUpdateInputSchema, input, 'feature.update payload');
+      return services.featureService.update(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.featureDelete, async (_event, id) =>
+    wrap(() => {
+      const validated = parseIpcInput(featureDeleteIdSchema, id, 'feature.delete payload');
+      return services.featureService.delete(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.featureList, async (_event, projectId) =>
+    wrap(() => {
+      const validated = parseIpcInput(
+        featureListProjectIdSchema,
+        projectId,
+        'feature.list payload',
+      );
+      return services.featureService.list(validated);
+    }),
+  );
 
   ipcMain.handle(IPC_CHANNELS.testCreate, async (_event, input) =>
     wrap(() => {
@@ -89,10 +121,14 @@ export function registerHandlers(services: Services, options: RegisterHandlersOp
       return services.testCaseService.delete(validated);
     }),
   );
-  ipcMain.handle(IPC_CHANNELS.testList, async (_event, projectId) =>
+  ipcMain.handle(IPC_CHANNELS.testListByFeature, async (_event, featureId) =>
     wrap(() => {
-      const validated = parseIpcInput(testListProjectIdSchema, projectId, 'test.list payload');
-      return services.testCaseService.list(validated);
+      const validated = parseIpcInput(
+        testListFeatureIdSchema,
+        featureId,
+        'test.listByFeature payload',
+      );
+      return services.testCaseService.listByFeature(validated);
     }),
   );
   ipcMain.handle(IPC_CHANNELS.stepList, async (_event, testCaseId) =>

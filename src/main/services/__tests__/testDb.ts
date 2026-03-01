@@ -9,10 +9,25 @@ interface ProjectRow {
   created_at: string;
 }
 
-interface TestCaseRow {
+interface FeatureRow {
   id: string;
   project_id: string;
   title: string;
+  acceptance_criteria: string;
+  requirements: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TestCaseRow {
+  id: string;
+  project_id: string;
+  feature_id: string;
+  title: string;
+  test_type: 'positive' | 'negative' | 'edge';
+  priority: 'high' | 'medium' | 'low';
+  is_ai_generated: number;
   generated_code: string;
   custom_code: string | null;
   is_customized: number;
@@ -39,6 +54,7 @@ interface RunRow {
 
 type Snapshot = {
   projects: ProjectRow[];
+  features: FeatureRow[];
   testCases: TestCaseRow[];
   steps: StepRow[];
   runs: RunRow[];
@@ -46,6 +62,7 @@ type Snapshot = {
 
 class FakeDatabase {
   private projects: ProjectRow[] = [];
+  private features: FeatureRow[] = [];
   private testCases: TestCaseRow[] = [];
   private steps: StepRow[] = [];
   private runs: RunRow[] = [];
@@ -120,12 +137,21 @@ class FakeDatabase {
           const [id] = args as [string];
           const before = this.projects.length;
           this.projects = this.projects.filter((project) => project.id !== id);
-          const remainingTestIds = this.testCases
-            .filter((testCase) => testCase.project_id === id)
+
+          const deletedFeatureIds = this.features
+            .filter((feature) => feature.project_id === id)
+            .map((feature) => feature.id);
+          this.features = this.features.filter((feature) => feature.project_id !== id);
+
+          const deletedTestIds = this.testCases
+            .filter((testCase) => testCase.project_id === id || deletedFeatureIds.includes(testCase.feature_id))
             .map((testCase) => testCase.id);
-          this.testCases = this.testCases.filter((testCase) => testCase.project_id !== id);
-          this.steps = this.steps.filter((step) => !remainingTestIds.includes(step.test_case_id));
-          this.runs = this.runs.filter((run) => !remainingTestIds.includes(run.test_case_id));
+          this.testCases = this.testCases.filter(
+            (testCase) => !deletedTestIds.includes(testCase.id),
+          );
+          this.steps = this.steps.filter((step) => !deletedTestIds.includes(step.test_case_id));
+          this.runs = this.runs.filter((run) => !deletedTestIds.includes(run.test_case_id));
+
           return { changes: before - this.projects.length };
         },
         get: () => undefined,
@@ -152,13 +178,146 @@ class FakeDatabase {
       };
     }
 
+    if (normalized.includes('INSERT INTO features')) {
+      return {
+        run: (...args) => {
+          const [feature] = args as Array<{
+            id: string;
+            projectId: string;
+            title: string;
+            acceptanceCriteria: string;
+            requirements: string | null;
+            notes: string | null;
+            createdAt: string;
+            updatedAt: string;
+          }>;
+
+          this.features.push({
+            id: feature.id,
+            project_id: feature.projectId,
+            title: feature.title,
+            acceptance_criteria: feature.acceptanceCriteria,
+            requirements: feature.requirements,
+            notes: feature.notes,
+            created_at: feature.createdAt,
+            updated_at: feature.updatedAt,
+          });
+          return { changes: 1 };
+        },
+        get: () => undefined,
+        all: () => [],
+      };
+    }
+
+    if (normalized.includes('UPDATE features')) {
+      return {
+        run: (...args) => {
+          const [feature] = args as Array<{
+            id: string;
+            projectId: string;
+            title: string;
+            acceptanceCriteria: string;
+            requirements: string | null;
+            notes: string | null;
+            updatedAt: string;
+          }>;
+
+          const index = this.features.findIndex((row) => row.id === feature.id);
+          if (index === -1) {
+            return { changes: 0 };
+          }
+
+          this.features[index] = {
+            ...this.features[index],
+            project_id: feature.projectId,
+            title: feature.title,
+            acceptance_criteria: feature.acceptanceCriteria,
+            requirements: feature.requirements,
+            notes: feature.notes,
+            updated_at: feature.updatedAt,
+          };
+          return { changes: 1 };
+        },
+        get: () => undefined,
+        all: () => [],
+      };
+    }
+
+    if (normalized.includes('DELETE FROM features WHERE id = ?')) {
+      return {
+        run: (...args) => {
+          const [id] = args as [string];
+          const before = this.features.length;
+          this.features = this.features.filter((feature) => feature.id !== id);
+
+          const deletedTestIds = this.testCases
+            .filter((testCase) => testCase.feature_id === id)
+            .map((testCase) => testCase.id);
+          this.testCases = this.testCases.filter((testCase) => testCase.feature_id !== id);
+          this.steps = this.steps.filter((step) => !deletedTestIds.includes(step.test_case_id));
+          this.runs = this.runs.filter((run) => !deletedTestIds.includes(run.test_case_id));
+
+          return { changes: before - this.features.length };
+        },
+        get: () => undefined,
+        all: () => [],
+      };
+    }
+
+    if (normalized.includes('FROM features WHERE id = ?')) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [id] = args as [string];
+          return this.features.find((feature) => feature.id === id);
+        },
+        all: () => [],
+      };
+    }
+
+    if (normalized.includes('FROM features WHERE project_id = ?')) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: () => undefined,
+        all: (...args) => {
+          const [projectId] = args as [string];
+          return this.features
+            .filter((feature) => feature.project_id === projectId)
+            .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        },
+      };
+    }
+
+    if (normalized.includes('SELECT id, project_id FROM features WHERE id = ?')) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [id] = args as [string];
+          const feature = this.features.find((row) => row.id === id);
+          if (!feature) {
+            return undefined;
+          }
+
+          return {
+            id: feature.id,
+            project_id: feature.project_id,
+          };
+        },
+        all: () => [],
+      };
+    }
+
     if (normalized.includes('INSERT INTO test_cases')) {
       return {
         run: (...args) => {
           const [testCase] = args as Array<{
             id: string;
             projectId: string;
+            featureId: string;
             title: string;
+            testType?: 'positive' | 'negative' | 'edge';
+            priority?: 'high' | 'medium' | 'low';
+            isAiGenerated?: number | boolean;
             generatedCode?: string;
             customCode?: string | null;
             isCustomized?: number | boolean;
@@ -169,7 +328,11 @@ class FakeDatabase {
           this.testCases.push({
             id: testCase.id,
             project_id: testCase.projectId,
+            feature_id: testCase.featureId,
             title: testCase.title,
+            test_type: testCase.testType ?? 'positive',
+            priority: testCase.priority ?? 'medium',
+            is_ai_generated: Number(testCase.isAiGenerated ?? 0),
             generated_code: testCase.generatedCode ?? '',
             custom_code: testCase.customCode ?? null,
             is_customized: Number(testCase.isCustomized ?? 0),
@@ -189,7 +352,11 @@ class FakeDatabase {
           const [testCase] = args as Array<{
             id: string;
             projectId: string;
+            featureId: string;
             title: string;
+            testType: 'positive' | 'negative' | 'edge';
+            priority: 'high' | 'medium' | 'low';
+            isAiGenerated: number;
             generatedCode: string;
             customCode: string | null;
             isCustomized: number;
@@ -204,7 +371,11 @@ class FakeDatabase {
           this.testCases[index] = {
             ...this.testCases[index],
             project_id: testCase.projectId,
+            feature_id: testCase.featureId,
             title: testCase.title,
+            test_type: testCase.testType,
+            priority: testCase.priority,
+            is_ai_generated: testCase.isAiGenerated,
             generated_code: testCase.generatedCode,
             custom_code: testCase.customCode,
             is_customized: testCase.isCustomized,
@@ -242,6 +413,19 @@ class FakeDatabase {
         },
         get: () => undefined,
         all: () => [],
+      };
+    }
+
+    if (normalized.includes('FROM test_cases WHERE feature_id = ?')) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: () => undefined,
+        all: (...args) => {
+          const [featureId] = args as [string];
+          return this.testCases
+            .filter((testCase) => testCase.feature_id === featureId)
+            .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        },
       };
     }
 
@@ -346,9 +530,7 @@ class FakeDatabase {
       };
     }
 
-    if (
-      normalized.includes('FROM runs WHERE test_case_id = ? AND status = \'running\' LIMIT 1')
-    ) {
+    if (normalized.includes('FROM runs WHERE test_case_id = ? AND status = \'running\' LIMIT 1')) {
       return {
         run: () => ({ changes: 0 }),
         get: (...args) => {
@@ -372,6 +554,28 @@ class FakeDatabase {
           const [projectId] = args as [string];
           const testIds = this.testCases
             .filter((row) => row.project_id === projectId)
+            .map((row) => row.id);
+          const run = this.runs.find(
+            (row) => row.status === 'running' && testIds.includes(row.test_case_id),
+          );
+          return run ? { id: run.id } : undefined;
+        },
+        all: () => [],
+      };
+    }
+
+    if (
+      normalized.includes('FROM runs') &&
+      normalized.includes('test_cases.id = runs.test_case_id') &&
+      normalized.includes('test_cases.feature_id = ?') &&
+      normalized.includes("runs.status = 'running'")
+    ) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [featureId] = args as [string];
+          const testIds = this.testCases
+            .filter((row) => row.feature_id === featureId)
             .map((row) => row.id);
           const run = this.runs.find(
             (row) => row.status === 'running' && testIds.includes(row.test_case_id),
@@ -415,6 +619,7 @@ class FakeDatabase {
   private snapshot(): Snapshot {
     return {
       projects: this.projects.map((row) => ({ ...row })),
+      features: this.features.map((row) => ({ ...row })),
       testCases: this.testCases.map((row) => ({ ...row })),
       steps: this.steps.map((row) => ({ ...row })),
       runs: this.runs.map((row) => ({ ...row })),
@@ -423,6 +628,7 @@ class FakeDatabase {
 
   private restore(snapshot: Snapshot): void {
     this.projects = snapshot.projects;
+    this.features = snapshot.features;
     this.testCases = snapshot.testCases;
     this.steps = snapshot.steps;
     this.runs = snapshot.runs;

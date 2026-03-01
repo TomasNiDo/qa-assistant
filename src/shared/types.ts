@@ -53,6 +53,8 @@ export type StepParseResult =
 
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled';
 export type StepStatus = 'pending' | 'passed' | 'failed' | 'cancelled';
+export type TestType = 'positive' | 'negative' | 'edge';
+export type TestPriority = 'high' | 'medium' | 'low';
 
 export interface Project {
   id: string;
@@ -63,10 +65,25 @@ export interface Project {
   createdAt: string;
 }
 
-export interface TestCase {
+export interface Feature {
   id: string;
   projectId: string;
   title: string;
+  acceptanceCriteria: string;
+  requirements: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TestCase {
+  id: string;
+  projectId: string;
+  featureId: string;
+  title: string;
+  testType: TestType;
+  priority: TestPriority;
+  isAiGenerated: boolean;
   generatedCode: string;
   customCode: string | null;
   isCustomized: boolean;
@@ -172,10 +189,25 @@ export interface UpdateProjectInput extends CreateProjectInput {
   id: string;
 }
 
-export interface CreateTestInput {
+export interface CreateFeatureInput {
   projectId: string;
   title: string;
-  steps: string[];
+  acceptanceCriteria: string;
+  requirements?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateFeatureInput extends CreateFeatureInput {
+  id: string;
+}
+
+export interface CreateTestInput {
+  featureId: string;
+  title: string;
+  testType?: TestType;
+  priority?: TestPriority;
+  isAiGenerated?: boolean;
+  steps?: string[];
   customCode?: string | null;
   isCustomized?: boolean;
 }
@@ -237,7 +269,9 @@ export interface CustomCodeSyntaxValidationResult {
 
 export interface SampleSeedResult {
   project: Project;
+  feature: Feature;
   testCase: TestCase;
   createdProject: boolean;
+  createdFeature: boolean;
   createdTestCase: boolean;
 }

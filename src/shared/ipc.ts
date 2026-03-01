@@ -3,12 +3,14 @@ import type {
   AppConfig,
   BrowserInstallUpdate,
   BrowserInstallState,
+  CreateFeatureInput,
   CustomCodeSyntaxValidationResult,
   ActiveRunContext,
   CreateProjectInput,
   CreateTestInput,
   GenerateBugReportInput,
   GenerateStepsInput,
+  Feature,
   GeneratedBugReport,
   GeneratedStep,
   Project,
@@ -21,6 +23,7 @@ import type {
   StepResult,
   TestCase,
   UpdateProjectInput,
+  UpdateFeatureInput,
   UpdateTestInput,
   UpdateStatusEvent,
 } from './types';
@@ -35,10 +38,14 @@ export const IPC_CHANNELS = {
   projectUpdate: 'project.update',
   projectDelete: 'project.delete',
   projectList: 'project.list',
+  featureCreate: 'feature.create',
+  featureUpdate: 'feature.update',
+  featureDelete: 'feature.delete',
+  featureList: 'feature.list',
   testCreate: 'test.create',
   testUpdate: 'test.update',
   testDelete: 'test.delete',
-  testList: 'test.list',
+  testListByFeature: 'test.listByFeature',
   stepList: 'step.list',
   stepParse: 'step.parse',
   testValidateCustomCodeSyntax: 'test.validateCustomCodeSyntax',
@@ -72,11 +79,15 @@ export interface QaAssistantApi {
   projectUpdate: (input: UpdateProjectInput) => Promise<ApiResult<Project>>;
   projectDelete: (id: string) => Promise<ApiResult<boolean>>;
   projectList: () => Promise<ApiResult<Project[]>>;
+  featureCreate: (input: CreateFeatureInput) => Promise<ApiResult<Feature>>;
+  featureUpdate: (input: UpdateFeatureInput) => Promise<ApiResult<Feature>>;
+  featureDelete: (id: string) => Promise<ApiResult<boolean>>;
+  featureList: (projectId: string) => Promise<ApiResult<Feature[]>>;
 
   testCreate: (input: CreateTestInput) => Promise<ApiResult<TestCase>>;
   testUpdate: (input: UpdateTestInput) => Promise<ApiResult<TestCase>>;
   testDelete: (id: string) => Promise<ApiResult<boolean>>;
-  testList: (projectId: string) => Promise<ApiResult<TestCase[]>>;
+  testListByFeature: (featureId: string) => Promise<ApiResult<TestCase[]>>;
   stepList: (testCaseId: string) => Promise<ApiResult<Step[]>>;
   stepParse: (rawText: string) => Promise<ApiResult<StepParseResult>>;
   testValidateCustomCodeSyntax: (

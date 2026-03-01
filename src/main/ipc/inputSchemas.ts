@@ -19,6 +19,15 @@ const projectInputShape = {
   envLabel: z.string().trim().optional(),
   metadata: metadataSchema.optional(),
 };
+const featureInputShape = {
+  projectId: idSchema,
+  title: nonEmptyTrimmedString('Feature title is required.'),
+  acceptanceCriteria: nonEmptyTrimmedString('Acceptance criteria is required.'),
+  requirements: z.string().trim().optional().nullable(),
+  notes: z.string().trim().optional().nullable(),
+};
+const testTypeSchema = z.enum(['positive', 'negative', 'edge']);
+const testPrioritySchema = z.enum(['high', 'medium', 'low']);
 
 function normalizeProjectInput<T extends { envLabel?: string }>(input: T): T & { envLabel: string } {
   return {
@@ -50,14 +59,24 @@ export const projectUpdateInputSchema = z
   .transform((input) => normalizeProjectInput(input));
 
 export const projectDeleteIdSchema = idSchema;
+export const featureCreateInputSchema = z.object(featureInputShape).strict();
+export const featureUpdateInputSchema = z
+  .object({
+    id: idSchema,
+    ...featureInputShape,
+  })
+  .strict();
+export const featureDeleteIdSchema = idSchema;
+export const featureListProjectIdSchema = idSchema;
 
 export const testCreateInputSchema = z
   .object({
-    projectId: idSchema,
+    featureId: idSchema,
     title: nonEmptyTrimmedString('Test title is required.'),
-    steps: z
-      .array(nonEmptyTrimmedString('Step cannot be empty.'))
-      .min(1, 'At least one step is required.'),
+    testType: testTypeSchema.optional(),
+    priority: testPrioritySchema.optional(),
+    isAiGenerated: z.boolean().optional(),
+    steps: z.array(nonEmptyTrimmedString('Step cannot be empty.')).optional(),
     customCode: z.string().optional().nullable(),
     isCustomized: z.boolean().optional(),
   })
@@ -66,18 +85,19 @@ export const testCreateInputSchema = z
 export const testUpdateInputSchema = z
   .object({
     id: idSchema,
-    projectId: idSchema,
+    featureId: idSchema,
     title: nonEmptyTrimmedString('Test title is required.'),
-    steps: z
-      .array(nonEmptyTrimmedString('Step cannot be empty.'))
-      .min(1, 'At least one step is required.'),
+    testType: testTypeSchema.optional(),
+    priority: testPrioritySchema.optional(),
+    isAiGenerated: z.boolean().optional(),
+    steps: z.array(nonEmptyTrimmedString('Step cannot be empty.')).optional(),
     customCode: z.string().optional().nullable(),
     isCustomized: z.boolean().optional(),
   })
   .strict();
 
 export const testDeleteIdSchema = idSchema;
-export const testListProjectIdSchema = idSchema;
+export const testListFeatureIdSchema = idSchema;
 export const stepListTestCaseIdSchema = idSchema;
 export const stepParseRawTextSchema = z.string().trim();
 export const testValidateCustomCodeSyntaxSchema = z.string();

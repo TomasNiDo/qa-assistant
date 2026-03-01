@@ -37,10 +37,14 @@ function createServicesMock() {
     createdAt: '2025-01-01T00:00:00.000Z',
   }));
 
-  const testCreate = vi.fn((input: { title: string; steps: string[]; projectId: string }) => ({
+  const testCreate = vi.fn((input: { title: string; steps?: string[]; featureId: string }) => ({
     id: 'test-1',
-    projectId: input.projectId,
+    projectId: 'project-1',
+    featureId: input.featureId,
     title: input.title,
+    testType: 'positive',
+    priority: 'medium',
+    isAiGenerated: false,
     generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
     customCode: null,
     isCustomized: false,
@@ -95,14 +99,29 @@ function createServicesMock() {
         testCase: {
           id: 'test-seed-1',
           projectId: 'project-seed-1',
+          featureId: 'feature-seed-1',
           title: 'Sample login flow',
+          testType: 'positive',
+          priority: 'high',
+          isAiGenerated: false,
           generatedCode: 'await page.getByRole("button", { name: "Sign in" }).first().click();',
           customCode: null,
           isCustomized: false,
           createdAt: '2025-01-01T00:00:00.000Z',
           updatedAt: '2025-01-01T00:00:00.000Z',
         },
+        feature: {
+          id: 'feature-seed-1',
+          projectId: 'project-seed-1',
+          title: 'Sample Login Feature',
+          acceptanceCriteria: 'Login works',
+          requirements: null,
+          notes: null,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
         createdProject: true,
+        createdFeature: true,
         createdTestCase: true,
       })),
     },
@@ -120,12 +139,41 @@ function createServicesMock() {
       list: vi.fn(() => []),
       getById: vi.fn(() => null),
     },
-    testCaseService: {
-      create: testCreate,
+    featureService: {
+      create: vi.fn((input) => ({
+        id: 'feature-1',
+        projectId: input.projectId,
+        title: input.title,
+        acceptanceCriteria: input.acceptanceCriteria,
+        requirements: input.requirements ?? null,
+        notes: input.notes ?? null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      })),
       update: vi.fn((input) => ({
         id: input.id,
         projectId: input.projectId,
         title: input.title,
+        acceptanceCriteria: input.acceptanceCriteria,
+        requirements: input.requirements ?? null,
+        notes: input.notes ?? null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      })),
+      delete: vi.fn(() => true),
+      list: vi.fn(() => []),
+      getById: vi.fn(() => null),
+    },
+    testCaseService: {
+      create: testCreate,
+      update: vi.fn((input) => ({
+        id: input.id,
+        projectId: 'project-1',
+        featureId: input.featureId,
+        title: input.title,
+        testType: input.testType ?? 'positive',
+        priority: input.priority ?? 'medium',
+        isAiGenerated: Boolean(input.isAiGenerated),
         generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
         customCode: input.customCode ?? null,
         isCustomized: Boolean(input.isCustomized),
@@ -133,7 +181,8 @@ function createServicesMock() {
         updatedAt: '2025-01-01T00:00:00.000Z',
       })),
       delete: vi.fn(() => true),
-      list: vi.fn(() => []),
+      listByFeature: vi.fn(() => []),
+      listByProject: vi.fn(() => []),
       listSteps: vi.fn(() => []),
       getById: vi.fn(() => null),
       validateCustomCodeSyntax,
@@ -252,7 +301,7 @@ describe('registerHandlers IPC input validation', () => {
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: '   ',
       steps: ['Click "Continue"'],
     });
@@ -264,21 +313,25 @@ describe('registerHandlers IPC input validation', () => {
     expect(spies.testCreate).not.toHaveBeenCalled();
   });
 
-  it('rejects empty step lists', async () => {
+  it('accepts empty step lists in planning mode', async () => {
     const { services, spies } = createServicesMock();
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: 'Checkout flow',
       steps: [],
     });
 
     expect(result).toEqual({
-      ok: false,
-      error: { message: expect.stringContaining('Invalid test.create payload: At least one step is required.') },
+      ok: true,
+      data: expect.any(Object),
     });
-    expect(spies.testCreate).not.toHaveBeenCalled();
+    expect(spies.testCreate).toHaveBeenCalledWith({
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      steps: [],
+    });
   });
 
   it('rejects step entries that become empty after trimming', async () => {
@@ -286,7 +339,7 @@ describe('registerHandlers IPC input validation', () => {
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: 'Checkout flow',
       steps: ['   ', 'Click "Continue"'],
     });

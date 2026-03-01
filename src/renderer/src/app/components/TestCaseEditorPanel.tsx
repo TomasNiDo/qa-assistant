@@ -1,142 +1,42 @@
-﻿import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import type { BrowserName, StepParseWarning } from '@shared/types';
-import Editor from 'react-simple-code-editor';
-import Prism from 'prismjs';
-import 'prismjs/components/prism-clike';
-import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-typescript';
-import { highlightStepsInput } from '../stepsHighlight';
+import type { Dispatch, SetStateAction } from 'react';
 import type { TestFormState } from '../types';
-import { dangerButtonClass, fieldClass, mutedButtonClass, panelClass, primaryButtonClass, subtleButtonClass } from '../uiClasses';
+import {
+  dangerButtonClass,
+  fieldClass,
+  panelClass,
+  primaryButtonClass,
+  subtleButtonClass,
+} from '../uiClasses';
 
 interface TestCaseEditorPanelProps {
   testCasePanelTitle: string;
   testCasePanelDescription: string;
-  hasAtLeastOneTestCase: boolean;
   testForm: TestFormState;
   setTestForm: Dispatch<SetStateAction<TestFormState>>;
   testTitleError: string | null;
-  customCodeError: string | null;
-  testStepsErrors: Array<string | null>;
-  stepParseWarnings: StepParseWarning[][];
-  ambiguousStepWarningCount: number;
-  isGeneratingSteps: boolean;
   hasSelectedTest: boolean;
   isSelectedTestDeleteBlocked: boolean;
-  effectiveCode: string;
-  isCodeModified: boolean;
-  browser: BrowserName;
-  setBrowser: (browser: BrowserName) => void;
+  selectedTestHasSteps: boolean;
   canStartRun: boolean;
-  setEditorView: (view: TestFormState['activeView']) => void;
-  onEnableCodeEditing: () => void;
-  onCodeChange: (nextCode: string) => void;
-  onRestoreGeneratedCode: () => void;
   onBeginCreateTest: () => void;
-  onGenerateSteps: () => void;
   onDeleteSelectedTest: () => void;
   onStartRun: () => void;
-}
-
-function highlightPlaywrightCode(code: string): string {
-  const language = Prism.languages.typescript ?? Prism.languages.javascript;
-  return Prism.highlight(code, language, 'typescript');
-}
-
-function bindEditorScrollSync(
-  hostElement: HTMLElement | null,
-  textareaSelector: string,
-  preSelector: string,
-): (() => void) | undefined {
-  if (!hostElement) {
-    return undefined;
-  }
-
-  const textarea = hostElement.querySelector<HTMLTextAreaElement>(textareaSelector);
-  const pre = hostElement.querySelector<HTMLElement>(preSelector);
-  if (!textarea || !pre) {
-    return undefined;
-  }
-
-  const syncScroll = (): void => {
-    pre.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
-  };
-
-  syncScroll();
-  textarea.addEventListener('scroll', syncScroll, { passive: true });
-  return () => {
-    textarea.removeEventListener('scroll', syncScroll);
-    pre.style.transform = '';
-  };
 }
 
 export function TestCaseEditorPanel({
   testCasePanelTitle,
   testCasePanelDescription,
-  hasAtLeastOneTestCase,
   testForm,
   setTestForm,
   testTitleError,
-  customCodeError,
-  testStepsErrors,
-  stepParseWarnings,
-  ambiguousStepWarningCount,
-  isGeneratingSteps,
   hasSelectedTest,
   isSelectedTestDeleteBlocked,
-  effectiveCode,
-  isCodeModified,
-  browser,
-  setBrowser,
+  selectedTestHasSteps,
   canStartRun,
-  setEditorView,
-  onEnableCodeEditing,
-  onCodeChange,
-  onRestoreGeneratedCode,
   onBeginCreateTest,
-  onGenerateSteps,
   onDeleteSelectedTest,
   onStartRun,
 }: TestCaseEditorPanelProps): JSX.Element {
-  const isStepsView = testForm.activeView === 'steps';
-  const stepsEditorHostRef = useRef<HTMLDivElement | null>(null);
-  const codeEditorHostRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(
-    () => bindEditorScrollSync(stepsEditorHostRef.current, '.qa-steps-editor__textarea', '.qa-steps-editor__pre'),
-    [isStepsView, testForm.stepsText],
-  );
-
-  useEffect(
-    () => bindEditorScrollSync(codeEditorHostRef.current, '.qa-code-editor__textarea', '.qa-code-editor__pre'),
-    [isStepsView, effectiveCode],
-  );
-
-  const viewToggle = (
-    <div className="inline-flex items-center rounded-full bg-[#101924]/65 p-1">
-      <button
-        type="button"
-        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-          isStepsView ? 'bg-[#1b324e] text-[#dbeafe]' : 'text-[#9eb1ca]'
-        }`}
-        onClick={() => setEditorView('steps')}
-        aria-pressed={isStepsView}
-      >
-        Steps
-      </button>
-      <button
-        type="button"
-        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-          !isStepsView ? 'bg-[#2a5697] text-[#edf5ff]' : 'text-[#9eb1ca]'
-        }`}
-        onClick={() => setEditorView('code')}
-        aria-pressed={!isStepsView}
-      >
-        Playwright Code
-      </button>
-    </div>
-  );
-
   return (
     <section className={`${panelClass} space-y-4 bg-[#0f141d]/60`}>
       <div>
@@ -144,153 +44,84 @@ export function TestCaseEditorPanel({
         <p className="text-[11px] text-[#9fb1c9]">{testCasePanelDescription}</p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+      <div className="grid gap-3 md:grid-cols-2">
         <label className="block text-xs font-semibold text-[#b3c5dd]">
-          <span className="mb-3 block">Test Case Title</span>
+          <span className="mb-2 block">Test Case Title</span>
           <input
             className={fieldClass}
             value={testForm.title}
-            onChange={(event) => setTestForm((previous) => ({ ...previous, title: event.target.value }))}
+            onChange={(event) =>
+              setTestForm((previous) => ({ ...previous, title: event.target.value }))
+            }
             placeholder="Checkout applies promo and captures payment"
           />
-          {testTitleError ? <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span> : null}
+          {testTitleError ? (
+            <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span>
+          ) : null}
         </label>
 
         <label className="block text-xs font-semibold text-[#b3c5dd]">
-          <span className="mb-3 block">Browser</span>
+          <span className="mb-2 block">Test Type</span>
           <select
             className={fieldClass}
-            value={browser}
-            onChange={(event) => setBrowser(event.target.value as BrowserName)}
+            value={testForm.testType}
+            onChange={(event) =>
+              setTestForm((previous) => ({
+                ...previous,
+                testType: event.target.value as TestFormState['testType'],
+              }))
+            }
           >
-            <option value="chromium">Chromium</option>
-            <option value="firefox">Firefox</option>
-            <option value="webkit">WebKit</option>
+            <option value="positive">Positive</option>
+            <option value="negative">Negative</option>
+            <option value="edge">Edge</option>
           </select>
+        </label>
+
+        <label className="block text-xs font-semibold text-[#b3c5dd]">
+          <span className="mb-2 block">Priority</span>
+          <select
+            className={fieldClass}
+            value={testForm.priority}
+            onChange={(event) =>
+              setTestForm((previous) => ({
+                ...previous,
+                priority: event.target.value as TestFormState['priority'],
+              }))
+            }
+          >
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 rounded-xl bg-[#0d1320]/75 px-3 py-2 text-xs font-semibold text-[#b3c5dd]">
+          <input
+            type="checkbox"
+            checked={testForm.isAiGenerated}
+            onChange={(event) =>
+              setTestForm((previous) => ({
+                ...previous,
+                isAiGenerated: event.target.checked,
+              }))
+            }
+          />
+          AI-generated test idea
         </label>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold text-[#aec0d8]">Execution Input</p>
-          <div className="flex items-center gap-2">
-            {ambiguousStepWarningCount > 0 ? (
-              <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                Ambiguous Steps: {ambiguousStepWarningCount}
-              </span>
-            ) : null}
-            {viewToggle}
-          </div>
-        </div>
-
-        {isStepsView ? (
-          <>
-            <div ref={stepsEditorHostRef}>
-              <Editor
-                value={testForm.stepsText}
-                onValueChange={(nextValue) => setTestForm((previous) => ({ ...previous, stepsText: nextValue }))}
-                highlight={highlightStepsInput}
-                padding={12}
-                className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
-                textareaClassName="qa-steps-editor__textarea"
-                preClassName="qa-steps-editor__pre"
-                placeholder={'1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'}
-                aria-label="Test Steps"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                }}
-              />
-            </div>
-            {testForm.isCustomized ? (
-              <p className="rounded-md border border-warning/35 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
-                This test has custom code. Step edits will not auto-sync.
-              </p>
-            ) : null}
-            {testStepsErrors.some(Boolean) || stepParseWarnings.some((warnings) => warnings.length > 0) ? (
-              <div className="space-y-1.5 rounded-md border border-[#223244] bg-[#0f1722]/65 px-2.5 py-2">
-                {testStepsErrors.map((error, index) => {
-                  const warnings = stepParseWarnings[index] ?? [];
-                  if (!error && warnings.length === 0) {
-                    return null;
-                  }
-
-                  return (
-                    <div key={`step-issue-${index}`} className="space-y-1 text-[11px]">
-                      {error ? (
-                        <p className="text-danger">Line {index + 1}: {error}</p>
-                      ) : null}
-                      {warnings.map((warning, warningIndex) => (
-                        <p key={`step-warning-${index}-${warningIndex}`} className="text-warning">
-                          Line {index + 1}: {warning.message} Suggested: <code>{warning.suggestedStep}</code>
-                        </p>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {isCodeModified ? (
-              <span className="inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                Modified
-              </span>
-            ) : null}
-
-            <div className="space-y-2">
-              <div ref={codeEditorHostRef}>
-                <Editor
-                  value={effectiveCode}
-                  onValueChange={onCodeChange}
-                  highlight={highlightPlaywrightCode}
-                  padding={12}
-                  className="qa-code-editor h-80 rounded-xl bg-[#0d1320]/75"
-                  textareaClassName="qa-code-editor__textarea"
-                  preClassName="qa-code-editor__pre"
-                  placeholder="Generated Playwright code will appear here."
-                  readOnly={!testForm.isCodeEditingEnabled}
-                  aria-label="Playwright Code"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                  }}
-                />
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="mr-auto text-[11px] text-[#7f95b1]">
-                  {testForm.isCodeEditingEnabled
-                    ? 'Code edits are enabled. The next run uses this custom code once auto-saved.'
-                    : 'Code is read-only while Guided mode is enabled.'}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className={subtleButtonClass}
-                    onClick={onEnableCodeEditing}
-                    disabled={testForm.isCodeEditingEnabled}
-                  >
-                    {testForm.isCodeEditingEnabled ? 'Editing Enabled' : 'Enable Editing'}
-                  </button>
-                  <button
-                    type="button"
-                    className={subtleButtonClass}
-                    onClick={onRestoreGeneratedCode}
-                    disabled={!testForm.isCustomized}
-                  >
-                    Restore Auto-Generated
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+      <div className="rounded-xl border border-[#23344a]/70 bg-[#101826]/75 px-3 py-2 text-[11px] text-[#9fb1c9]">
+        <p className="font-semibold text-[#c6d5e9]">Planning mode</p>
+        <p className="mt-1">
+          Feature planning is active. Step authoring is deferred to a later phase.
+        </p>
+        <p className="mt-1">
+          {selectedTestHasSteps
+            ? 'This selected test case already has execution steps and can be run.'
+            : 'This selected test case has no execution steps yet.'}
+        </p>
       </div>
-
-      {customCodeError ? <p className="text-[11px] text-danger">{customCodeError}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <button
@@ -307,18 +138,9 @@ export function TestCaseEditorPanel({
           </button>
           <button
             type="button"
-            className={mutedButtonClass}
-            onClick={onGenerateSteps}
-            disabled={isGeneratingSteps}
-            aria-busy={isGeneratingSteps}
-          >
-            {isGeneratingSteps ? 'Generating...' : 'Generate Steps (AI)'}
-          </button>
-          <button
-            type="button"
             className={primaryButtonClass}
             onClick={onStartRun}
-            disabled={!canStartRun || !hasAtLeastOneTestCase}
+            disabled={!canStartRun}
           >
             Start Run
           </button>
