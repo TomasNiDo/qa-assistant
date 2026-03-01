@@ -7111,349 +7111,365 @@
           "children": [
             {
               "type": "frame",
-              "id": "UYP0F",
-              "name": "New Project Button",
+              "id": "v9aRw",
+              "name": "Sidebar Main",
               "width": "fill_container",
-              "gap": 8,
-              "padding": [
-                8,
-                0
-              ],
-              "alignItems": "center",
-              "children": [
-                {
-                  "type": "icon_font",
-                  "id": "d91uF",
-                  "name": "edNewProjIcon",
-                  "width": 14,
-                  "height": 14,
-                  "iconFontName": "square-pen",
-                  "iconFontFamily": "lucide",
-                  "fill": "#A3A3A3"
-                },
-                {
-                  "type": "text",
-                  "id": "fRCBS",
-                  "name": "edNewProjText",
-                  "fill": "#A3A3A3",
-                  "content": "New project",
-                  "fontFamily": "JetBrains Mono",
-                  "fontSize": 13
-                }
-              ]
-            },
-            {
-              "type": "text",
-              "id": "p5oFZ",
-              "name": "edProjectsLabel",
-              "fill": "#737373",
-              "content": "projects",
-              "fontFamily": "JetBrains Mono",
-              "fontSize": 11,
-              "fontWeight": "500"
-            },
-            {
-              "type": "frame",
-              "id": "dBeZL",
-              "name": "Projects List",
-              "width": "fill_container",
+              "height": "fill_container",
               "layout": "vertical",
-              "gap": 4,
+              "gap": 20,
               "children": [
                 {
                   "type": "frame",
-                  "id": "5EZMB",
-                  "name": "Project Item Active",
+                  "id": "eUUe3",
+                  "name": "New Project Button",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    8,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "ydZPl",
+                      "name": "newProjIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "square-pen",
+                      "iconFontFamily": "lucide",
+                      "fill": "#A3A3A3"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CIIR0",
+                      "name": "newProjText",
+                      "fill": "#A3A3A3",
+                      "content": "New project",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "wilyE",
+                  "name": "projectsLabel",
+                  "fill": "#737373",
+                  "content": "Projects",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "qtTWx",
+                  "name": "Projects List",
                   "width": "fill_container",
                   "layout": "vertical",
                   "gap": 4,
                   "children": [
                     {
                       "type": "frame",
-                      "id": "EnZaF",
-                      "name": "edProj1Header",
+                      "id": "TyJZw",
+                      "name": "Project Item Active",
                       "width": "fill_container",
-                      "fill": "#1A1A1A",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "XS5rs",
+                          "name": "proj1Header",
+                          "width": "fill_container",
+                          "fill": "#1A1A1A",
+                          "cornerRadius": 4,
+                          "gap": 8,
+                          "padding": [
+                            8,
+                            10
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "fZugb",
+                              "name": "proj1Left",
+                              "gap": 8,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "GmH8H",
+                                  "name": "proj1Icon",
+                                  "width": 20,
+                                  "height": 20,
+                                  "fill": "#22C55E",
+                                  "cornerRadius": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "w3hUm",
+                                      "name": "proj1Dot",
+                                      "fill": "#0C0C0C",
+                                      "width": 6,
+                                      "height": 6
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "9SZ71",
+                                  "name": "proj1Name",
+                                  "fill": "#E5E5E5",
+                                  "content": "E-Commerce Platform",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 13,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "WNeOx",
+                              "name": "proj1Add",
+                              "width": 14,
+                              "height": 14,
+                              "iconFontName": "plus",
+                              "iconFontFamily": "lucide",
+                              "fill": "#525252"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Z2vl5",
+                          "name": "Project Features",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "HHqIk",
+                              "name": "Feature Active",
+                              "width": "fill_container",
+                              "fill": "#171717",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "sQVqR",
+                                  "name": "feat1Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder-open",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#22C55E"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "bcWW2",
+                                  "name": "feat1Name",
+                                  "fill": "#E5E5E5",
+                                  "content": "User Authentication",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "c68i0",
+                              "name": "Feature Collapsed",
+                              "width": "fill_container",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "zG3po",
+                                  "name": "feat2Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#525252"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "NnDxq",
+                                  "name": "feat2Name",
+                                  "fill": "#737373",
+                                  "content": "Shopping Cart",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "MGoWF",
+                              "name": "Feature Collapsed",
+                              "width": "fill_container",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "eah7a",
+                                  "name": "feat3Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#525252"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "XJxko",
+                                  "name": "feat3Name",
+                                  "fill": "#737373",
+                                  "content": "Payment Processing",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Xp0GA",
+                      "name": "Project Item Collapsed",
+                      "width": "fill_container",
                       "cornerRadius": 4,
                       "gap": 8,
                       "padding": [
                         8,
                         10
                       ],
-                      "justifyContent": "space_between",
                       "alignItems": "center",
                       "children": [
                         {
                           "type": "frame",
-                          "id": "oAV6B",
-                          "name": "edProjLeftGroup",
-                          "gap": 8,
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "frame",
-                              "id": "w1AI2",
-                              "name": "edProj1Icon",
-                              "width": 20,
-                              "height": 20,
-                              "fill": "#22C55E",
-                              "cornerRadius": 4,
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "ellipse",
-                                  "id": "McpL9",
-                                  "name": "proj1Dot",
-                                  "fill": "#0C0C0C",
-                                  "width": 6,
-                                  "height": 6
-                                }
-                              ]
-                            },
-                            {
-                              "type": "text",
-                              "id": "uwczN",
-                              "name": "edProj1Name",
-                              "fill": "#E5E5E5",
-                              "content": "Acme Checkout",
-                              "fontFamily": "JetBrains Mono",
-                              "fontSize": 13,
-                              "fontWeight": "500"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "icon_font",
-                          "id": "N0u3E",
-                          "name": "edAddFeatIcon",
-                          "width": 14,
-                          "height": 14,
-                          "iconFontName": "plus",
-                          "iconFontFamily": "lucide",
-                          "fill": "#525252"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "RA89J",
-                      "name": "Project Features",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 2,
-                      "padding": [
-                        0,
-                        0,
-                        0,
-                        16
-                      ],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "kB7Ge",
-                          "name": "Feature Active",
-                          "width": "fill_container",
+                          "id": "bv1QW",
+                          "name": "proj2Icon",
+                          "width": 20,
+                          "height": 20,
                           "fill": "#171717",
                           "cornerRadius": 4,
-                          "gap": 8,
-                          "padding": [
-                            6,
-                            10
-                          ],
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#252525"
+                          },
+                          "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "icon_font",
-                              "id": "mIbVb",
-                              "name": "edFeat1Icon",
-                              "width": 12,
-                              "height": 12,
-                              "iconFontName": "folder-open",
-                              "iconFontFamily": "lucide",
-                              "fill": "#22C55E"
-                            },
-                            {
-                              "type": "text",
-                              "id": "bY0Tv",
-                              "name": "edFeat1Name",
-                              "fill": "#E5E5E5",
-                              "content": "User Authentication",
-                              "fontFamily": "JetBrains Mono",
-                              "fontSize": 12,
-                              "fontWeight": "500"
+                              "type": "ellipse",
+                              "id": "Q0a6m",
+                              "name": "proj2Dot",
+                              "fill": "#525252",
+                              "width": 6,
+                              "height": 6
                             }
                           ]
                         },
                         {
+                          "type": "text",
+                          "id": "KZahD",
+                          "name": "proj2Name",
+                          "fill": "#737373",
+                          "content": "Internal Dashboard",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "1sOMA",
+                      "name": "Project Item Collapsed",
+                      "width": "fill_container",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
                           "type": "frame",
-                          "id": "iruiN",
-                          "name": "Feature Collapsed",
-                          "width": "fill_container",
+                          "id": "Ei8sr",
+                          "name": "proj3Icon",
+                          "width": 20,
+                          "height": 20,
+                          "fill": "#171717",
                           "cornerRadius": 4,
-                          "gap": 8,
-                          "padding": [
-                            6,
-                            10
-                          ],
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#252525"
+                          },
+                          "justifyContent": "center",
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "icon_font",
-                              "id": "eJeip",
-                              "name": "edFeat2Icon",
-                              "width": 12,
-                              "height": 12,
-                              "iconFontName": "folder",
-                              "iconFontFamily": "lucide",
-                              "fill": "#525252"
-                            },
-                            {
-                              "type": "text",
-                              "id": "h73EQ",
-                              "name": "edFeat2Name",
-                              "fill": "#737373",
-                              "content": "Cart Management",
-                              "fontFamily": "JetBrains Mono",
-                              "fontSize": 12
+                              "type": "ellipse",
+                              "id": "PT8Xf",
+                              "name": "proj3Dot",
+                              "fill": "#525252",
+                              "width": 6,
+                              "height": 6
                             }
                           ]
                         },
                         {
-                          "type": "frame",
-                          "id": "woNhD",
-                          "name": "Feature Collapsed",
-                          "width": "fill_container",
-                          "cornerRadius": 4,
-                          "gap": 8,
-                          "padding": [
-                            6,
-                            10
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "icon_font",
-                              "id": "EKTeq",
-                              "name": "edFeat3Icon",
-                              "width": 12,
-                              "height": 12,
-                              "iconFontName": "folder",
-                              "iconFontFamily": "lucide",
-                              "fill": "#525252"
-                            },
-                            {
-                              "type": "text",
-                              "id": "DCRIi",
-                              "name": "edFeat3Name",
-                              "fill": "#737373",
-                              "content": "Checkout Flow",
-                              "fontFamily": "JetBrains Mono",
-                              "fontSize": 12
-                            }
-                          ]
+                          "type": "text",
+                          "id": "gE5QH",
+                          "name": "proj3Name",
+                          "fill": "#737373",
+                          "content": "Mobile App QA",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "KZgVA",
-                  "name": "Project Item Collapsed",
-                  "width": "fill_container",
-                  "cornerRadius": 4,
-                  "gap": 8,
-                  "padding": [
-                    8,
-                    10
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "c0mjk",
-                      "name": "edProj2Icon",
-                      "width": 20,
-                      "height": 20,
-                      "fill": "#171717",
-                      "cornerRadius": 4,
-                      "stroke": {
-                        "align": "inside",
-                        "thickness": 1,
-                        "fill": "#252525"
-                      },
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "ellipse",
-                          "id": "1ttUh",
-                          "name": "proj2Dot",
-                          "fill": "#525252",
-                          "width": 6,
-                          "height": 6
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "krfZC",
-                      "name": "edProj2Name",
-                      "fill": "#737373",
-                      "content": "Internal Dashboard",
-                      "fontFamily": "JetBrains Mono",
-                      "fontSize": 13
-                    }
-                  ]
-                },
-                {
-                  "type": "frame",
-                  "id": "QGHnn",
-                  "name": "Project Item Collapsed",
-                  "width": "fill_container",
-                  "cornerRadius": 4,
-                  "gap": 8,
-                  "padding": [
-                    8,
-                    10
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "MPs4H",
-                      "name": "edProj3Icon",
-                      "width": 20,
-                      "height": 20,
-                      "fill": "#171717",
-                      "cornerRadius": 4,
-                      "stroke": {
-                        "align": "inside",
-                        "thickness": 1,
-                        "fill": "#252525"
-                      },
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "ellipse",
-                          "id": "JyKfc",
-                          "name": "proj3Dot",
-                          "fill": "#525252",
-                          "width": 6,
-                          "height": 6
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "inYuS",
-                      "name": "edProj3Name",
-                      "fill": "#737373",
-                      "content": "Mobile App QA",
-                      "fontFamily": "JetBrains Mono",
-                      "fontSize": 13
                     }
                   ]
                 }
@@ -14839,9 +14855,9 @@
                                   "type": "icon_font",
                                   "id": "OhWYo",
                                   "name": "feat1Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder-open",
                                   "iconFontFamily": "lucide",
                                   "fill": "#22C55E"
                                 },
@@ -14853,7 +14869,7 @@
                                   "content": "User Authentication",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontWeight": "500"
                                 }
                               ]
                             },
@@ -14874,9 +14890,9 @@
                                   "type": "icon_font",
                                   "id": "09eES",
                                   "name": "feat2Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
                                   "fill": "#525252"
                                 },
@@ -14909,9 +14925,9 @@
                                   "type": "icon_font",
                                   "id": "vQUEw",
                                   "name": "feat3Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
                                   "fill": "#525252"
                                 },
@@ -17404,7 +17420,7 @@
                   "id": "jvUQ1",
                   "name": "edProjectsLabel",
                   "fill": "#737373",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -19723,7 +19739,7 @@
                   "id": "Ds1m8",
                   "name": "edProjectsLabel",
                   "fill": "#737373",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -22196,7 +22212,7 @@
                   "id": "ZkViA",
                   "name": "edProjectsLabel",
                   "fill": "#737373",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -29693,9 +29709,9 @@
                                   "type": "icon_font",
                                   "id": "sQFST",
                                   "name": "feat1Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder-open",
                                   "iconFontFamily": "lucide",
                                   "fill": "#22C55E"
                                 },
@@ -29707,7 +29723,7 @@
                                   "content": "User Authentication",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
-                                  "fontWeight": "normal"
+                                  "fontWeight": "500"
                                 }
                               ]
                             },
@@ -29728,9 +29744,9 @@
                                   "type": "icon_font",
                                   "id": "vdaJv",
                                   "name": "feat2Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
                                   "fill": "#9CA3AF"
                                 },
@@ -29763,9 +29779,9 @@
                                   "type": "icon_font",
                                   "id": "tuYmu",
                                   "name": "feat3Icon",
-                                  "width": 14,
-                                  "height": 14,
-                                  "iconFontName": "file-text",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
                                   "fill": "#9CA3AF"
                                 },
@@ -32259,7 +32275,7 @@
                   "id": "NUHxq",
                   "name": "edProjectsLabel",
                   "fill": "#6B7280",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -34579,7 +34595,7 @@
                   "id": "AvEmh",
                   "name": "edProjectsLabel",
                   "fill": "#6B7280",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -37053,7 +37069,7 @@
                   "id": "zTTjO",
                   "name": "edProjectsLabel",
                   "fill": "#6b7280",
-                  "content": "projects",
+                  "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
                   "fontWeight": "500"
@@ -39668,7 +39684,7 @@
                           "type": "text",
                           "id": "qFgLX",
                           "name": "sumLabel",
-                          "fill": "#374151",
+                          "fill": "#16A34A",
                           "content": "Summary",
                           "fontFamily": "JetBrains Mono",
                           "fontSize": 11,
@@ -39721,12 +39737,12 @@
                       "id": "NIwjl",
                       "name": "summaryCard",
                       "width": "fill_container",
-                      "fill": "#f9fafb",
+                      "fill": "#22C55E08",
                       "cornerRadius": 8,
                       "stroke": {
                         "align": "inside",
                         "thickness": 1,
-                        "fill": "#e2e8f0"
+                        "fill": "#22C55E20"
                       },
                       "layout": "vertical",
                       "gap": 10,
@@ -39762,7 +39778,7 @@
                           "type": "rectangle",
                           "id": "3IC74",
                           "name": "divider",
-                          "fill": "#e2e8f0",
+                          "fill": "#22C55E15",
                           "width": "fill_container",
                           "height": 1
                         },
@@ -40965,6 +40981,435 @@
       "fontFamily": "Inter",
       "fontSize": 50,
       "fontWeight": "normal"
+    },
+    {
+      "type": "frame",
+      "id": "10cZ7",
+      "x": -345,
+      "y": 2500,
+      "name": "Approved Sidebar Design - Light",
+      "width": 280,
+      "height": 900,
+      "fill": "#f8fafc",
+      "stroke": {
+        "align": "inside",
+        "thickness": 2,
+        "fill": "#22c55e"
+      },
+      "layout": "vertical",
+      "gap": 20,
+      "padding": [
+        20,
+        16
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "EkHEx",
+          "name": "Projects Section",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "frame",
+              "id": "vkkT1",
+              "name": "Sidebar Main",
+              "width": "fill_container",
+              "height": "fill_container",
+              "layout": "vertical",
+              "gap": 20,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XRCDH",
+                  "name": "New Project Button",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    8,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "6UxjG",
+                      "name": "newProjIcon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "square-pen",
+                      "iconFontFamily": "lucide",
+                      "fill": "#374151"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xm8vZ",
+                      "name": "newProjText",
+                      "fill": "#374151",
+                      "content": "New project",
+                      "fontFamily": "JetBrains Mono",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "XPhv3",
+                  "name": "projectsLabel",
+                  "fill": "#6B7280",
+                  "content": "Projects",
+                  "fontFamily": "JetBrains Mono",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "NOpWQ",
+                  "name": "Projects List",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "d0a4h",
+                      "name": "Project Item Active",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "528cR",
+                          "name": "proj1Header",
+                          "width": "fill_container",
+                          "fill": "#22C55E0A",
+                          "cornerRadius": 4,
+                          "gap": 8,
+                          "padding": [
+                            8,
+                            10
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Psd1C",
+                              "name": "proj1Left",
+                              "gap": 8,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "4AgpS",
+                                  "name": "proj1Icon",
+                                  "width": 20,
+                                  "height": 20,
+                                  "fill": "#22C55E",
+                                  "cornerRadius": 4,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "6HR9P",
+                                      "name": "proj1Dot",
+                                      "fill": "#F8FAFC",
+                                      "width": 6,
+                                      "height": 6
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "oOy4y",
+                                  "name": "proj1Name",
+                                  "fill": "#111827",
+                                  "content": "E-Commerce Platform",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 13,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "ICyiI",
+                              "name": "proj1Add",
+                              "width": 14,
+                              "height": 14,
+                              "iconFontName": "plus",
+                              "iconFontFamily": "lucide",
+                              "fill": "#9CA3AF"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "5WeU6",
+                          "name": "Project Features",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "k3hx8",
+                              "name": "Feature Active",
+                              "width": "fill_container",
+                              "fill": "#22C55E0A",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "UbIuB",
+                                  "name": "feat1Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder-open",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#22C55E"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "nor1X",
+                                  "name": "feat1Name",
+                                  "fill": "#111827",
+                                  "content": "User Authentication",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "THADa",
+                              "name": "Feature Collapsed",
+                              "width": "fill_container",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "JxYp9",
+                                  "name": "feat2Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#9CA3AF"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "NtzzN",
+                                  "name": "feat2Name",
+                                  "fill": "#6B7280",
+                                  "content": "Shopping Cart",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "N8t7E",
+                              "name": "Feature Collapsed",
+                              "width": "fill_container",
+                              "cornerRadius": 4,
+                              "gap": 8,
+                              "padding": [
+                                6,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon_font",
+                                  "id": "ClIJC",
+                                  "name": "feat3Icon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "iconFontName": "folder",
+                                  "iconFontFamily": "lucide",
+                                  "fill": "#9CA3AF"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "aG0PO",
+                                  "name": "feat3Name",
+                                  "fill": "#6B7280",
+                                  "content": "Payment Processing",
+                                  "fontFamily": "JetBrains Mono",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "g28HB",
+                      "name": "Project Item Collapsed",
+                      "width": "fill_container",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "KBerG",
+                          "name": "proj2Icon",
+                          "width": 20,
+                          "height": 20,
+                          "fill": "#F1F5F9",
+                          "cornerRadius": 4,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#D1D5DB"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "JE7en",
+                              "name": "proj2Dot",
+                              "fill": "#9CA3AF",
+                              "width": 6,
+                              "height": 6
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "0W2l9",
+                          "name": "proj2Name",
+                          "fill": "#6B7280",
+                          "content": "Internal Dashboard",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fB7g3",
+                      "name": "Project Item Collapsed",
+                      "width": "fill_container",
+                      "cornerRadius": 4,
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "PkcdD",
+                          "name": "proj3Icon",
+                          "width": 20,
+                          "height": 20,
+                          "fill": "#F1F5F9",
+                          "cornerRadius": 4,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 1,
+                            "fill": "#D1D5DB"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "y4WSB",
+                              "name": "proj3Dot",
+                              "fill": "#9CA3AF",
+                              "width": 6,
+                              "height": 6
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "IV59I",
+                          "name": "proj3Name",
+                          "fill": "#6B7280",
+                          "content": "Mobile App QA",
+                          "fontFamily": "JetBrains Mono",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "7DYy0",
+          "name": "Sidebar Footer",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "XVXcN",
+              "name": "edVersionText",
+              "fill": "#9ca3af",
+              "content": "v1.0.0",
+              "fontFamily": "JetBrains Mono",
+              "fontSize": 11
+            },
+            {
+              "type": "icon_font",
+              "id": "u3T7m",
+              "name": "edSettingsIcon",
+              "width": 14,
+              "height": 14,
+              "iconFontName": "settings",
+              "iconFontFamily": "lucide",
+              "fill": "#9ca3af"
+            }
+          ]
+        }
+      ]
     }
   ],
   "themes": {
