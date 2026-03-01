@@ -27,6 +27,9 @@ describe('TestCaseService', () => {
     });
 
     expect(created.title).toBe('Login flow');
+    expect(created.generatedCode).toContain("import { test, expect } from '@playwright/test';");
+    expect(created.generatedCode).toContain('test("Login flow", async ({ page }) => {');
+    expect(created.generatedCode).toContain('// Click "Sign in"');
     expect(created.generatedCode).toContain('await page.getByRole("button", { name: "Sign in" }).first().click();');
     expect(created.customCode).toBeNull();
     expect(created.isCustomized).toBe(false);
@@ -118,6 +121,8 @@ describe('TestCaseService', () => {
     expect(restored.isCustomized).toBe(false);
     expect(restored.customCode).toBeNull();
     expect(restored.generatedCode).not.toBe(generatedBeforeCustomize);
+    expect(restored.generatedCode).toContain('test("Login flow restored", async ({ page }) => {');
+    expect(restored.generatedCode).toContain('// Expect dashboard visible');
     expect(restored.generatedCode).toContain('await expect(page.getByText("dashboard visible").first()).toBeVisible();');
   });
 
@@ -176,6 +181,8 @@ describe('TestCaseService', () => {
 
     const loaded = tests.getById('legacy-test-1');
     expect(loaded).not.toBeNull();
+    expect(loaded?.generatedCode).toContain("import { test, expect } from '@playwright/test';");
+    expect(loaded?.generatedCode).toContain('test("Legacy malformed code", async ({ page }) => {');
     expect(loaded?.generatedCode).toContain('toBeVisible({ timeout: 3000 })');
     expect(loaded?.customCode).toContain('toBeVisible({ timeout: 10000 })');
   });

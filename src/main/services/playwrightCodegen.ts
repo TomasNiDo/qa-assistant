@@ -10,22 +10,46 @@ interface CodegenBlock {
   usedInferredLocator: boolean;
 }
 
-export function generatePlaywrightCode(actions: ParsedAction[]): string {
+export interface GeneratePlaywrightCodeOptions {
+  testTitle?: string;
+  stepComments?: string[];
+  wrapInTest?: boolean;
+}
+
+export function generatePlaywrightCode(
+  actions: ParsedAction[],
+  options: GeneratePlaywrightCodeOptions = {},
+): string {
   if (actions.length === 0) {
     return '';
   }
 
   const blocks = actions.map((action, index) => mapActionToCode(action, index + 1));
-  const lines: string[] = [];
+  const bodyLines: string[] = [];
   if (blocks.some((block) => block.usedInferredLocator)) {
-    lines.push('// Some steps were ambiguous; default locators were inferred. Add `using <locator>` for precision.');
+    bodyLines.push(
+      '// Some steps were ambiguous; default locators were inferred. Add `using <locator>` for precision.',
+    );
   }
 
-  for (const block of blocks) {
-    lines.push(...block.lines);
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const comment = options.stepComments?.[index]?.trim();
+    if (comment) {
+      if (bodyLines.length > 0) {
+        bodyLines.push('');
+      }
+      bodyLines.push(`// ${comment}`);
+    }
+    bodyLines.push(...block.lines);
   }
 
-  return repairLegacyPlaywrightCode(lines.join('\n'));
+  if (options.wrapInTest === false) {
+    return repairLegacyPlaywrightCode(bodyLines.join('\n'));
+  }
+
+  const wrapped = wrapAsPlaywrightTest(bodyLines, options.testTitle ?? 'Generated Playwright Test');
+  return repairLegacyPlaywrightCode(wrapped);
 }
 
 export function repairLegacyPlaywrightCode(code: string): string {
@@ -37,6 +61,20 @@ export function repairLegacyPlaywrightCode(code: string): string {
     /\.toBeVisible\(\s*,\s*\{\s*timeout:\s*(\d+)\s*\}\s*\)/g,
     '.toBeVisible({ timeout: $1 })',
   );
+}
+
+export function ensurePlaywrightTestWrapper(code: string, testTitle: string): string {
+  const normalized = repairLegacyPlaywrightCode(code).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (looksLikePlaywrightTestFile(normalized)) {
+    return normalized;
+  }
+
+  const bodyLines = normalized.split(/\r?\n/);
+  return wrapAsPlaywrightTest(bodyLines, testTitle);
 }
 
 function mapActionToCode(action: ParsedAction, order: number): CodegenBlock {
@@ -307,4 +345,30 @@ function toCodeArray(values: string[]): string {
 
 function toCodeString(value: string): string {
   return JSON.stringify(value);
+}
+
+function wrapAsPlaywrightTest(lines: string[], testTitle: string): string {
+  const output: string[] = [];
+  output.push("import { test, expect } from '@playwright/test';");
+  output.push('');
+  output.push(`test(${toCodeString(testTitle)}, async ({ page }) => {`);
+
+  if (lines.length === 0) {
+    output.push('  // No generated steps.');
+  } else {
+    for (const line of lines) {
+      if (!line) {
+        output.push('');
+        continue;
+      }
+      output.push(`  ${line}`);
+    }
+  }
+
+  output.push('});');
+  return output.join('\n');
+}
+
+function looksLikePlaywrightTestFile(code: string): boolean {
+  return code.includes("@playwright/test") && /\btest\s*\(/.test(code);
 }

@@ -5,20 +5,22 @@ type AsyncFunctionExecutor = (
   baseUrl: string,
   expect: unknown,
   qa: unknown,
+  test: unknown,
 ) => Promise<unknown>;
 
 const CUSTOM_CODE_LINE_OFFSET = 2;
 
 export function compileCustomCodeBlock(customCode: string): AsyncFunctionExecutor {
-  const body = customCode.trim();
-  if (!body) {
+  const trimmed = customCode.trim();
+  if (!trimmed) {
     throw new Error('Custom code is empty.');
   }
 
+  const body = stripImportLinesPreserveLineNumbers(customCode);
   const AsyncFunction = Object.getPrototypeOf(async function noOp() {
     return undefined;
   }).constructor as new (...args: string[]) => AsyncFunctionExecutor;
-  return new AsyncFunction('page', 'baseUrl', 'expect', 'qa', body);
+  return new AsyncFunction('page', 'baseUrl', 'expect', 'qa', 'test', body);
 }
 
 export function validateCustomCodeSyntax(customCode: string): CustomCodeSyntaxValidationResult {
@@ -92,4 +94,28 @@ export function getCustomCodeLineNumber(error: unknown): number | null {
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown error';
+}
+
+function stripImportLinesPreserveLineNumbers(code: string): string {
+  const lines = code.split(/\r?\n/);
+  let inImportBlock = false;
+
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!inImportBlock && trimmed.startsWith('import ')) {
+        inImportBlock = !trimmed.endsWith(';');
+        return '';
+      }
+
+      if (inImportBlock) {
+        if (trimmed.endsWith(';')) {
+          inImportBlock = false;
+        }
+        return '';
+      }
+
+      return line;
+    })
+    .join('\n');
 }

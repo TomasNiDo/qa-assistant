@@ -94,22 +94,32 @@
 
 /* Syntax-highlighted editor surfaces for Playwright code. */
 .qa-code-editor {
-  overflow: auto;
+  position: relative;
+  overflow: hidden !important;
+  max-height: 100%;
 }
 
 .qa-code-editor__textarea,
 .qa-code-editor__pre {
   min-height: 100%;
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: pre;
 }
 
 .qa-code-editor__textarea {
   color: hsl(212 38% 94%);
   caret-color: hsl(220 86% 60%);
   outline: none;
+  overflow: auto !important;
+}
+
+.qa-code-editor__pre {
+  overflow: hidden !important;
+  will-change: transform;
+}
+
+.qa-code-editor pre.qa-code-editor__pre {
+  overflow: hidden !important;
 }
 
 .qa-code-editor__textarea::selection {
@@ -117,22 +127,32 @@
 }
 
 .qa-steps-editor {
-  overflow: auto;
+  position: relative;
+  overflow: hidden !important;
+  max-height: 100%;
 }
 
 .qa-steps-editor__textarea,
 .qa-steps-editor__pre {
   min-height: 100%;
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: pre;
 }
 
 .qa-steps-editor__textarea {
   color: hsl(212 38% 94%);
   caret-color: hsl(220 86% 60%);
   outline: none;
+  overflow: auto !important;
+}
+
+.qa-steps-editor__pre {
+  overflow: hidden !important;
+  will-change: transform;
+}
+
+.qa-steps-editor pre.qa-steps-editor__pre {
+  overflow: hidden !important;
 }
 
 .qa-steps-editor__textarea::selection {

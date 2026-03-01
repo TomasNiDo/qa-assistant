@@ -673,6 +673,7 @@ export class RunService {
         press: (key: string, target?: string) => Promise<void>;
         upload: (target: string, filePaths: string[] | string) => Promise<void>;
       },
+      test: (title: string, callback: (fixtures: { page: Page }) => Promise<unknown> | unknown) => void,
     ) => Promise<unknown>;
     const qa = {
       enter: async (target: string, value: string): Promise<void> => {
@@ -698,7 +699,23 @@ export class RunService {
         await this.performUpload(page, target, normalized, timeoutMs);
       },
     };
-    await executor(page, baseUrl, playwrightExpect, qa);
+    let capturedTest:
+      | ((fixtures: { page: Page }) => Promise<unknown> | unknown)
+      | null = null;
+    const test = (
+      _title: string,
+      callback: (fixtures: { page: Page }) => Promise<unknown> | unknown,
+    ): void => {
+      capturedTest = callback;
+    };
+
+    await executor(page, baseUrl, playwrightExpect, qa, test);
+    const registeredTestCallback = capturedTest as
+      | ((fixtures: { page: Page }) => Promise<unknown> | unknown)
+      | null;
+    if (registeredTestCallback) {
+      await registeredTestCallback({ page });
+    }
   }
 
   private async executeStep(

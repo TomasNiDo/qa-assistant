@@ -1,4 +1,4 @@
-﻿import type { Dispatch, SetStateAction } from 'react';
+﻿import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { BrowserName, StepParseWarning } from '@shared/types';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
@@ -43,6 +43,33 @@ function highlightPlaywrightCode(code: string): string {
   return Prism.highlight(code, language, 'typescript');
 }
 
+function bindEditorScrollSync(
+  hostElement: HTMLElement | null,
+  textareaSelector: string,
+  preSelector: string,
+): (() => void) | undefined {
+  if (!hostElement) {
+    return undefined;
+  }
+
+  const textarea = hostElement.querySelector<HTMLTextAreaElement>(textareaSelector);
+  const pre = hostElement.querySelector<HTMLElement>(preSelector);
+  if (!textarea || !pre) {
+    return undefined;
+  }
+
+  const syncScroll = (): void => {
+    pre.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
+  };
+
+  syncScroll();
+  textarea.addEventListener('scroll', syncScroll, { passive: true });
+  return () => {
+    textarea.removeEventListener('scroll', syncScroll);
+    pre.style.transform = '';
+  };
+}
+
 export function TestCaseEditorPanel({
   testCasePanelTitle,
   testCasePanelDescription,
@@ -72,6 +99,18 @@ export function TestCaseEditorPanel({
   onStartRun,
 }: TestCaseEditorPanelProps): JSX.Element {
   const isStepsView = testForm.activeView === 'steps';
+  const stepsEditorHostRef = useRef<HTMLDivElement | null>(null);
+  const codeEditorHostRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(
+    () => bindEditorScrollSync(stepsEditorHostRef.current, '.qa-steps-editor__textarea', '.qa-steps-editor__pre'),
+    [isStepsView, testForm.stepsText],
+  );
+
+  useEffect(
+    () => bindEditorScrollSync(codeEditorHostRef.current, '.qa-code-editor__textarea', '.qa-code-editor__pre'),
+    [isStepsView, effectiveCode],
+  );
 
   const viewToggle = (
     <div className="inline-flex items-center rounded-full bg-[#101924]/65 p-1">
@@ -146,22 +185,24 @@ export function TestCaseEditorPanel({
 
         {isStepsView ? (
           <>
-            <Editor
-              value={testForm.stepsText}
-              onValueChange={(nextValue) => setTestForm((previous) => ({ ...previous, stepsText: nextValue }))}
-              highlight={highlightStepsInput}
-              padding={12}
-              className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
-              textareaClassName="qa-steps-editor__textarea"
-              preClassName="qa-steps-editor__pre"
-              placeholder={'1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'}
-              aria-label="Test Steps"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                lineHeight: 1.6,
-              }}
-            />
+            <div ref={stepsEditorHostRef}>
+              <Editor
+                value={testForm.stepsText}
+                onValueChange={(nextValue) => setTestForm((previous) => ({ ...previous, stepsText: nextValue }))}
+                highlight={highlightStepsInput}
+                padding={12}
+                className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
+                textareaClassName="qa-steps-editor__textarea"
+                preClassName="qa-steps-editor__pre"
+                placeholder={'1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'}
+                aria-label="Test Steps"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                }}
+              />
+            </div>
             {testForm.isCustomized ? (
               <p className="rounded-md border border-warning/35 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
                 This test has custom code. Step edits will not auto-sync.
@@ -200,23 +241,25 @@ export function TestCaseEditorPanel({
             ) : null}
 
             <div className="space-y-2">
-              <Editor
-                value={effectiveCode}
-                onValueChange={onCodeChange}
-                highlight={highlightPlaywrightCode}
-                padding={12}
-                className="qa-code-editor h-80 rounded-xl bg-[#0d1320]/75"
-                textareaClassName="qa-code-editor__textarea"
-                preClassName="qa-code-editor__pre language-typescript"
-                placeholder="Generated Playwright code will appear here."
-                readOnly={!testForm.isCodeEditingEnabled}
-                aria-label="Playwright Code"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                }}
-              />
+              <div ref={codeEditorHostRef}>
+                <Editor
+                  value={effectiveCode}
+                  onValueChange={onCodeChange}
+                  highlight={highlightPlaywrightCode}
+                  padding={12}
+                  className="qa-code-editor h-80 rounded-xl bg-[#0d1320]/75"
+                  textareaClassName="qa-code-editor__textarea"
+                  preClassName="qa-code-editor__pre"
+                  placeholder="Generated Playwright code will appear here."
+                  readOnly={!testForm.isCodeEditingEnabled}
+                  aria-label="Playwright Code"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 12,
+                    lineHeight: 1.6,
+                  }}
+                />
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="mr-auto text-[11px] text-[#7f95b1]">
                   {testForm.isCodeEditingEnabled

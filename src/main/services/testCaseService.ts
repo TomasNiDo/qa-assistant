@@ -12,7 +12,11 @@ import type {
   UpdateTestInput,
 } from '@shared/types';
 import { parseStep } from './parserService';
-import { generatePlaywrightCode, repairLegacyPlaywrightCode } from './playwrightCodegen';
+import {
+  ensurePlaywrightTestWrapper,
+  generatePlaywrightCode,
+  repairLegacyPlaywrightCode,
+} from './playwrightCodegen';
 import { createId } from './id';
 import { nowIso } from './time';
 
@@ -34,7 +38,10 @@ export class TestCaseService {
   create(input: CreateTestInput): TestCase {
     const timestamp = nowIso();
     const parsedSteps = this.parseSteps(input.steps);
-    const generatedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action));
+    const generatedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
+      testTitle: input.title.trim(),
+      stepComments: parsedSteps.map((step) => step.rawText),
+    });
     const codeFields = resolveCodeFields({
       generatedCode,
       isCustomized: input.isCustomized,
@@ -90,7 +97,10 @@ export class TestCaseService {
     };
 
     const parsedSteps = this.parseSteps(input.steps);
-    const regeneratedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action));
+    const regeneratedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
+      testTitle: input.title.trim(),
+      stepComments: parsedSteps.map((step) => step.rawText),
+    });
     const codeFields = resolveCodeFields({
       generatedCode: existing.generatedCode,
       isCustomized: input.isCustomized ?? existing.isCustomized,
@@ -256,8 +266,10 @@ function toTestCase(row: {
   created_at: string;
   updated_at: string;
 }): TestCase {
-  const generatedCode = repairLegacyPlaywrightCode(row.generated_code);
-  const customCode = row.custom_code ? repairLegacyPlaywrightCode(row.custom_code) : null;
+  const generatedCode = ensurePlaywrightTestWrapper(row.generated_code, row.title);
+  const customCode = row.custom_code
+    ? ensurePlaywrightTestWrapper(row.custom_code, row.title)
+    : null;
 
   return {
     id: row.id,
