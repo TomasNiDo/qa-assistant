@@ -41415,6 +41415,168 @@
   "themes": {
     "Theme": [
       "Default"
+    ],
+    "mode": [
+      "dark",
+      "light"
     ]
+  },
+  "variables": {
+    "sys-accent-error": {
+      "type": "color",
+      "value": "#EF4444"
+    },
+    "sys-accent-info": {
+      "type": "color",
+      "value": "#3B82F6"
+    },
+    "sys-accent-purple": {
+      "type": "color",
+      "value": "#8B5CF6"
+    },
+    "sys-accent-success": {
+      "type": "color",
+      "value": "#22C55E"
+    },
+    "sys-accent-warning": {
+      "type": "color",
+      "value": "#F59E0B"
+    },
+    "sys-bg-canvas": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A0A0A",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#FFFFFF",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-bg-content": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0A0A0A",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#F9FAFB",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-bg-sidebar": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#0C0C0C",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#F8FAFC",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-border-divider": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1A1A1A",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#E2E8F0",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-border-subtle": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#1F1F1F",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#E2E8F0",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-text-muted": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#737373",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#9CA3AF",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-text-primary": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#F9FAFB",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#111827",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    },
+    "sys-text-secondary": {
+      "type": "color",
+      "value": [
+        {
+          "value": "#A3A3A3",
+          "theme": {
+            "mode": "dark"
+          }
+        },
+        {
+          "value": "#6B7280",
+          "theme": {
+            "mode": "light"
+          }
+        }
+      ]
+    }
   }
 }
