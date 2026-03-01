@@ -65,7 +65,7 @@ export function SidebarProjectsPanel({
   }
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-r border-border/40 bg-[#0d1117] px-3 py-2">
+    <aside className="flex h-full min-h-0 flex-col bg-[#0e131b]/95 px-3 py-2">
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <button
@@ -146,8 +146,8 @@ export function SidebarProjectsPanel({
           return (
             <div key={project.id} className="space-y-1">
               <div
-                className={`group/project relative flex items-center gap-1 rounded-md px-1 py-1 transition ${
-                  isSelectedProject ? 'bg-[#122131]' : 'hover:bg-[#121927]'
+                className={`group/project relative flex items-center gap-1 rounded-xl px-1 py-1 transition ${
+                  isSelectedProject ? 'bg-[#122131]/75' : 'hover:bg-[#121927]/75'
                 }`}
               >
                 <button
@@ -162,7 +162,7 @@ export function SidebarProjectsPanel({
 
                 <button
                   type="button"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md bg-secondary/85 text-[#c2d0e6] transition hover:bg-secondary ${actionVisibilityClass}`}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary/65 text-[#c2d0e6] transition hover:bg-secondary/85 ${actionVisibilityClass}`}
                   title="Create test case"
                   aria-label={`Create test case in ${project.name}`}
                   data-testid={`project-create-test-${project.id}`}
@@ -178,7 +178,7 @@ export function SidebarProjectsPanel({
 
                 <button
                   type="button"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md bg-secondary/85 text-[#c2d0e6] transition hover:bg-secondary ${actionVisibilityClass}`}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary/65 text-[#c2d0e6] transition hover:bg-secondary/85 ${actionVisibilityClass}`}
                   title="Project actions"
                   aria-label={`Project actions for ${project.name}`}
                   data-testid={`project-actions-${project.id}`}
@@ -195,7 +195,7 @@ export function SidebarProjectsPanel({
                 </button>
 
                 {isMenuOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+0.3rem)] z-20 w-32 rounded-md bg-[#11161d] p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
+                  <div className="absolute right-0 top-[calc(100%+0.3rem)] z-20 w-32 rounded-xl bg-[#11161d]/95 p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
                     <button
                       type="button"
                       className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#cbd3dd] transition hover:bg-[#1a2230]"
@@ -227,10 +227,10 @@ export function SidebarProjectsPanel({
                     <li key={testCase.id}>
                       <button
                         type="button"
-                        className={`w-full rounded-md px-2 py-1 text-left text-xs transition ${
+                        className={`w-full rounded-xl px-2 py-1 text-left text-xs transition ${
                           testCase.id === selectedTestId
-                            ? 'bg-[#173452] text-[#e4edf9]'
-                            : 'text-[#b8c2cf] hover:bg-[#131c2b]'
+                            ? 'bg-[#173452]/75 text-[#e4edf9]'
+                            : 'text-[#b8c2cf] hover:bg-[#131c2b]/75'
                         }`}
                         onClick={() => onSelectTest(project.id, testCase.id)}
                       >

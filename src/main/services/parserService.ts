@@ -1,11 +1,17 @@
-import type { ParsedAction, StepParseResult } from '@shared/types';
+import type {
+  ParsedAction,
+  StepParseResult,
+  StepParseWarning,
+  TargetLocator,
+} from '@shared/types';
 
 const STRICT_ENTER = /^Enter\s+"(.+?)"\s+in\s+"(.+?)"\s+field$/i;
 const STRICT_CLICK = /^Click\s+"(.+?)"(?:\s+button)?$/i;
 const STRICT_CLICK_ELEMENT_WITH = /^Click\s+element\s+with\s+["'](.+?)["']$/i;
 const STRICT_CLICK_ELEMENT_WITH_CLASS = /^Click\s+element\s+with\s+["'](.+?)["']\s+class$/i;
 const STRICT_CLICK_ELEMENT_WITH_ID = /^Click\s+element\s+with(?:\s+this)?\s+id\s+["'](.+?)["']$/i;
-const STRICT_CLICK_DELAYED = /^Click\s+"(.+?)"(?:\s+button)?\s+after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
+const STRICT_CLICK_DELAYED =
+  /^Click\s+"(.+?)"(?:\s+button)?\s+after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
 const STRICT_GO_TO = /^Go to\s+(.+)$/i;
 const STRICT_REDIRECT_TO = /^Redirect to\s+(.+?)(?:\s+url)?$/i;
 const STRICT_EXPECT = /^Expect\s+(.+)$/i;
@@ -24,11 +30,33 @@ const STRICT_WAIT_REQUEST_AFTER_CLICK =
   /^Wait\s+for\s+request\s+"(.+?)"\s+after\s+clicking\s+"(.+?)"(?:\s+and\s+expect\s+status\s+"?(\d{3})"?)?(?:\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes))?$/i;
 const STRICT_WAIT_DOWNLOAD_AFTER_CLICK =
   /^Wait\s+for\s+download\s+after\s+clicking\s+"(.+?)"(?:\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes))?$/i;
-const EXPECT_TIMEOUT_SUFFIX = /\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
-const EXPECT_TIMEOUT_PREFIX = /^within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
-const EXPECT_TIMEOUT_PREFIX_IN = /^in\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
-const CLICK_DELAY_SUFFIX = /\s+after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
-const CLICK_DELAY_PREFIX = /^after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
+const EXPECT_TIMEOUT_SUFFIX =
+  /\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
+const EXPECT_TIMEOUT_PREFIX =
+  /^within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
+const EXPECT_TIMEOUT_PREFIX_IN =
+  /^in\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
+const CLICK_DELAY_SUFFIX =
+  /\s+after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
+const CLICK_DELAY_PREFIX =
+  /^after\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s+(.+)$/i;
+const USING_SUFFIX_WITH_TIMEOUT =
+  /^(.*)\s+using\s+(.+?)\s+(within\s+\d+\s*(?:s|sec|secs|second|seconds|m|min|mins|minute|minutes))\s*$/i;
+const USING_SUFFIX_AT_END = /^(.*)\s+using\s+(.+?)\s*$/i;
+const ROLE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/i;
+const LOCATOR_KINDS_LABEL = 'label, placeholder, role <name>, text, testid, css, id, class';
+
+interface ParsedActionMatch {
+  action: ParsedAction;
+  ambiguousTarget: boolean;
+}
+
+interface LocatorExtractionResult {
+  text: string;
+  locator?: TargetLocator;
+  hadUsingClause: boolean;
+  error?: string;
+}
 
 export function parseStep(rawText: string): StepParseResult {
   const text = rawText.trim();
@@ -36,14 +64,53 @@ export function parseStep(rawText: string): StepParseResult {
     return { ok: false, error: 'Step cannot be empty.' };
   }
 
-  const strict = parseStrict(text);
-  if (strict) {
-    return { ok: true, action: strict, source: 'strict' };
+  const locatorExtraction = extractLocatorSuffix(text);
+  if (locatorExtraction.error) {
+    return { ok: false, error: locatorExtraction.error };
   }
 
-  const fallback = parseFallback(text);
+  const strict = parseStrict(locatorExtraction.text);
+  if (strict) {
+    const withLocator = applyExplicitLocatorIfPresent(
+      strict.action,
+      locatorExtraction.locator,
+      locatorExtraction.hadUsingClause,
+    );
+    if (!withLocator.ok) {
+      return { ok: false, error: withLocator.error };
+    }
+
+    return {
+      ok: true,
+      action: withLocator.action,
+      source: 'strict',
+      warnings:
+        strict.ambiguousTarget && !withLocator.hadLocator
+          ? [buildAmbiguousTargetWarning(withLocator.action)]
+          : [],
+    };
+  }
+
+  const fallback = parseFallback(locatorExtraction.text);
   if (fallback) {
-    return { ok: true, action: fallback, source: 'fallback' };
+    const withLocator = applyExplicitLocatorIfPresent(
+      fallback.action,
+      locatorExtraction.locator,
+      locatorExtraction.hadUsingClause,
+    );
+    if (!withLocator.ok) {
+      return { ok: false, error: withLocator.error };
+    }
+
+    return {
+      ok: true,
+      action: withLocator.action,
+      source: 'fallback',
+      warnings:
+        fallback.ambiguousTarget && !withLocator.hadLocator
+          ? [buildAmbiguousTargetWarning(withLocator.action)]
+          : [],
+    };
   }
 
   return {
@@ -53,13 +120,16 @@ export function parseStep(rawText: string): StepParseResult {
   };
 }
 
-function parseStrict(text: string): ParsedAction | null {
+function parseStrict(text: string): ParsedActionMatch | null {
   const enterMatch = text.match(STRICT_ENTER);
   if (enterMatch) {
     return {
-      type: 'enter',
-      value: enterMatch[1],
-      target: enterMatch[2],
+      action: {
+        type: 'enter',
+        value: enterMatch[1],
+        target: enterMatch[2],
+      },
+      ambiguousTarget: true,
     };
   }
 
@@ -67,57 +137,80 @@ function parseStrict(text: string): ParsedAction | null {
   if (clickDelayedMatch) {
     const delaySeconds = parseTimeoutSeconds(clickDelayedMatch[2], clickDelayedMatch[3]);
     return {
-      type: 'click',
-      target: normalizeClickTarget(clickDelayedMatch[1]),
-      ...(delaySeconds ? { delaySeconds } : {}),
+      action: {
+        type: 'click',
+        target: normalizeClickTarget(clickDelayedMatch[1]),
+        ...(delaySeconds ? { delaySeconds } : {}),
+      },
+      ambiguousTarget: true,
     };
   }
 
   const clickMatch = text.match(STRICT_CLICK);
   if (clickMatch) {
     return {
-      type: 'click',
-      target: normalizeClickTarget(clickMatch[1]),
+      action: {
+        type: 'click',
+        target: normalizeClickTarget(clickMatch[1]),
+      },
+      ambiguousTarget: true,
     };
   }
 
   const clickElementWithMatch = text.match(STRICT_CLICK_ELEMENT_WITH);
   if (clickElementWithMatch) {
     return {
-      type: 'click',
-      target: normalizeClickTarget(clickElementWithMatch[1]),
+      action: {
+        type: 'click',
+        target: normalizeClickTarget(clickElementWithMatch[1]),
+      },
+      ambiguousTarget: true,
     };
   }
 
   const clickElementWithClassMatch = text.match(STRICT_CLICK_ELEMENT_WITH_CLASS);
   if (clickElementWithClassMatch) {
     return {
-      type: 'click',
-      target: `.${normalizeSelectorToken(clickElementWithClassMatch[1])}`,
+      action: {
+        type: 'click',
+        target: normalizeSelectorToken(clickElementWithClassMatch[1]),
+        targetLocator: { kind: 'class' },
+      },
+      ambiguousTarget: false,
     };
   }
 
   const clickElementWithIdMatch = text.match(STRICT_CLICK_ELEMENT_WITH_ID);
   if (clickElementWithIdMatch) {
     return {
-      type: 'click',
-      target: `#${normalizeSelectorToken(clickElementWithIdMatch[1])}`,
+      action: {
+        type: 'click',
+        target: normalizeSelectorToken(clickElementWithIdMatch[1]),
+        targetLocator: { kind: 'id' },
+      },
+      ambiguousTarget: false,
     };
   }
 
   const goToMatch = text.match(STRICT_GO_TO);
   if (goToMatch) {
     return {
-      type: 'navigate',
-      target: normalizeNavigationTarget(goToMatch[1]),
+      action: {
+        type: 'navigate',
+        target: normalizeNavigationTarget(goToMatch[1]),
+      },
+      ambiguousTarget: false,
     };
   }
 
   const redirectMatch = text.match(STRICT_REDIRECT_TO);
   if (redirectMatch) {
     return {
-      type: 'navigate',
-      target: normalizeNavigationTarget(redirectMatch[1]),
+      action: {
+        type: 'navigate',
+        target: normalizeNavigationTarget(redirectMatch[1]),
+      },
+      ambiguousTarget: false,
     };
   }
 
@@ -125,53 +218,71 @@ function parseStrict(text: string): ParsedAction | null {
   if (expectMatch) {
     const { assertion, timeoutSeconds } = parseAssertionTimeout(expectMatch[1].trim());
     return {
-      type: 'expect',
-      assertion,
-      ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      action: {
+        type: 'expect',
+        assertion,
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      },
+      ambiguousTarget: false,
     };
   }
 
   const selectMatch = text.match(STRICT_SELECT);
   if (selectMatch) {
     return {
-      type: 'select',
-      value: selectMatch[1],
-      target: selectMatch[2],
+      action: {
+        type: 'select',
+        value: selectMatch[1],
+        target: selectMatch[2],
+      },
+      ambiguousTarget: true,
     };
   }
 
   const checkMatch = text.match(STRICT_CHECK);
   if (checkMatch) {
     return {
-      type: 'setChecked',
-      target: checkMatch[1],
-      checked: true,
+      action: {
+        type: 'setChecked',
+        target: checkMatch[1],
+        checked: true,
+      },
+      ambiguousTarget: true,
     };
   }
 
   const uncheckMatch = text.match(STRICT_UNCHECK);
   if (uncheckMatch) {
     return {
-      type: 'setChecked',
-      target: uncheckMatch[1],
-      checked: false,
+      action: {
+        type: 'setChecked',
+        target: uncheckMatch[1],
+        checked: false,
+      },
+      ambiguousTarget: true,
     };
   }
 
   const hoverMatch = text.match(STRICT_HOVER);
   if (hoverMatch) {
     return {
-      type: 'hover',
-      target: hoverMatch[1],
+      action: {
+        type: 'hover',
+        target: hoverMatch[1],
+      },
+      ambiguousTarget: true,
     };
   }
 
   const pressMatch = text.match(STRICT_PRESS);
   if (pressMatch) {
     return {
-      type: 'press',
-      key: pressMatch[1],
-      ...(pressMatch[2] ? { target: pressMatch[2] } : {}),
+      action: {
+        type: 'press',
+        key: pressMatch[1],
+        ...(pressMatch[2] ? { target: pressMatch[2] } : {}),
+      },
+      ambiguousTarget: Boolean(pressMatch[2]),
     };
   }
 
@@ -183,44 +294,54 @@ function parseStrict(text: string): ParsedAction | null {
     }
 
     return {
-      type: 'upload',
-      target: uploadMatch[2],
-      filePaths,
+      action: {
+        type: 'upload',
+        target: uploadMatch[2],
+        filePaths,
+      },
+      ambiguousTarget: true,
     };
   }
 
   if (STRICT_DIALOG_ACCEPT.test(text)) {
-    return { type: 'dialog', action: 'accept' };
+    return {
+      action: { type: 'dialog', action: 'accept' },
+      ambiguousTarget: false,
+    };
   }
 
   if (STRICT_DIALOG_DISMISS.test(text)) {
-    return { type: 'dialog', action: 'dismiss' };
+    return {
+      action: { type: 'dialog', action: 'dismiss' },
+      ambiguousTarget: false,
+    };
   }
 
   const promptAcceptMatch = text.match(STRICT_DIALOG_PROMPT_ACCEPT);
   if (promptAcceptMatch) {
-    return { type: 'dialog', action: 'accept', promptText: promptAcceptMatch[1] };
+    return {
+      action: { type: 'dialog', action: 'accept', promptText: promptAcceptMatch[1] },
+      ambiguousTarget: false,
+    };
   }
 
   const requestAfterClickMatch = text.match(STRICT_WAIT_REQUEST_AFTER_CLICK);
   if (requestAfterClickMatch) {
-    const timeoutSeconds = parseTimeoutSeconds(
-      requestAfterClickMatch[4],
-      requestAfterClickMatch[5],
-    );
+    const timeoutSeconds = parseTimeoutSeconds(requestAfterClickMatch[4], requestAfterClickMatch[5]);
     const request = parseRequestSpec(requestAfterClickMatch[1]);
     if (!request) {
       return null;
     }
 
     return {
-      type: 'waitForRequest',
-      ...request,
-      triggerClickTarget: requestAfterClickMatch[2],
-      ...(requestAfterClickMatch[3]
-        ? { status: Number(requestAfterClickMatch[3]) }
-        : {}),
-      ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      action: {
+        type: 'waitForRequest',
+        ...request,
+        triggerClickTarget: requestAfterClickMatch[2],
+        ...(requestAfterClickMatch[3] ? { status: Number(requestAfterClickMatch[3]) } : {}),
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      },
+      ambiguousTarget: true,
     };
   }
 
@@ -233,10 +354,13 @@ function parseStrict(text: string): ParsedAction | null {
     }
 
     return {
-      type: 'waitForRequest',
-      ...request,
-      ...(requestMatch[2] ? { status: Number(requestMatch[2]) } : {}),
-      ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      action: {
+        type: 'waitForRequest',
+        ...request,
+        ...(requestMatch[2] ? { status: Number(requestMatch[2]) } : {}),
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      },
+      ambiguousTarget: false,
     };
   }
 
@@ -244,24 +368,31 @@ function parseStrict(text: string): ParsedAction | null {
   if (downloadMatch) {
     const timeoutSeconds = parseTimeoutSeconds(downloadMatch[2], downloadMatch[3]);
     return {
-      type: 'download',
-      triggerClickTarget: downloadMatch[1],
-      ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      action: {
+        type: 'download',
+        triggerClickTarget: downloadMatch[1],
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      },
+      ambiguousTarget: true,
     };
   }
 
   return null;
 }
 
-function parseFallback(text: string): ParsedAction | null {
+function parseFallback(text: string): ParsedActionMatch | null {
   const normalized = text.toLowerCase();
   const clickElementWithClassMatch = text.match(
     /(?:click|tap|press)\s+element\s+with\s+["'](.+?)["']\s+class/i,
   );
   if (clickElementWithClassMatch) {
     return {
-      type: 'click',
-      target: `.${normalizeSelectorToken(clickElementWithClassMatch[1])}`,
+      action: {
+        type: 'click',
+        target: normalizeSelectorToken(clickElementWithClassMatch[1]),
+        targetLocator: { kind: 'class' },
+      },
+      ambiguousTarget: false,
     };
   }
 
@@ -270,18 +401,23 @@ function parseFallback(text: string): ParsedAction | null {
   );
   if (clickElementWithIdMatch) {
     return {
-      type: 'click',
-      target: `#${normalizeSelectorToken(clickElementWithIdMatch[1])}`,
+      action: {
+        type: 'click',
+        target: normalizeSelectorToken(clickElementWithIdMatch[1]),
+        targetLocator: { kind: 'id' },
+      },
+      ambiguousTarget: false,
     };
   }
 
-  const clickElementWithMatch = text.match(
-    /(?:click|tap|press)\s+element\s+with\s+["'](.+?)["']/i,
-  );
+  const clickElementWithMatch = text.match(/(?:click|tap|press)\s+element\s+with\s+["'](.+?)["']/i);
   if (clickElementWithMatch) {
     return {
-      type: 'click',
-      target: normalizeClickTarget(clickElementWithMatch[1]),
+      action: {
+        type: 'click',
+        target: normalizeClickTarget(clickElementWithMatch[1]),
+      },
+      ambiguousTarget: true,
     };
   }
 
@@ -289,43 +425,66 @@ function parseFallback(text: string): ParsedAction | null {
     const quoted = extractAllQuoted(text);
     if (quoted.length >= 2) {
       return {
-        type: 'select',
-        value: quoted[0],
-        target: quoted[1],
+        action: {
+          type: 'select',
+          value: quoted[0],
+          target: quoted[1],
+        },
+        ambiguousTarget: true,
       };
     }
   }
 
   if (containsAny(normalized, ['uncheck', 'untick']) && normalized.includes('checkbox')) {
-    const target = (
-      extractQuoted(text) ?? trimPunctuation(text.replace(/^(uncheck|untick)\s+/i, ''))
-    ).replace(/\s+checkbox$/i, '');
-    return target ? { type: 'setChecked', target, checked: false } : null;
+    const target = (extractQuoted(text) ?? trimPunctuation(text.replace(/^(uncheck|untick)\s+/i, '')))
+      .replace(/\s+checkbox$/i, '');
+    return target
+      ? {
+          action: { type: 'setChecked', target, checked: false },
+          ambiguousTarget: true,
+        }
+      : null;
   }
 
   if (containsAny(normalized, ['check', 'tick']) && normalized.includes('checkbox')) {
-    const target = (
-      extractQuoted(text) ?? trimPunctuation(text.replace(/^(check|tick)\s+/i, ''))
-    ).replace(/\s+checkbox$/i, '');
-    return target ? { type: 'setChecked', target, checked: true } : null;
+    const target = (extractQuoted(text) ?? trimPunctuation(text.replace(/^(check|tick)\s+/i, '')))
+      .replace(/\s+checkbox$/i, '');
+    return target
+      ? {
+          action: { type: 'setChecked', target, checked: true },
+          ambiguousTarget: true,
+        }
+      : null;
   }
 
   if (containsAny(normalized, ['hover'])) {
-    const target =
-      extractQuoted(text) ?? trimPunctuation(text.replace(/^(hover|hover over)\s+/i, ''));
-    return target ? { type: 'hover', target } : null;
+    const target = extractQuoted(text) ?? trimPunctuation(text.replace(/^(hover|hover over)\s+/i, ''));
+    return target
+      ? {
+          action: { type: 'hover', target },
+          ambiguousTarget: true,
+        }
+      : null;
   }
 
-  if (containsAny(normalized, ['press']) && (extractQuoted(text) || /\b(control|shift|alt|enter|tab|escape|space|arrow)/i.test(text))) {
+  if (
+    containsAny(normalized, ['press']) &&
+    (extractQuoted(text) || /\b(control|shift|alt|enter|tab|escape|space|arrow)/i.test(text))
+  ) {
     const quoted = extractAllQuoted(text);
-    const key = (quoted[0] ?? trimPunctuation(text.replace(/^press\s+/i, '').split(/\s+in\s+/i)[0]))
-      .replace(/\s+key$/i, '');
+    const key = (quoted[0] ?? trimPunctuation(text.replace(/^press\s+/i, '').split(/\s+in\s+/i)[0])).replace(
+      /\s+key$/i,
+      '',
+    );
     const target = quoted[1];
     return key
       ? {
-          type: 'press',
-          key,
-          ...(target ? { target } : {}),
+          action: {
+            type: 'press',
+            key,
+            ...(target ? { target } : {}),
+          },
+          ambiguousTarget: Boolean(target),
         }
       : null;
   }
@@ -336,28 +495,40 @@ function parseFallback(text: string): ParsedAction | null {
       const filePaths = parseFilePaths(quoted[0]);
       if (filePaths.length > 0) {
         return {
-          type: 'upload',
-          filePaths,
-          target: quoted[1],
+          action: {
+            type: 'upload',
+            filePaths,
+            target: quoted[1],
+          },
+          ambiguousTarget: true,
         };
       }
     }
   }
 
   if (containsAny(normalized, ['accept dialog', 'accept browser dialog'])) {
-    return { type: 'dialog', action: 'accept' };
+    return {
+      action: { type: 'dialog', action: 'accept' },
+      ambiguousTarget: false,
+    };
   }
 
   if (containsAny(normalized, ['dismiss dialog', 'cancel dialog'])) {
-    return { type: 'dialog', action: 'dismiss' };
+    return {
+      action: { type: 'dialog', action: 'dismiss' },
+      ambiguousTarget: false,
+    };
   }
 
   if (containsAny(normalized, ['download']) && containsAny(normalized, ['click'])) {
     const quoted = extractAllQuoted(text);
     if (quoted.length >= 1) {
       return {
-        type: 'download',
-        triggerClickTarget: quoted[quoted.length - 1],
+        action: {
+          type: 'download',
+          triggerClickTarget: quoted[quoted.length - 1],
+        },
+        ambiguousTarget: true,
       };
     }
   }
@@ -376,11 +547,14 @@ function parseFallback(text: string): ParsedAction | null {
       const clickTarget = clickTargetMatch?.[1];
 
       return {
-        type: 'waitForRequest',
-        ...request,
-        ...(statusMatch ? { status: Number(statusMatch[1]) } : {}),
-        ...(clickTarget ? { triggerClickTarget: clickTarget } : {}),
-        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+        action: {
+          type: 'waitForRequest',
+          ...request,
+          ...(statusMatch ? { status: Number(statusMatch[1]) } : {}),
+          ...(clickTarget ? { triggerClickTarget: clickTarget } : {}),
+          ...(timeoutSeconds ? { timeoutSeconds } : {}),
+        },
+        ambiguousTarget: Boolean(clickTarget),
       };
     }
   }
@@ -394,24 +568,33 @@ function parseFallback(text: string): ParsedAction | null {
     }
 
     return {
-      type: 'click',
-      target,
-      ...(delaySeconds ? { delaySeconds } : {}),
+      action: {
+        type: 'click',
+        target,
+        ...(delaySeconds ? { delaySeconds } : {}),
+      },
+      ambiguousTarget: true,
     };
   }
 
   if (containsAny(normalized, ['enter', 'type', 'fill', 'input'])) {
     const quoted = extractAllQuoted(text);
     if (quoted.length >= 2) {
-      return { type: 'enter', value: quoted[0], target: quoted[1] };
+      return {
+        action: { type: 'enter', value: quoted[0], target: quoted[1] },
+        ambiguousTarget: true,
+      };
     }
 
     const inMatch = text.match(/(?:enter|type|fill|input)\s+(.+?)\s+(?:in|into)\s+(.+)/i);
     if (inMatch) {
       return {
-        type: 'enter',
-        value: trimPunctuation(inMatch[1]),
-        target: trimPunctuation(inMatch[2].replace(/\s+field$/i, '')),
+        action: {
+          type: 'enter',
+          value: trimPunctuation(inMatch[1]),
+          target: trimPunctuation(inMatch[2].replace(/\s+field$/i, '')),
+        },
+        ambiguousTarget: true,
       };
     }
 
@@ -426,7 +609,10 @@ function parseFallback(text: string): ParsedAction | null {
       return null;
     }
 
-    return { type: 'navigate', target };
+    return {
+      action: { type: 'navigate', target },
+      ambiguousTarget: false,
+    };
   }
 
   if (containsAny(normalized, ['expect', 'assert', 'verify', 'should', 'see'])) {
@@ -434,17 +620,337 @@ function parseFallback(text: string): ParsedAction | null {
       trimPunctuation(stripLeadingVerb(text)) || text,
     );
     return {
-      type: 'expect',
-      assertion,
-      ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      action: {
+        type: 'expect',
+        assertion,
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      },
+      ambiguousTarget: false,
     };
   }
 
   return null;
 }
 
+function extractLocatorSuffix(text: string): LocatorExtractionResult {
+  const withTimeoutMatch = text.match(USING_SUFFIX_WITH_TIMEOUT);
+  if (withTimeoutMatch) {
+    const parsedLocator = parseLocatorToken(withTimeoutMatch[2]);
+    if (!parsedLocator.ok) {
+      return {
+        text,
+        hadUsingClause: true,
+        error: parsedLocator.error,
+      };
+    }
+
+    return {
+      text: `${withTimeoutMatch[1].trim()} ${withTimeoutMatch[3].trim()}`.trim(),
+      locator: parsedLocator.locator,
+      hadUsingClause: true,
+    };
+  }
+
+  const endMatch = text.match(USING_SUFFIX_AT_END);
+  if (endMatch) {
+    const parsedLocator = parseLocatorToken(endMatch[2]);
+    if (!parsedLocator.ok) {
+      return {
+        text,
+        hadUsingClause: true,
+        error: parsedLocator.error,
+      };
+    }
+
+    return {
+      text: endMatch[1].trim(),
+      locator: parsedLocator.locator,
+      hadUsingClause: true,
+    };
+  }
+
+  return {
+    text,
+    hadUsingClause: false,
+  };
+}
+
+function parseLocatorToken(
+  rawLocator: string,
+): { ok: true; locator: TargetLocator } | { ok: false; error: string } {
+  const normalized = rawLocator.trim().replace(/\s+/g, ' ');
+  const lower = normalized.toLowerCase();
+  if (!lower) {
+    return {
+      ok: false,
+      error: `Invalid locator in "using". Allowed locator kinds: ${LOCATOR_KINDS_LABEL}.`,
+    };
+  }
+
+  if (lower === 'label') {
+    return { ok: true, locator: { kind: 'label' } };
+  }
+
+  if (lower === 'placeholder') {
+    return { ok: true, locator: { kind: 'placeholder' } };
+  }
+
+  if (lower === 'text') {
+    return { ok: true, locator: { kind: 'text' } };
+  }
+
+  if (lower === 'testid') {
+    return { ok: true, locator: { kind: 'testid' } };
+  }
+
+  if (lower === 'css') {
+    return { ok: true, locator: { kind: 'css' } };
+  }
+
+  if (lower === 'id') {
+    return { ok: true, locator: { kind: 'id' } };
+  }
+
+  if (lower === 'class') {
+    return { ok: true, locator: { kind: 'class' } };
+  }
+
+  if (lower.startsWith('role ')) {
+    const role = lower.slice('role '.length).trim();
+    if (!role || !ROLE_NAME_PATTERN.test(role)) {
+      return {
+        ok: false,
+        error: `Invalid locator role "${role || rawLocator.trim()}". Use "using role <name>" (letters, digits, hyphen).`,
+      };
+    }
+
+    return {
+      ok: true,
+      locator: { kind: 'role', role },
+    };
+  }
+
+  return {
+    ok: false,
+    error: `Invalid locator in "using ${rawLocator.trim()}". Allowed locator kinds: ${LOCATOR_KINDS_LABEL}.`,
+  };
+}
+
+function applyExplicitLocatorIfPresent(
+  action: ParsedAction,
+  locator: TargetLocator | undefined,
+  hadUsingClause: boolean,
+):
+  | { ok: true; action: ParsedAction; hadLocator: boolean }
+  | {
+      ok: false;
+      error: string;
+    } {
+  if (!locator) {
+    return { ok: true, action, hadLocator: false };
+  }
+
+  if (action.type === 'enter') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'click') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'select') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'setChecked') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'hover') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'upload') {
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'press') {
+    if (!action.target) {
+      return {
+        ok: false,
+        error:
+          'Locator suffix is only valid for Press steps that include a target field (for example: Press "Enter" in "Search" field using label).',
+      };
+    }
+    return { ok: true, action: { ...action, targetLocator: locator }, hadLocator: true };
+  }
+
+  if (action.type === 'waitForRequest') {
+    if (!action.triggerClickTarget) {
+      return {
+        ok: false,
+        error: 'Locator suffix is only valid when the request wait step includes an "after clicking" target.',
+      };
+    }
+    return {
+      ok: true,
+      action: { ...action, triggerClickTargetLocator: locator },
+      hadLocator: true,
+    };
+  }
+
+  if (action.type === 'download') {
+    return {
+      ok: true,
+      action: { ...action, triggerClickTargetLocator: locator },
+      hadLocator: true,
+    };
+  }
+
+  if (hadUsingClause) {
+    return {
+      ok: false,
+      error:
+        'Locator suffix is only supported for element-targeting steps (Enter/Click/Select/Check/Hover/Press with field/Upload/Wait after clicking).',
+    };
+  }
+
+  return { ok: true, action, hadLocator: false };
+}
+
+function buildAmbiguousTargetWarning(action: ParsedAction): StepParseWarning {
+  const suggestedStep = buildSuggestedExplicitStep(action);
+  return {
+    code: 'ambiguous_target',
+    message: 'Target lookup is ambiguous. Add an explicit locator suffix to avoid incorrect Playwright intent.',
+    suggestedStep,
+  };
+}
+
+function buildSuggestedExplicitStep(action: ParsedAction): string {
+  const suggestedLocator = inferDefaultLocator(action);
+  return toCanonicalStep(action, suggestedLocator);
+}
+
+function inferDefaultLocator(action: ParsedAction): TargetLocator {
+  if (action.type === 'enter') {
+    return { kind: 'label' };
+  }
+
+  if (action.type === 'click') {
+    return { kind: 'role', role: 'button' };
+  }
+
+  if (action.type === 'select') {
+    return { kind: 'label' };
+  }
+
+  if (action.type === 'setChecked') {
+    return { kind: 'label' };
+  }
+
+  if (action.type === 'hover') {
+    return { kind: 'text' };
+  }
+
+  if (action.type === 'press') {
+    return { kind: 'label' };
+  }
+
+  if (action.type === 'upload') {
+    return { kind: 'label' };
+  }
+
+  return { kind: 'role', role: 'button' };
+}
+
+function toCanonicalStep(action: ParsedAction, locator: TargetLocator): string {
+  const locatorSuffix = toLocatorSuffix(locator);
+
+  if (action.type === 'enter') {
+    return `Enter "${action.value}" in "${action.target}" field using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'click') {
+    const delaySuffix =
+      action.delaySeconds !== undefined ? ` after ${Math.max(1, Math.round(action.delaySeconds))}s` : '';
+    return `Click "${action.target}" using ${locatorSuffix}${delaySuffix}`;
+  }
+
+  if (action.type === 'select') {
+    return `Select "${action.value}" from "${action.target}" dropdown using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'setChecked') {
+    return `${action.checked ? 'Check' : 'Uncheck'} "${action.target}" checkbox using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'hover') {
+    return `Hover over "${action.target}" using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'press') {
+    if (!action.target) {
+      return `Press "${action.key}"`;
+    }
+    return `Press "${action.key}" in "${action.target}" field using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'upload') {
+    const files = action.filePaths.join(',');
+    const noun = action.filePaths.length > 1 ? 'files' : 'file';
+    return `Upload ${noun} "${files}" to "${action.target}" input using ${locatorSuffix}`;
+  }
+
+  if (action.type === 'waitForRequest') {
+    const requestSpec = action.method ? `${action.method.toUpperCase()} ${action.urlPattern}` : action.urlPattern;
+    const statusSuffix = action.status ? ` and expect status "${action.status}"` : '';
+    const timeoutSuffix = action.timeoutSeconds ? ` within ${action.timeoutSeconds}s` : '';
+    if (action.triggerClickTarget) {
+      return `Wait for request "${requestSpec}" after clicking "${action.triggerClickTarget}" using ${locatorSuffix}${statusSuffix}${timeoutSuffix}`;
+    }
+    return `Wait for request "${requestSpec}"${statusSuffix}${timeoutSuffix}`;
+  }
+
+  if (action.type === 'download') {
+    const timeoutSuffix = action.timeoutSeconds ? ` within ${action.timeoutSeconds}s` : '';
+    return `Wait for download after clicking "${action.triggerClickTarget}" using ${locatorSuffix}${timeoutSuffix}`;
+  }
+
+  if (action.type === 'navigate') {
+    return `Go to ${action.target}`;
+  }
+
+  if (action.type === 'expect') {
+    const timeoutSuffix = action.timeoutSeconds ? ` within ${action.timeoutSeconds}s` : '';
+    return `Expect ${action.assertion}${timeoutSuffix}`;
+  }
+
+  if (action.type === 'dialog') {
+    if (action.action === 'dismiss') {
+      return 'Dismiss browser dialog';
+    }
+    if (action.promptText) {
+      return `Enter "${action.promptText}" in prompt dialog and accept`;
+    }
+    return 'Accept browser dialog';
+  }
+
+  return '';
+}
+
+function toLocatorSuffix(locator: TargetLocator): string {
+  if (locator.kind === 'role') {
+    return `role ${locator.role}`;
+  }
+
+  return locator.kind;
+}
+
 function stripLeadingVerb(text: string): string {
-  return trimPunctuation(text.replace(/^(click|tap|press|select|expect|assert|verify|should|see)\s+/i, ''));
+  return trimPunctuation(
+    text.replace(/^(click|tap|press|select|expect|assert|verify|should|see)\s+/i, ''),
+  );
 }
 
 function extractQuoted(text: string): string | null {
@@ -567,8 +1073,7 @@ function normalizeSelectorToken(value: string): string {
 }
 
 function normalizeNavigationTarget(value: string): string {
-  const cleaned = stripWrappingQuotes(trimPunctuation(value)).replace(/\s+url$/i, '').trim();
-  return cleaned;
+  return stripWrappingQuotes(trimPunctuation(value)).replace(/\s+url$/i, '').trim();
 }
 
 function parseFilePaths(value: string): string[] {

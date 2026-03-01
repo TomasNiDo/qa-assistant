@@ -1,34 +1,85 @@
 import type Database from 'better-sqlite3';
-import type { CreateTestInput, Step, TestCase, UpdateTestInput } from '@shared/types';
+import {
+  formatCustomCodeSyntaxError,
+  validateCustomCodeSyntax,
+} from '@shared/customCodeValidation';
+import type {
+  CreateTestInput,
+  CustomCodeSyntaxValidationResult,
+  ParsedAction,
+  Step,
+  TestCase,
+  UpdateTestInput,
+} from '@shared/types';
 import { parseStep } from './parserService';
+import {
+  ensurePlaywrightTestWrapper,
+  generatePlaywrightCode,
+  repairLegacyPlaywrightCode,
+} from './playwrightCodegen';
 import { createId } from './id';
 import { nowIso } from './time';
 
 export class TestCaseService {
   constructor(private readonly db: Database.Database) {}
 
+  validateCustomCodeSyntax(customCode: string): CustomCodeSyntaxValidationResult {
+    const validation = validateCustomCodeSyntax(customCode);
+    if (validation.valid) {
+      return validation;
+    }
+
+    return {
+      ...validation,
+      message: formatCustomCodeSyntaxError(validation),
+    };
+  }
+
   create(input: CreateTestInput): TestCase {
     const timestamp = nowIso();
+    const parsedSteps = this.parseSteps(input.steps);
+    const generatedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
+      testTitle: input.title.trim(),
+      stepComments: parsedSteps.map((step) => step.rawText),
+    });
+    const codeFields = resolveCodeFields({
+      generatedCode,
+      isCustomized: input.isCustomized,
+      customCode: input.customCode,
+    });
+
     const testCase: TestCase = {
       id: createId(),
       projectId: input.projectId,
       title: input.title.trim(),
+      generatedCode: codeFields.generatedCode,
+      customCode: codeFields.customCode,
+      isCustomized: codeFields.isCustomized,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
 
-    const transaction = this.db.transaction((payload: CreateTestInput) => {
+    const transaction = this.db.transaction((payloadParsedSteps: ParsedStepRow[]) => {
       this.db
         .prepare(
-          `INSERT INTO test_cases (id, project_id, title, created_at, updated_at)
-           VALUES (@id, @projectId, @title, @createdAt, @updatedAt)`,
+          `INSERT INTO test_cases (
+             id,
+             project_id,
+             title,
+             generated_code,
+             custom_code,
+             is_customized,
+             created_at,
+             updated_at
+           )
+           VALUES (@id, @projectId, @title, @generatedCode, @customCode, @isCustomized, @createdAt, @updatedAt)`,
         )
-        .run(testCase);
+        .run({ ...testCase, isCustomized: testCase.isCustomized ? 1 : 0 });
 
-      this.saveSteps(testCase.id, payload.steps);
+      this.saveParsedSteps(testCase.id, payloadParsedSteps);
     });
 
-    transaction(input);
+    transaction(parsedSteps);
     return testCase;
   }
 
@@ -45,21 +96,45 @@ export class TestCaseService {
       updatedAt: nowIso(),
     };
 
-    const transaction = this.db.transaction((payload: UpdateTestInput) => {
+    const parsedSteps = this.parseSteps(input.steps);
+    const regeneratedCode = generatePlaywrightCode(parsedSteps.map((step) => step.action), {
+      testTitle: input.title.trim(),
+      stepComments: parsedSteps.map((step) => step.rawText),
+    });
+    const codeFields = resolveCodeFields({
+      generatedCode: existing.generatedCode,
+      isCustomized: input.isCustomized ?? existing.isCustomized,
+      customCode: input.customCode ?? existing.customCode,
+      regeneratedCode,
+    });
+
+    const transaction = this.db.transaction((payloadParsedSteps: ParsedStepRow[]) => {
       this.db
         .prepare(
           `UPDATE test_cases
-           SET project_id = @projectId, title = @title, updated_at = @updatedAt
+           SET project_id = @projectId,
+               title = @title,
+               generated_code = @generatedCode,
+               custom_code = @customCode,
+               is_customized = @isCustomized,
+               updated_at = @updatedAt
            WHERE id = @id`,
         )
-        .run(updated);
+        .run({
+          ...updated,
+          ...codeFields,
+          isCustomized: codeFields.isCustomized ? 1 : 0,
+        });
 
       this.db.prepare('DELETE FROM steps WHERE test_case_id = ?').run(updated.id);
-      this.saveSteps(updated.id, payload.steps);
+      this.saveParsedSteps(updated.id, payloadParsedSteps);
     });
 
-    transaction(input);
-    return updated;
+    transaction(parsedSteps);
+    return {
+      ...updated,
+      ...codeFields,
+    };
   }
 
   delete(id: string): boolean {
@@ -82,7 +157,7 @@ export class TestCaseService {
   list(projectId: string): TestCase[] {
     const rows = this.db
       .prepare(
-        `SELECT id, project_id, title, created_at, updated_at
+        `SELECT id, project_id, title, generated_code, custom_code, is_customized, created_at, updated_at
          FROM test_cases
          WHERE project_id = ?
          ORDER BY updated_at DESC`,
@@ -91,6 +166,9 @@ export class TestCaseService {
       id: string;
       project_id: string;
       title: string;
+      generated_code: string;
+      custom_code: string | null;
+      is_customized: number;
       created_at: string;
       updated_at: string;
     }>;
@@ -126,7 +204,7 @@ export class TestCaseService {
   getById(id: string): TestCase | null {
     const row = this.db
       .prepare(
-        `SELECT id, project_id, title, created_at, updated_at
+        `SELECT id, project_id, title, generated_code, custom_code, is_customized, created_at, updated_at
          FROM test_cases
          WHERE id = ?`,
       )
@@ -135,6 +213,9 @@ export class TestCaseService {
           id: string;
           project_id: string;
           title: string;
+          generated_code: string;
+          custom_code: string | null;
+          is_customized: number;
           created_at: string;
           updated_at: string;
         }
@@ -143,24 +224,33 @@ export class TestCaseService {
     return row ? toTestCase(row) : null;
   }
 
-  private saveSteps(testCaseId: string, rawSteps: string[]): void {
-    const insertStatement = this.db.prepare(
-      `INSERT INTO steps (id, test_case_id, step_order, raw_text, action_json)
-       VALUES (?, ?, ?, ?, ?)`,
-    );
-
-    rawSteps.forEach((rawText, index) => {
+  private parseSteps(rawSteps: string[]): ParsedStepRow[] {
+    return rawSteps.map((rawText, index) => {
       const parsed = parseStep(rawText);
       if (!parsed.ok) {
         throw new Error(`Step ${index + 1}: ${parsed.error}`);
       }
 
+      return {
+        rawText: rawText.trim(),
+        action: parsed.action,
+      };
+    });
+  }
+
+  private saveParsedSteps(testCaseId: string, parsedSteps: ParsedStepRow[]): void {
+    const insertStatement = this.db.prepare(
+      `INSERT INTO steps (id, test_case_id, step_order, raw_text, action_json)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+
+    parsedSteps.forEach((step, index) => {
       insertStatement.run(
         createId(),
         testCaseId,
         index + 1,
-        rawText.trim(),
-        JSON.stringify(parsed.action),
+        step.rawText,
+        JSON.stringify(step.action),
       );
     });
   }
@@ -170,14 +260,72 @@ function toTestCase(row: {
   id: string;
   project_id: string;
   title: string;
+  generated_code: string;
+  custom_code: string | null;
+  is_customized: number;
   created_at: string;
   updated_at: string;
 }): TestCase {
+  const generatedCode = ensurePlaywrightTestWrapper(row.generated_code, row.title);
+  const customCode = row.custom_code
+    ? ensurePlaywrightTestWrapper(row.custom_code, row.title)
+    : null;
+
   return {
     id: row.id,
     projectId: row.project_id,
     title: row.title,
+    generatedCode,
+    customCode,
+    isCustomized: row.is_customized === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+interface ParsedStepRow {
+  rawText: string;
+  action: ParsedAction;
+}
+
+interface ResolveCodeFieldsInput {
+  generatedCode: string;
+  isCustomized?: boolean;
+  customCode?: string | null;
+  regeneratedCode?: string;
+}
+
+function resolveCodeFields(input: ResolveCodeFieldsInput): {
+  generatedCode: string;
+  customCode: string | null;
+  isCustomized: boolean;
+} {
+  const isCustomized = Boolean(input.isCustomized);
+  const normalizedGeneratedCode = repairLegacyPlaywrightCode(
+    input.regeneratedCode ?? input.generatedCode,
+  );
+
+  if (!isCustomized) {
+    return {
+      generatedCode: normalizedGeneratedCode,
+      customCode: null,
+      isCustomized: false,
+    };
+  }
+
+  const customCode = repairLegacyPlaywrightCode(input.customCode ?? input.generatedCode).trim();
+  if (!customCode) {
+    throw new Error('Custom code cannot be empty when customization is enabled.');
+  }
+
+  const syntaxValidation = validateCustomCodeSyntax(customCode);
+  if (!syntaxValidation.valid) {
+    throw new Error(formatCustomCodeSyntaxError(syntaxValidation));
+  }
+
+  return {
+    generatedCode: repairLegacyPlaywrightCode(input.generatedCode),
+    customCode,
+    isCustomized: true,
   };
 }

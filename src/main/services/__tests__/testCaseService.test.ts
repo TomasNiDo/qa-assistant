@@ -27,6 +27,12 @@ describe('TestCaseService', () => {
     });
 
     expect(created.title).toBe('Login flow');
+    expect(created.generatedCode).toContain("import { test, expect } from '@playwright/test';");
+    expect(created.generatedCode).toContain('test("Login flow", async ({ page }) => {');
+    expect(created.generatedCode).toContain('// Click "Sign in"');
+    expect(created.generatedCode).toContain('await page.getByRole("button", { name: "Sign in" }).first().click();');
+    expect(created.customCode).toBeNull();
+    expect(created.isCustomized).toBe(false);
     expect(tests.list(project.id)).toHaveLength(1);
 
     const steps = tests.listSteps(created.id);
@@ -72,6 +78,113 @@ describe('TestCaseService', () => {
       'Click "Sign out"',
     ]);
     expect(steps.map((step) => step.stepOrder)).toEqual([1, 2, 3]);
+  });
+
+  it('preserves generated code and uses custom code when customization is enabled', () => {
+    db = createTestDb();
+    const projects = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = projects.create({
+      name: 'Auth',
+      baseUrl: 'https://example.com',
+    });
+
+    const created = tests.create({
+      projectId: project.id,
+      title: 'Login flow',
+      steps: ['Click "Sign in"'],
+    });
+    const generatedBeforeCustomize = created.generatedCode;
+
+    const customized = tests.update({
+      id: created.id,
+      projectId: project.id,
+      title: 'Login flow custom',
+      steps: ['Click "Sign in"', 'Expect dashboard visible'],
+      isCustomized: true,
+      customCode: 'await page.goto(baseUrl);\nawait page.getByText("Custom").click();',
+    });
+
+    expect(customized.isCustomized).toBe(true);
+    expect(customized.customCode).toContain('Custom');
+    expect(customized.generatedCode).toBe(generatedBeforeCustomize);
+
+    const restored = tests.update({
+      id: created.id,
+      projectId: project.id,
+      title: 'Login flow restored',
+      steps: ['Expect dashboard visible'],
+      isCustomized: false,
+      customCode: null,
+    });
+
+    expect(restored.isCustomized).toBe(false);
+    expect(restored.customCode).toBeNull();
+    expect(restored.generatedCode).not.toBe(generatedBeforeCustomize);
+    expect(restored.generatedCode).toContain('test("Login flow restored", async ({ page }) => {');
+    expect(restored.generatedCode).toContain('// Expect dashboard visible');
+    expect(restored.generatedCode).toContain('await expect(page.getByText("dashboard visible").first()).toBeVisible();');
+  });
+
+  it('rejects customized code with syntax errors', () => {
+    db = createTestDb();
+    const projects = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = projects.create({
+      name: 'Cart',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(() =>
+      tests.create({
+        projectId: project.id,
+        title: 'Invalid custom code',
+        steps: ['Expect success visible'],
+        isCustomized: true,
+        customCode:
+          'await expect(page.getByText("Successfully added to cart").first()).toBeVisible({ timeout: 10000 };',
+      }),
+    ).toThrow(/Custom code syntax error/);
+  });
+
+  it('repairs legacy malformed expect timeout code for stored generated/custom code', () => {
+    db = createTestDb();
+    const projects = new ProjectService(db);
+    const tests = new TestCaseService(db);
+    const project = projects.create({
+      name: 'Legacy',
+      baseUrl: 'https://example.com',
+    });
+
+    db.prepare(
+      `INSERT INTO test_cases (
+         id,
+         project_id,
+         title,
+         generated_code,
+         custom_code,
+         is_customized,
+         created_at,
+         updated_at
+       )
+       VALUES (@id, @projectId, @title, @generatedCode, @customCode, @isCustomized, @createdAt, @updatedAt)`,
+    ).run({
+      id: 'legacy-test-1',
+      projectId: project.id,
+      title: 'Legacy malformed code',
+      generatedCode: 'await expect(page.getByText("ok").first()).toBeVisible(, { timeout: 3000 });',
+      customCode: 'await expect(page.getByText("ok").first()).toBeVisible(, { timeout: 10000 });',
+      isCustomized: 1,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    });
+
+    const loaded = tests.getById('legacy-test-1');
+    expect(loaded).not.toBeNull();
+    expect(loaded?.generatedCode).toContain("import { test, expect } from '@playwright/test';");
+    expect(loaded?.generatedCode).toContain('test("Legacy malformed code", async ({ page }) => {');
+    expect(loaded?.generatedCode).toContain('toBeVisible({ timeout: 3000 })');
+    expect(loaded?.customCode).toContain('toBeVisible({ timeout: 10000 })');
   });
 
   it('rolls back create when a step is invalid', () => {

@@ -26,6 +26,7 @@ import {
   testCreateInputSchema,
   testDeleteIdSchema,
   testListProjectIdSchema,
+  testValidateCustomCodeSyntaxSchema,
   testUpdateInputSchema,
 } from './inputSchemas';
 import type { Services } from '../services/services';
@@ -108,6 +109,16 @@ export function registerHandlers(services: Services, options: RegisterHandlersOp
     wrap(() => {
       const validated = parseIpcInput(stepParseRawTextSchema, rawText, 'step.parse payload');
       return services.parserService.parse(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.testValidateCustomCodeSyntax, async (_event, customCode) =>
+    wrap(() => {
+      const validated = parseIpcInput(
+        testValidateCustomCodeSyntaxSchema,
+        customCode,
+        'test.validateCustomCodeSyntax payload',
+      );
+      return services.testCaseService.validateCustomCodeSyntax(validated);
     }),
   );
 
