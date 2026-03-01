@@ -43,9 +43,3 @@
 - Prefer small, focused commits with clear messages.
 - Do not add cloud/auth/team features in MVP unless explicitly requested.
 - Maintain local-only data assumptions and SQLite-first implementation.
-
-## Next Major Work Items
-- Replace synthetic run loop in `RunService` with real Playwright execution.
-- Persist real screenshot artifacts per step.
-- Add run live updates from main to renderer (status/timeline improvements).
-- Harden AI validation and destructive-action confirmation UX.
