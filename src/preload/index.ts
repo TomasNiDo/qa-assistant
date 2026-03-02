@@ -81,6 +81,8 @@ const api: QaAssistantApi = {
 
   aiGenerateSteps: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateSteps, input),
   aiGenerateBugReport: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateBugReport, input),
+  generateFeatureScenarios: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.generateFeatureScenarios, input),
 };
 
 contextBridge.exposeInMainWorld('qaApi', api);

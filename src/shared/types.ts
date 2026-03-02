@@ -253,6 +253,26 @@ export interface GenerateStepsInput {
   metadataJson?: string;
 }
 
+export interface GenerateFeatureScenariosInput {
+  featureId: string;
+}
+
+export interface GeneratedFeatureScenario {
+  title: string;
+  type: TestType;
+  priority: TestPriority;
+}
+
+export type GenerateFeatureScenariosResult =
+  | {
+      success: true;
+      scenarios: TestCase[];
+    }
+  | {
+      success: false;
+      message: string;
+    };
+
 export interface GenerateBugReportInput {
   runId: string;
 }

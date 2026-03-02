@@ -274,4 +274,76 @@ describe('AIService', () => {
       'AI bug report generation returned an unexpected format. Try again with more specific input.',
     );
   });
+
+  it('returns validated feature scenarios and deduplicates against existing drafted titles', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        geminiSuccessResponse(
+          '{"scenarios":[{"title":" Existing drafted title ","type":"positive","priority":"high"},{"title":"User logs in with valid credentials","type":"positive","priority":"high"},{"title":"User logs in with valid credentials","type":"positive","priority":"high"},{"title":"User sees lockout after too many attempts","type":"edge","priority":"medium"}]}',
+        ),
+      );
+
+    const service = new AIService({} as Database.Database, 'test-key', 'gemini-2.5-flash', {
+      fetchFn: fetchMock as unknown as typeof fetch,
+      delay: async () => undefined,
+      maxRetries: 0,
+      requestTimeoutMs: 50,
+    });
+
+    const result = await service.generateFeatureScenarioDrafts({
+      projectName: 'Auth',
+      featureTitle: 'Login',
+      acceptanceCriteria: 'User logs in successfully.',
+      existingDraftTitles: ['Existing drafted title'],
+    });
+
+    expect(result).toEqual([
+      {
+        title: 'User logs in with valid credentials',
+        type: 'positive',
+        priority: 'high',
+      },
+      {
+        title: 'User sees lockout after too many attempts',
+        type: 'edge',
+        priority: 'medium',
+      },
+    ]);
+  });
+
+  it('fails AI scenario generation when API key is missing', async () => {
+    const service = new AIService({} as Database.Database, undefined);
+
+    await expect(
+      service.generateFeatureScenarioDrafts({
+        projectName: 'Auth',
+        featureTitle: 'Login',
+        acceptanceCriteria: 'User logs in successfully.',
+        existingDraftTitles: [],
+      }),
+    ).rejects.toThrow('GEMINI_API_KEY is not configured.');
+  });
+
+  it('classifies malformed JSON for AI scenario generation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(geminiSuccessResponse('no JSON object present'));
+
+    const service = new AIService({} as Database.Database, 'test-key', 'gemini-2.5-flash', {
+      fetchFn: fetchMock as unknown as typeof fetch,
+      delay: async () => undefined,
+      maxRetries: 0,
+      requestTimeoutMs: 50,
+    });
+
+    await expect(
+      service.generateFeatureScenarioDrafts({
+        projectName: 'Auth',
+        featureTitle: 'Login',
+        acceptanceCriteria: 'User logs in successfully.',
+        existingDraftTitles: [],
+      }),
+    ).rejects.toThrow(
+      'AI scenario generation returned an unexpected format. Try again with more specific input.',
+    );
+  });
 });

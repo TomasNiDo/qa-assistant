@@ -86,6 +86,7 @@ export function App(): JSX.Element {
     'all' | 'passed' | 'failed' | 'running'
   >('all');
   const [executionSummary, setExecutionSummary] = useState<FeatureExecutionSummary | null>(null);
+  const [isGeneratingAiScenarios, setIsGeneratingAiScenarios] = useState(false);
 
   const hasInitializedSidebar = useRef(false);
   const featureAutoSaveVersion = useRef(0);
@@ -791,6 +792,49 @@ export function App(): JSX.Element {
     selectedProjectId,
   ]);
 
+  const handleGenerateAiScenarios = useCallback(async (): Promise<void> => {
+    if (!selectedFeatureId) {
+      onMessage('Save the feature first before generating AI scenarios.');
+      return;
+    }
+
+    if (isGeneratingAiScenarios) {
+      return;
+    }
+
+    setIsGeneratingAiScenarios(true);
+    try {
+      const result = await window.qaApi.generateFeatureScenarios({ featureId: selectedFeatureId });
+      if (!result.ok) {
+        onMessage(result.error.message);
+        return;
+      }
+
+      if (!result.data.success) {
+        onMessage(result.data.message);
+        return;
+      }
+
+      await refreshSidebar(selectedProjectId, selectedFeatureId);
+      await refreshExecutionSummary(selectedFeatureId);
+      const count = result.data.scenarios.length;
+      onMessage(
+        count === 1 ? '1 AI-generated scenario added' : `${count} AI-generated scenarios added`,
+      );
+    } catch (error) {
+      onMessage(`AI scenario generation failed: ${toErrorMessage(error)}`);
+    } finally {
+      setIsGeneratingAiScenarios(false);
+    }
+  }, [
+    isGeneratingAiScenarios,
+    onMessage,
+    refreshExecutionSummary,
+    refreshSidebar,
+    selectedFeatureId,
+    selectedProjectId,
+  ]);
+
   const handleToggleDraftedSelection = useCallback(
     (testCaseId: string, checked: boolean): void => {
       setSelectedDraftedTestIds((previous) => {
@@ -1205,6 +1249,10 @@ export function App(): JSX.Element {
               canManageDraftedTests={Boolean(selectedFeatureId)}
               isTestDeleteBlocked={(testCaseId) => activeRunContext?.testCaseId === testCaseId}
               onAddTestCase={handleOpenAddDraftedTestCaseModal}
+              onGenerateAiScenarios={() => {
+                void handleGenerateAiScenarios();
+              }}
+              isGeneratingAiScenarios={isGeneratingAiScenarios}
               onToggleDraftedSelection={handleToggleDraftedSelection}
               onApproveDraftedTestCase={(testCaseId) => {
                 void handleApproveDraftedTestCase(testCaseId);

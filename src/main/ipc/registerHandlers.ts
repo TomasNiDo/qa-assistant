@@ -13,6 +13,7 @@ import {
   featureDeleteIdSchema,
   featureListProjectIdSchema,
   featureUpdateInputSchema,
+  generateFeatureScenariosInputSchema,
   parseIpcInput,
   projectCreateInputSchema,
   projectDeleteIdSchema,
@@ -273,6 +274,72 @@ export function registerHandlers(services: Services, options: RegisterHandlersOp
         'ai.generateBugReport payload',
       );
       return services.aiService.generateBugReport(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.generateFeatureScenarios, async (_event, input) =>
+    wrapAsync(async () => {
+      const validated = parseIpcInput(
+        generateFeatureScenariosInputSchema,
+        input,
+        'ai.generateFeatureScenarios payload',
+      );
+      const feature = services.featureService.getById(validated.featureId);
+      if (!feature) {
+        return {
+          success: false as const,
+          message: 'Feature not found.',
+        };
+      }
+
+      const project = services.projectService.getById(feature.projectId);
+      if (!project) {
+        return {
+          success: false as const,
+          message: 'Project not found for selected feature.',
+        };
+      }
+
+      const existingDraftTitles = services.testCaseService
+        .listByFeature(feature.id)
+        .filter((testCase) => testCase.planningStatus === 'drafted')
+        .map((testCase) => testCase.title);
+
+      try {
+        const generated = await services.aiService.generateFeatureScenarioDrafts({
+          projectName: project.name,
+          featureTitle: feature.title,
+          acceptanceCriteria: feature.acceptanceCriteria,
+          existingDraftTitles,
+        });
+
+        if (generated.length === 0) {
+          return {
+            success: false as const,
+            message: 'AI returned no valid scenarios.',
+          };
+        }
+
+        const inserted = generated.map((scenario) =>
+          services.testCaseService.create({
+            featureId: feature.id,
+            title: scenario.title,
+            testType: scenario.type,
+            priority: scenario.priority,
+            planningStatus: 'drafted',
+            isAiGenerated: true,
+          }),
+        );
+
+        return {
+          success: true as const,
+          scenarios: inserted,
+        };
+      } catch (error) {
+        return {
+          success: false as const,
+          message: toMessage(error),
+        };
+      }
     }),
   );
 }

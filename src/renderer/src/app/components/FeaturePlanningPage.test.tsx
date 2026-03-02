@@ -11,6 +11,8 @@ function FeaturePlanningPageHarness(props: {
   selectedDraftedTestIds?: string[];
   canManageDraftedTests?: boolean;
   onAddTestCase?: () => void;
+  onGenerateAiScenarios?: () => void;
+  isGeneratingAiScenarios?: boolean;
   onToggleDraftedSelection?: (testCaseId: string, checked: boolean) => void;
   onApproveDraftedTestCase?: (testCaseId: string) => void;
   onApproveSelectedDraftedTests?: () => void;
@@ -46,6 +48,8 @@ function FeaturePlanningPageHarness(props: {
       canManageDraftedTests={props.canManageDraftedTests ?? true}
       isTestDeleteBlocked={() => false}
       onAddTestCase={props.onAddTestCase ?? vi.fn()}
+      onGenerateAiScenarios={props.onGenerateAiScenarios ?? vi.fn()}
+      isGeneratingAiScenarios={props.isGeneratingAiScenarios ?? false}
       onToggleDraftedSelection={props.onToggleDraftedSelection ?? vi.fn()}
       onApproveDraftedTestCase={props.onApproveDraftedTestCase ?? vi.fn()}
       onApproveSelectedDraftedTests={props.onApproveSelectedDraftedTests ?? vi.fn()}
@@ -126,8 +130,8 @@ describe('FeaturePlanningPage', () => {
       />, 
     );
 
-    expect(screen.getByRole('heading', { name: 'Drafted Test Cases' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Approved Test Cases' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Drafted Test Cases/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Approved Test Cases/ })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve Checkout works' }));
     expect(onApproveDraftedTestCase).toHaveBeenCalledWith('test-1');
@@ -159,5 +163,188 @@ describe('FeaturePlanningPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Execution' }));
     expect(onSwitchPhase).toHaveBeenCalledWith('execution');
+  });
+
+  it('triggers AI generation action and shows loading label while in progress', () => {
+    const onGenerateAiScenarios = vi.fn();
+    const { rerender } = render(
+      <FeaturePlanningPageHarness onGenerateAiScenarios={onGenerateAiScenarios} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Scenarios (AI)' }));
+    expect(onGenerateAiScenarios).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <FeaturePlanningPageHarness
+        onGenerateAiScenarios={onGenerateAiScenarios}
+        isGeneratingAiScenarios
+      />,
+    );
+
+    const loadingButton = screen.getByRole('button', { name: 'Generating Scenarios...' });
+    expect((loadingButton as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows AI badge for AI-generated drafted test cases only', () => {
+    render(
+      <FeaturePlanningPageHarness
+        draftedTests={[
+          {
+            id: 'ai-draft',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'AI draft',
+            testType: 'edge',
+            priority: 'medium',
+            planningStatus: 'drafted',
+            isAiGenerated: true,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'manual-draft',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Manual draft',
+            testType: 'positive',
+            priority: 'high',
+            planningStatus: 'drafted',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText('AI')).toHaveLength(1);
+  });
+
+  it('orders drafted test cases by type: positive, negative, edge', () => {
+    render(
+      <FeaturePlanningPageHarness
+        draftedTests={[
+          {
+            id: 'edge-draft',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Edge scenario',
+            testType: 'edge',
+            priority: 'medium',
+            planningStatus: 'drafted',
+            isAiGenerated: true,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'positive-draft',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Positive scenario',
+            testType: 'positive',
+            priority: 'high',
+            planningStatus: 'drafted',
+            isAiGenerated: true,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'negative-draft',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Negative scenario',
+            testType: 'negative',
+            priority: 'low',
+            planningStatus: 'drafted',
+            isAiGenerated: true,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+      />,
+    );
+
+    const labels = screen
+      .getAllByRole('checkbox')
+      .map((checkbox) => checkbox.getAttribute('aria-label'));
+    expect(labels).toEqual([
+      'Select Positive scenario',
+      'Select Negative scenario',
+      'Select Edge scenario',
+    ]);
+  });
+
+  it('shows section counts next to drafted and approved titles', () => {
+    render(
+      <FeaturePlanningPageHarness
+        draftedTests={[
+          {
+            id: 'draft-a',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Draft A',
+            testType: 'positive',
+            priority: 'high',
+            planningStatus: 'drafted',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'draft-b',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Draft B',
+            testType: 'negative',
+            priority: 'medium',
+            planningStatus: 'drafted',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+        approvedTests={[
+          {
+            id: 'approved-a',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved A',
+            testType: 'edge',
+            priority: 'low',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Drafted Test Cases (2)' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Approved Test Cases (1)' })).toBeTruthy();
   });
 });

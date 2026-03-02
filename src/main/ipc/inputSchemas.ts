@@ -129,6 +129,12 @@ export const aiGenerateStepsInputSchema = z
   })
   .strict();
 
+export const generateFeatureScenariosInputSchema = z
+  .object({
+    featureId: idSchema,
+  })
+  .strict();
+
 export const aiGenerateBugReportInputSchema = z
   .object({
     runId: idSchema,

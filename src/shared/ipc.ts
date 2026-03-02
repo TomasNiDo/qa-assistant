@@ -12,6 +12,8 @@ import type {
   GenerateStepsInput,
   Feature,
   FeatureExecutionSummary,
+  GenerateFeatureScenariosResult,
+  GenerateFeatureScenariosInput,
   GeneratedBugReport,
   GeneratedStep,
   Project,
@@ -68,6 +70,7 @@ export const IPC_CHANNELS = {
   updateStatus: 'app.updateStatus',
   aiGenerateSteps: 'ai.generateSteps',
   aiGenerateBugReport: 'ai.generateBugReport',
+  generateFeatureScenarios: 'ai.generateFeatureScenarios',
 } as const;
 
 export interface QaAssistantApi {
@@ -115,4 +118,7 @@ export interface QaAssistantApi {
 
   aiGenerateSteps: (input: GenerateStepsInput) => Promise<ApiResult<GeneratedStep[]>>;
   aiGenerateBugReport: (input: GenerateBugReportInput) => Promise<ApiResult<GeneratedBugReport>>;
+  generateFeatureScenarios: (
+    input: GenerateFeatureScenariosInput,
+  ) => Promise<ApiResult<GenerateFeatureScenariosResult>>;
 }

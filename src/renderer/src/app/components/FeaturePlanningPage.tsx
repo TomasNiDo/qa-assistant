@@ -28,12 +28,20 @@ interface FeaturePlanningPageProps {
   canManageDraftedTests: boolean;
   isTestDeleteBlocked: (testCaseId: string) => boolean;
   onAddTestCase: () => void;
+  onGenerateAiScenarios: () => void;
+  isGeneratingAiScenarios: boolean;
   onToggleDraftedSelection: (testCaseId: string, checked: boolean) => void;
   onApproveDraftedTestCase: (testCaseId: string) => void;
   onApproveSelectedDraftedTests: () => void;
   onMoveBackApprovedTestCase: (testCaseId: string) => void;
   onDeleteTestCase: (testCaseId: string) => void;
 }
+
+const TEST_TYPE_DISPLAY_ORDER: Record<TestCase['testType'], number> = {
+  positive: 0,
+  negative: 1,
+  edge: 2,
+};
 
 function formatEnumLabel(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -57,12 +65,18 @@ export function FeaturePlanningPage({
   canManageDraftedTests,
   isTestDeleteBlocked,
   onAddTestCase,
+  onGenerateAiScenarios,
+  isGeneratingAiScenarios,
   onToggleDraftedSelection,
   onApproveDraftedTestCase,
   onApproveSelectedDraftedTests,
   onMoveBackApprovedTestCase,
   onDeleteTestCase,
 }: FeaturePlanningPageProps): JSX.Element {
+  const sortedDraftedTests = [...draftedTests].sort((left, right) => {
+    return TEST_TYPE_DISPLAY_ORDER[left.testType] - TEST_TYPE_DISPLAY_ORDER[right.testType];
+  });
+
   if (!hasSelectedProject) {
     return (
       <section className={`${panelClass} bg-[#101722]/55`}>
@@ -179,7 +193,9 @@ export function FeaturePlanningPage({
 
       <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">Drafted Test Cases</h2>
+          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
+            Drafted Test Cases ({sortedDraftedTests.length})
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -188,6 +204,14 @@ export function FeaturePlanningPage({
               disabled={!canManageDraftedTests || selectedDraftedTestIds.length === 0}
             >
               Approved Test Cases
+            </button>
+            <button
+              type="button"
+              className={subtleButtonClass}
+              onClick={onGenerateAiScenarios}
+              disabled={!canManageDraftedTests || isGeneratingAiScenarios}
+            >
+              {isGeneratingAiScenarios ? 'Generating Scenarios...' : 'Generate Scenarios (AI)'}
             </button>
             <button
               type="button"
@@ -204,11 +228,11 @@ export function FeaturePlanningPage({
           <p className="text-xs text-[#94a8c2]">
             Save the feature title and acceptance criteria first to add drafted test cases.
           </p>
-        ) : draftedTests.length === 0 ? (
+        ) : sortedDraftedTests.length === 0 ? (
           <p className="text-xs text-[#94a8c2]">No drafted test cases yet.</p>
         ) : (
           <ul className="space-y-2">
-            {draftedTests.map((testCase) => (
+            {sortedDraftedTests.map((testCase) => (
               <li
                 key={testCase.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
@@ -234,6 +258,11 @@ export function FeaturePlanningPage({
                       <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
                         {formatEnumLabel(testCase.priority)}
                       </span>
+                      {testCase.isAiGenerated ? (
+                        <span className="rounded-full bg-[#1f2835] px-2 py-1 text-[#b9d5ff]">
+                          AI
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -273,7 +302,9 @@ export function FeaturePlanningPage({
 
       <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">Approved Test Cases</h2>
+          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
+            Approved Test Cases ({approvedTests.length})
+          </h2>
         </div>
 
         {!canManageDraftedTests ? (

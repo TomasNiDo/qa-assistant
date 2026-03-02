@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type {
   GenerateBugReportInput,
+  GeneratedFeatureScenario,
   GenerateStepsInput,
   GeneratedBugReport,
   GeneratedStep,
@@ -8,6 +9,8 @@ import type {
   StepResult,
 } from '@shared/types';
 import { z } from 'zod';
+import { buildFeatureScenarioPrompt } from './ai/buildFeatureScenarioPrompt';
+import { parseFeatureScenarioResponse } from './ai/parseFeatureScenarioResponse';
 import { parseStep } from './parserService';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
@@ -290,6 +293,37 @@ export class AIService {
       };
     } catch (error) {
       throw toUserFacingAIError('bug-report', error);
+    }
+  }
+
+  async generateFeatureScenarioDrafts(input: {
+    projectName: string;
+    featureTitle: string;
+    acceptanceCriteria: string;
+    existingDraftTitles: string[];
+  }): Promise<GeneratedFeatureScenario[]> {
+    if (!this.apiKey) {
+      throw new Error(
+        'GEMINI_API_KEY is not configured. Add it to your .env file before generating AI scenarios.',
+      );
+    }
+
+    const prompt = buildFeatureScenarioPrompt({
+      projectName: input.projectName,
+      featureTitle: input.featureTitle,
+      acceptanceCriteria: input.acceptanceCriteria,
+    });
+
+    try {
+      const response = await this.callGemini(prompt);
+      const parsed = parseFeatureScenarioResponse(response.text, input.existingDraftTitles);
+      if (!parsed.ok) {
+        throw new AIRequestError('model_output', parsed.message, false);
+      }
+
+      return parsed.scenarios;
+    } catch (error) {
+      throw toUserFacingAIError('feature-scenario-generation', error);
     }
   }
 
@@ -655,7 +689,7 @@ function normalizeAIRequestError(error: unknown): AIRequestError {
 }
 
 function toUserFacingAIError(
-  operation: 'step-generation' | 'bug-report',
+  operation: 'step-generation' | 'bug-report' | 'feature-scenario-generation',
   error: unknown,
 ): Error {
   if (!(error instanceof AIRequestError)) {
@@ -665,7 +699,9 @@ function toUserFacingAIError(
   const operationLabel =
     operation === 'step-generation'
       ? 'AI step generation'
-      : 'AI bug report generation';
+      : operation === 'bug-report'
+        ? 'AI bug report generation'
+        : 'AI scenario generation';
 
   if (error.code === 'timeout') {
     return new Error(`${operationLabel} timed out. Please retry.`);
