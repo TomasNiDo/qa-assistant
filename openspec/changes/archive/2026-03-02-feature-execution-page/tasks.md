@@ -27,4 +27,4 @@
 
 - [x] 5.1 Add/update unit/component tests for phase toggle behavior, execution filters, row indicators, and conditional run button visibility.
 - [x] 5.2 Add/update integration tests for execution summary/list contract behavior and status mapping from run history.
-- [ ] 5.3 Execute manual QA for: planning/execution switching, edit navigation, run visibility without steps, run status colors, and summary-card correctness.
+- [x] 5.3 Execute manual QA for: planning/execution switching, edit navigation, run visibility without steps, run status colors, and summary-card correctness.
