@@ -11,6 +11,7 @@ import type {
   GenerateBugReportInput,
   GenerateStepsInput,
   Feature,
+  FeatureExecutionSummary,
   GeneratedBugReport,
   GeneratedStep,
   Project,
@@ -46,6 +47,7 @@ export const IPC_CHANNELS = {
   testUpdate: 'test.update',
   testDelete: 'test.delete',
   testListByFeature: 'test.listByFeature',
+  testExecutionSummaryByFeature: 'test.executionSummaryByFeature',
   stepList: 'step.list',
   stepParse: 'step.parse',
   testValidateCustomCodeSyntax: 'test.validateCustomCodeSyntax',
@@ -88,6 +90,7 @@ export interface QaAssistantApi {
   testUpdate: (input: UpdateTestInput) => Promise<ApiResult<TestCase>>;
   testDelete: (id: string) => Promise<ApiResult<boolean>>;
   testListByFeature: (featureId: string) => Promise<ApiResult<TestCase[]>>;
+  testExecutionSummaryByFeature: (featureId: string) => Promise<ApiResult<FeatureExecutionSummary>>;
   stepList: (testCaseId: string) => Promise<ApiResult<Step[]>>;
   stepParse: (rawText: string) => Promise<ApiResult<StepParseResult>>;
   testValidateCustomCodeSyntax: (

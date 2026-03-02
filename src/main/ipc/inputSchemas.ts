@@ -101,6 +101,7 @@ export const testUpdateInputSchema = z
 
 export const testDeleteIdSchema = idSchema;
 export const testListFeatureIdSchema = idSchema;
+export const testExecutionSummaryFeatureIdSchema = idSchema;
 export const stepListTestCaseIdSchema = idSchema;
 export const stepParseRawTextSchema = z.string().trim();
 export const testValidateCustomCodeSyntaxSchema = z.string();

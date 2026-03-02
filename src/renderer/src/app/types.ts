@@ -21,6 +21,12 @@ export interface TestFormState {
   testType: 'positive' | 'negative' | 'edge';
   priority: 'high' | 'medium' | 'low';
   isAiGenerated: boolean;
+  stepsText: string;
+  generatedCode: string;
+  customCode: string;
+  isCustomized: boolean;
+  isCodeEditingEnabled: boolean;
+  activeView: 'steps' | 'code';
 }
 
 export interface BrowserInstallProgressState {
@@ -45,6 +51,12 @@ export const DEFAULT_TEST_FORM: TestFormState = {
   testType: 'positive',
   priority: 'medium',
   isAiGenerated: false,
+  stepsText: 'Click "Login"',
+  generatedCode: '',
+  customCode: '',
+  isCustomized: false,
+  isCodeEditingEnabled: false,
+  activeView: 'steps',
 };
 
 export const DEFAULT_FEATURE_FORM: FeatureFormState = {

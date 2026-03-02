@@ -29,6 +29,7 @@ import {
   stepResultsRunIdSchema,
   testCreateInputSchema,
   testDeleteIdSchema,
+  testExecutionSummaryFeatureIdSchema,
   testListFeatureIdSchema,
   testValidateCustomCodeSyntaxSchema,
   testUpdateInputSchema,
@@ -129,6 +130,16 @@ export function registerHandlers(services: Services, options: RegisterHandlersOp
         'test.listByFeature payload',
       );
       return services.testCaseService.listByFeature(validated);
+    }),
+  );
+  ipcMain.handle(IPC_CHANNELS.testExecutionSummaryByFeature, async (_event, featureId) =>
+    wrap(() => {
+      const validated = parseIpcInput(
+        testExecutionSummaryFeatureIdSchema,
+        featureId,
+        'test.executionSummaryByFeature payload',
+      );
+      return services.testCaseService.executionSummaryByFeature(validated);
     }),
   );
   ipcMain.handle(IPC_CHANNELS.stepList, async (_event, testCaseId) =>

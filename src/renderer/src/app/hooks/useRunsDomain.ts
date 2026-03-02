@@ -84,7 +84,7 @@ export interface UseRunsDomainResult {
   refreshRuns: () => Promise<void>;
   refreshStepResults: () => Promise<void>;
   refreshBrowserStates: () => Promise<void>;
-  startRun: () => Promise<void>;
+  startRun: (testCaseIdOverride?: string) => Promise<void>;
   cancelRun: () => Promise<void>;
   installBrowser: (browserName: BrowserName) => Promise<void>;
   clearRunSelectionState: () => void;
@@ -364,8 +364,9 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
     [onMessage, refreshBrowserStates],
   );
 
-  const startRun = useCallback(async (): Promise<void> => {
-    if (!selectedTestId) {
+  const startRun = useCallback(async (testCaseIdOverride?: string): Promise<void> => {
+    const targetTestId = testCaseIdOverride ?? selectedTestId;
+    if (!targetTestId) {
       onMessage('Select a test first.');
       return;
     }
@@ -386,7 +387,7 @@ export function useRunsDomain({ selectedTestId, onMessage }: UseRunsDomainArgs):
       }
     }
 
-    const result = await window.qaApi.runStart({ testCaseId: selectedTestId, browser });
+    const result = await window.qaApi.runStart({ testCaseId: targetTestId, browser });
     if (!result.ok) {
       onMessage(result.error.message);
       void refreshBrowserStates();

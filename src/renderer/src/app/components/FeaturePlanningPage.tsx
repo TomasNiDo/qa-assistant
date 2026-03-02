@@ -8,6 +8,7 @@ import {
   primaryButtonClass,
   subtleButtonClass,
 } from '../uiClasses';
+import { FeaturePhaseToggle } from './FeaturePhaseToggle';
 
 interface FeaturePlanningPageProps {
   hasSelectedProject: boolean;
@@ -19,6 +20,8 @@ interface FeaturePlanningPageProps {
   featureAcceptanceCriteriaError: string | null;
   featureAutoSaveStatus: 'saving' | 'saved' | 'error';
   featureAutoSaveMessage: string;
+  onSwitchPhase: (phase: 'planning' | 'execution') => void;
+  canOpenExecution: boolean;
   draftedTests: TestCase[];
   approvedTests: TestCase[];
   selectedDraftedTestIds: string[];
@@ -46,6 +49,8 @@ export function FeaturePlanningPage({
   featureAcceptanceCriteriaError,
   featureAutoSaveStatus,
   featureAutoSaveMessage,
+  onSwitchPhase,
+  canOpenExecution,
   draftedTests,
   approvedTests,
   selectedDraftedTestIds,
@@ -71,26 +76,36 @@ export function FeaturePlanningPage({
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#edf3fb]">Feature Planning Page</h1>
-          <p className="text-sm text-[#a9b8cb]">
-            Project: <span className="font-semibold text-[#d9e4f5]">{selectedProjectName}</span>
-          </p>
+      <div className="flex justify-end">
+        <FeaturePhaseToggle
+          activePhase="planning"
+          onChangePhase={onSwitchPhase}
+          canOpenExecution={canOpenExecution}
+        />
+      </div>
+
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-[#edf3fb]">Feature Planning Page</h1>
+            <p className="text-sm text-[#a9b8cb]">
+              Project: <span className="font-semibold text-[#d9e4f5]">{selectedProjectName}</span>
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#121c2a]/75 px-3 py-1.5 text-xs font-semibold text-[#d9e4f5]">
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                featureAutoSaveStatus === 'saving'
+                  ? 'animate-pulse bg-warning'
+                  : featureAutoSaveStatus === 'error'
+                    ? 'bg-danger'
+                    : 'bg-success'
+              }`}
+              aria-hidden="true"
+            />
+            {featureAutoSaveMessage}
+          </span>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-[#121c2a]/75 px-3 py-1.5 text-xs font-semibold text-[#d9e4f5]">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              featureAutoSaveStatus === 'saving'
-                ? 'animate-pulse bg-warning'
-                : featureAutoSaveStatus === 'error'
-                  ? 'bg-danger'
-                  : 'bg-success'
-            }`}
-            aria-hidden="true"
-          />
-          {featureAutoSaveMessage}
-        </span>
       </header>
 
       <section className={`${panelClass} space-y-4 bg-[#0f141d]/60`}>
@@ -209,7 +224,7 @@ export function FeaturePlanningPage({
                     aria-label={`Select ${testCase.title}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#dce8f8]">
+                    <p className="truncate text-[12px] font-semibold text-[#dce8f8]">
                       {testCase.title}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
@@ -275,7 +290,9 @@ export function FeaturePlanningPage({
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[#dce8f8]">{testCase.title}</p>
+                  <p className="truncate text-[12px] font-semibold text-[#dce8f8]">
+                    {testCase.title}
+                  </p>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
                     <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
                       {formatEnumLabel(testCase.testType)}

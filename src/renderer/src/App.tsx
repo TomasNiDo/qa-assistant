@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
-import type { Feature, TestCase, TestPlanningStatus } from '@shared/types';
+import type {
+  Feature,
+  FeatureExecutionSummary,
+  TestCase,
+  TestPlanningStatus,
+} from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
 import {
   DraftedTestCaseModal,
   type DraftedTestCaseFormState,
 } from './app/components/DraftedTestCaseModal';
+import { FeatureExecutionPage } from './app/components/FeatureExecutionPage';
 import { FeaturePlanningPage } from './app/components/FeaturePlanningPage';
 import { LoadingScreen } from './app/components/LoadingScreen';
 import { ProjectModal } from './app/components/ProjectModal';
 import { ProjectSetupScreen } from './app/components/ProjectSetupScreen';
+import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
+import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
 import { useFeaturesDomain } from './app/hooks/useFeaturesDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
@@ -71,6 +79,13 @@ export function App(): JSX.Element {
     DEFAULT_DRAFTED_TEST_CASE_FORM,
   );
   const [selectedDraftedTestIds, setSelectedDraftedTestIds] = useState<string[]>([]);
+  const [featurePhase, setFeaturePhase] = useState<'planning' | 'execution' | 'workspace'>(
+    'planning',
+  );
+  const [executionFilter, setExecutionFilter] = useState<
+    'all' | 'passed' | 'failed' | 'running'
+  >('all');
+  const [executionSummary, setExecutionSummary] = useState<FeatureExecutionSummary | null>(null);
 
   const hasInitializedSidebar = useRef(false);
   const featureAutoSaveVersion = useRef(0);
@@ -81,12 +96,22 @@ export function App(): JSX.Element {
   }, []);
 
   const {
+    runs,
+    selectedRunId,
+    setSelectedRunId,
+    selectedRun,
+    stepResults,
+    browser,
+    setBrowser,
+    activeRunId,
     browserStates,
     browserInstallProgress,
     isBrowserStatesLoaded,
     hasInstalledBrowser,
     activeRunContext,
     refreshActiveRunContext,
+    startRun,
+    cancelRun,
     installBrowser,
     clearRunSelectionState,
   } = useRunsDomain({
@@ -141,7 +166,31 @@ export function App(): JSX.Element {
     onMessage,
   });
 
-  const { selectedFeatureTests, refreshTestsTree, selectFeature } = useTestsDomain({
+  const {
+    selectedFeatureTests,
+    selectedTest,
+    selectedTestHasSteps,
+    testForm,
+    setTestForm,
+    testTitleError,
+    customCodeError,
+    testStepsErrors,
+    stepParseWarnings,
+    ambiguousStepWarningCount,
+    isGeneratingSteps,
+    effectiveCode,
+    isCodeModified,
+    isSelectedTestDeleteBlocked,
+    refreshTestsTree,
+    selectFeature,
+    beginCreateTest,
+    setEditorView,
+    enableCodeEditing,
+    updateCodeDraft,
+    restoreGeneratedCode,
+    deleteSelectedTest,
+    generateSteps,
+  } = useTestsDomain({
     featuresByProject,
     selectedProjectId,
     selectedFeatureId,
@@ -238,6 +287,28 @@ export function App(): JSX.Element {
     ],
   );
 
+  const refreshExecutionSummary = useCallback(
+    async (featureId: string = selectedFeatureId): Promise<void> => {
+      if (!featureId) {
+        setExecutionSummary(null);
+        return;
+      }
+
+      try {
+        const result = await window.qaApi.testExecutionSummaryByFeature(featureId);
+        if (!result.ok) {
+          onMessage(result.error.message);
+          return;
+        }
+
+        setExecutionSummary(result.data);
+      } catch (error) {
+        onMessage(`Failed loading execution summary: ${toErrorMessage(error)}`);
+      }
+    },
+    [onMessage, selectedFeatureId],
+  );
+
   useEffect(() => {
     if (hasInitializedSidebar.current) {
       return;
@@ -273,6 +344,25 @@ export function App(): JSX.Element {
   }, [selectedFeatureId]);
 
   useEffect(() => {
+    if (!selectedFeatureId) {
+      setFeaturePhase('planning');
+      setExecutionFilter('all');
+      setExecutionSummary(null);
+      return;
+    }
+
+    void refreshExecutionSummary(selectedFeatureId);
+  }, [refreshExecutionSummary, selectedFeatureId]);
+
+  useEffect(() => {
+    if (!selectedFeatureId) {
+      return;
+    }
+
+    void refreshExecutionSummary(selectedFeatureId);
+  }, [activeRunContext?.runId, refreshExecutionSummary, selectedFeatureId]);
+
+  useEffect(() => {
     const draftedIdSet = new Set(draftedTests.map((testCase) => testCase.id));
     setSelectedDraftedTestIds((previous) =>
       previous.filter((testCaseId) => draftedIdSet.has(testCaseId)),
@@ -284,6 +374,22 @@ export function App(): JSX.Element {
       return;
     }
 
+    const isFeatureFormEmpty =
+      featureForm.id.length === 0 &&
+      featureForm.title.trim().length === 0 &&
+      featureForm.acceptanceCriteria.trim().length === 0 &&
+      featureForm.requirements.trim().length === 0 &&
+      featureForm.notes.trim().length === 0;
+
+    if (
+      featureFormMode === 'create' &&
+      featureForm.id !== selectedFeature.id &&
+      isFeatureFormEmpty
+    ) {
+      beginEditSelectedFeature(selectedFeature.id);
+      return;
+    }
+
     lastSavedFeatureSignatureRef.current = buildFeatureSignature(
       selectedFeature.projectId,
       selectedFeature.id,
@@ -292,7 +398,16 @@ export function App(): JSX.Element {
       selectedFeature.requirements ?? '',
       selectedFeature.notes ?? '',
     );
-  }, [selectedFeature]);
+  }, [
+    beginEditSelectedFeature,
+    featureForm.acceptanceCriteria,
+    featureForm.id,
+    featureForm.notes,
+    featureForm.requirements,
+    featureForm.title,
+    featureFormMode,
+    selectedFeature,
+  ]);
 
   useEffect(() => {
     const hasUserInput =
@@ -405,6 +520,7 @@ export function App(): JSX.Element {
     (projectId: string): void => {
       setSelectedProjectId(projectId);
       selectProject(projectId);
+      setFeaturePhase('planning');
     },
     [selectProject, setSelectedProjectId],
   );
@@ -415,8 +531,103 @@ export function App(): JSX.Element {
       setSelectedFeatureId(featureId);
       beginEditSelectedFeature(featureId);
       selectFeature(featureId);
+      setFeaturePhase('planning');
     },
     [beginEditSelectedFeature, selectFeature, setSelectedFeatureId, setSelectedProjectId],
+  );
+
+  const handleSwitchFeaturePhase = useCallback(
+    (phase: 'planning' | 'execution'): void => {
+      if (phase === 'execution' && !selectedFeatureId) {
+        onMessage('Save the feature first to open execution.');
+        return;
+      }
+
+      setFeaturePhase(phase);
+    },
+    [onMessage, selectedFeatureId],
+  );
+
+  const handleOpenWorkspacePage = useCallback(
+    (testCaseId: string): void => {
+      const testCase = approvedTests.find((row) => row.id === testCaseId);
+      if (!testCase) {
+        onMessage('Approved test case not found.');
+        return;
+      }
+
+      setSelectedTestId(testCaseId);
+      setFeaturePhase('workspace');
+    },
+    [approvedTests, onMessage],
+  );
+
+  const handleResetWorkspaceForm = useCallback((): void => {
+    if (!selectedTest) {
+      beginCreateTest();
+      return;
+    }
+
+    setTestForm((previous) => ({
+      ...previous,
+      id: selectedTest.id,
+      title: selectedTest.title,
+      testType: selectedTest.testType,
+      priority: selectedTest.priority,
+      isAiGenerated: selectedTest.isAiGenerated,
+      isCodeEditingEnabled: false,
+      activeView: 'steps',
+    }));
+  }, [beginCreateTest, selectedTest, setTestForm]);
+
+  const handleDeleteSelectedWorkspaceTest = useCallback(async (): Promise<void> => {
+    const deleted = await deleteSelectedTest(async () => {
+      await refreshSidebar(selectedProjectId, selectedFeatureId);
+      await refreshExecutionSummary(selectedFeatureId);
+      setFeaturePhase('execution');
+    });
+
+    if (!deleted) {
+      return;
+    }
+  }, [
+    deleteSelectedTest,
+    refreshExecutionSummary,
+    refreshSidebar,
+    selectedFeatureId,
+    selectedProjectId,
+  ]);
+
+  const handleRunApprovedTestCase = useCallback(
+    async (testCaseId: string): Promise<void> => {
+      if (activeRunContext) {
+        onMessage('A run is already active. Cancel it before starting another run.');
+        return;
+      }
+
+      const target = executionSummary?.testCases.find((testCase) => testCase.id === testCaseId);
+      if (!target) {
+        onMessage('Approved test case not found.');
+        return;
+      }
+
+      if (!target.hasSteps) {
+        onMessage('Add steps first in the test-case workspace before running.');
+        return;
+      }
+
+      setSelectedTestId(testCaseId);
+      await startRun(testCaseId);
+      await refreshExecutionSummary(selectedFeatureId);
+    },
+    [
+      activeRunContext,
+      executionSummary?.testCases,
+      onMessage,
+      refreshExecutionSummary,
+      selectedFeatureId,
+      startRun,
+    ],
   );
 
   const handleCreateProject = useCallback(async (): Promise<void> => {
@@ -555,6 +766,7 @@ export function App(): JSX.Element {
 
       resetDraftedTestCaseModal();
       await refreshSidebar(selectedProjectId, selectedFeatureId, result.data.id);
+      await refreshExecutionSummary(selectedFeatureId);
       onMessage(
         draftedTestCaseModalMode === 'create'
           ? 'Drafted test case created.'
@@ -571,6 +783,7 @@ export function App(): JSX.Element {
     draftedTestCaseModalMode,
     draftedTestCaseTitleError,
     onMessage,
+    refreshExecutionSummary,
     refreshSidebar,
     resetDraftedTestCaseModal,
     findSelectedFeatureTestCase,
@@ -625,6 +838,7 @@ export function App(): JSX.Element {
           previous.filter((selectedTestId) => selectedTestId !== testCaseId),
         );
         await refreshSidebar(selectedProjectId, selectedFeatureId, result.data.id);
+        await refreshExecutionSummary(selectedFeatureId);
         onMessage(successMessage);
       } catch (error) {
         onMessage(`Updating test case status failed: ${toErrorMessage(error)}`);
@@ -633,6 +847,7 @@ export function App(): JSX.Element {
     [
       findSelectedFeatureTestCase,
       onMessage,
+      refreshExecutionSummary,
       refreshSidebar,
       selectedFeatureId,
       selectedProjectId,
@@ -688,6 +903,7 @@ export function App(): JSX.Element {
 
       setSelectedDraftedTestIds([]);
       await refreshSidebar(selectedProjectId, selectedFeatureId);
+      await refreshExecutionSummary(selectedFeatureId);
       onMessage(
         selectedCases.length === 1
           ? '1 test case moved to approved.'
@@ -699,6 +915,7 @@ export function App(): JSX.Element {
   }, [
     draftedTests,
     onMessage,
+    refreshExecutionSummary,
     refreshSidebar,
     selectedDraftedTestIds,
     selectedFeatureId,
@@ -743,6 +960,7 @@ export function App(): JSX.Element {
         );
 
         await refreshSidebar(selectedProjectId, selectedFeatureId);
+        await refreshExecutionSummary(selectedFeatureId);
         onMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
       } catch (error) {
         onMessage(`Delete test case failed: ${toErrorMessage(error)}`);
@@ -752,6 +970,7 @@ export function App(): JSX.Element {
       activeRunContext?.testCaseId,
       clearRunSelectionState,
       onMessage,
+      refreshExecutionSummary,
       refreshSidebar,
       selectedFeatureId,
       selectedProjectId,
@@ -837,6 +1056,7 @@ export function App(): JSX.Element {
           onCreateFeatureForProject={(projectId) => {
             handleSelectProject(projectId);
             beginCreateFeature();
+            setFeaturePhase('planning');
             setSelectedDraftedTestIds([]);
             lastSavedFeatureSignatureRef.current = '';
             setFeatureAutoSaveStatus('saved');
@@ -861,6 +1081,111 @@ export function App(): JSX.Element {
         <section className="min-w-0 overflow-y-auto bg-transparent px-7 py-6">
           {activeScreen === 'empty' ? (
             <ProjectSetupScreen onBeginCreateProject={beginCreateProject} />
+          ) : featurePhase === 'workspace' ? (
+            <div className="space-y-4">
+              <header className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-semibold text-[#edf3fb]">Test Case Workspace</h1>
+                  <p className="text-sm text-[#a9b8cb]">
+                    Project:{' '}
+                    <span className="font-semibold text-[#d9e4f5]">
+                      {selectedProject?.name ?? 'Unselected'}
+                    </span>
+                  </p>
+                  <p className="text-sm text-[#a9b8cb]">
+                    Feature:{' '}
+                    <span className="font-semibold text-[#d9e4f5]">
+                      {selectedFeature?.title ?? 'Unselected'}
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center justify-center rounded-full bg-secondary/50 px-3 text-[11px] font-medium text-secondary-foreground transition hover:bg-secondary/72"
+                  onClick={() => setFeaturePhase('execution')}
+                >
+                  Back To Execution
+                </button>
+              </header>
+
+              <TestCaseEditorPanel
+                testCasePanelTitle="Scenario Setup"
+                testCasePanelDescription={
+                  selectedTest
+                    ? 'Edit metadata and keep execution steps in sync from this workspace.'
+                    : 'Select a test case from Execution page to edit.'
+                }
+                hasAtLeastOneTestCase={Boolean(selectedTest)}
+                testForm={testForm}
+                setTestForm={setTestForm}
+                testTitleError={testTitleError}
+                customCodeError={customCodeError}
+                testStepsErrors={testStepsErrors}
+                stepParseWarnings={stepParseWarnings}
+                ambiguousStepWarningCount={ambiguousStepWarningCount}
+                isGeneratingSteps={isGeneratingSteps}
+                hasSelectedTest={Boolean(selectedTest)}
+                isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
+                effectiveCode={effectiveCode}
+                isCodeModified={isCodeModified}
+                browser={browser}
+                setBrowser={setBrowser}
+                canStartRun={Boolean(selectedTestId) && selectedTestHasSteps && !activeRunId}
+                setEditorView={setEditorView}
+                onEnableCodeEditing={enableCodeEditing}
+                onCodeChange={updateCodeDraft}
+                onRestoreGeneratedCode={restoreGeneratedCode}
+                onBeginCreateTest={handleResetWorkspaceForm}
+                onGenerateSteps={() => {
+                  void generateSteps();
+                }}
+                onDeleteSelectedTest={() => {
+                  void handleDeleteSelectedWorkspaceTest();
+                }}
+                onStartRun={() => {
+                  void startRun();
+                }}
+              />
+
+              <RunCenterPanel
+                runs={runs}
+                selectedRunId={selectedRunId}
+                setSelectedRunId={setSelectedRunId}
+                selectedRun={selectedRun}
+                stepResults={stepResults}
+                activeRunId={activeRunId}
+                onCancelRun={() => {
+                  void cancelRun();
+                }}
+                onRerun={() => {
+                  void startRun();
+                }}
+                canRerun={Boolean(selectedTestId)}
+                onGenerateBugReport={() => {
+                  onMessage('Bug report generation is not available in this workspace view yet.');
+                }}
+                isGeneratingBugReport={false}
+                canGenerateBugReport={false}
+              />
+            </div>
+          ) : featurePhase === 'execution' ? (
+            <FeatureExecutionPage
+              hasSelectedProject={Boolean(selectedProjectId)}
+              selectedProjectName={selectedProject?.name ?? 'Unselected'}
+              featureTitle={selectedFeature?.title ?? featureForm.title}
+              summary={executionSummary}
+              activeFilter={executionFilter}
+              onChangeFilter={setExecutionFilter}
+              onSwitchPhase={handleSwitchFeaturePhase}
+              canOpenExecution={Boolean(selectedFeatureId)}
+              onEditTestCase={(testCaseId) => {
+                handleOpenWorkspacePage(testCaseId);
+              }}
+              onRunTestCase={(testCaseId) => {
+                void handleRunApprovedTestCase(testCaseId);
+              }}
+              runBlocked={Boolean(activeRunContext)}
+            />
           ) : (
             <FeaturePlanningPage
               hasSelectedProject={Boolean(selectedProjectId)}
@@ -872,6 +1197,8 @@ export function App(): JSX.Element {
               featureAcceptanceCriteriaError={featureAcceptanceCriteriaError}
               featureAutoSaveStatus={featureAutoSaveStatus}
               featureAutoSaveMessage={featureAutoSaveMessage}
+              onSwitchPhase={handleSwitchFeaturePhase}
+              canOpenExecution={Boolean(selectedFeatureId)}
               draftedTests={draftedTests}
               approvedTests={approvedTests}
               selectedDraftedTestIds={selectedDraftedTestIds}

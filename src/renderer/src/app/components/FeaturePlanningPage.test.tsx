@@ -16,6 +16,8 @@ function FeaturePlanningPageHarness(props: {
   onApproveSelectedDraftedTests?: () => void;
   onMoveBackApprovedTestCase?: (testCaseId: string) => void;
   onDeleteTestCase?: (testCaseId: string) => void;
+  onSwitchPhase?: (phase: 'planning' | 'execution') => void;
+  canOpenExecution?: boolean;
 }): JSX.Element {
   const [featureForm, setFeatureForm] = useState<FeatureFormState>({
     id: 'feature-1',
@@ -36,6 +38,8 @@ function FeaturePlanningPageHarness(props: {
       featureAcceptanceCriteriaError={null}
       featureAutoSaveStatus="saved"
       featureAutoSaveMessage="Saved"
+      onSwitchPhase={props.onSwitchPhase ?? vi.fn()}
+      canOpenExecution={props.canOpenExecution ?? true}
       draftedTests={props.draftedTests ?? []}
       approvedTests={props.approvedTests ?? []}
       selectedDraftedTestIds={props.selectedDraftedTestIds ?? []}
@@ -147,5 +151,13 @@ describe('FeaturePlanningPage', () => {
       (screen.getByRole('button', { name: 'Approved Test Cases' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it('renders phase switch and forwards execution selection', () => {
+    const onSwitchPhase = vi.fn();
+    render(<FeaturePlanningPageHarness onSwitchPhase={onSwitchPhase} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Execution' }));
+    expect(onSwitchPhase).toHaveBeenCalledWith('execution');
   });
 });

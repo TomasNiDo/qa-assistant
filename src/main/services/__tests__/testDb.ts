@@ -421,7 +421,10 @@ class FakeDatabase {
       };
     }
 
-    if (normalized.includes('FROM test_cases WHERE feature_id = ?')) {
+    if (
+      normalized.includes('FROM test_cases WHERE feature_id = ?') &&
+      !normalized.includes("planning_status = 'approved'")
+    ) {
       return {
         run: () => ({ changes: 0 }),
         get: () => undefined,
@@ -430,6 +433,32 @@ class FakeDatabase {
           return this.testCases
             .filter((testCase) => testCase.feature_id === featureId)
             .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+        },
+      };
+    }
+
+    if (
+      normalized.includes('FROM test_cases') &&
+      normalized.includes('WHERE feature_id = ? AND planning_status = \'approved\'')
+    ) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: () => undefined,
+        all: (...args) => {
+          const [featureId] = args as [string];
+          return this.testCases
+            .filter(
+              (testCase) =>
+                testCase.feature_id === featureId && testCase.planning_status === 'approved',
+            )
+            .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+            .map((testCase) => ({
+              id: testCase.id,
+              feature_id: testCase.feature_id,
+              title: testCase.title,
+              test_type: testCase.test_type,
+              priority: testCase.priority,
+            }));
         },
       };
     }
@@ -591,10 +620,37 @@ class FakeDatabase {
       };
     }
 
+    if (
+      normalized.includes('FROM runs WHERE test_case_id = ?') &&
+      normalized.includes('ORDER BY started_at DESC LIMIT 1')
+    ) {
+      return {
+        run: () => ({ changes: 0 }),
+        get: (...args) => {
+          const [testCaseId] = args as [string];
+          const latestRun = this.runs
+            .filter((run) => run.test_case_id === testCaseId)
+            .sort((left, right) => right.started_at.localeCompare(left.started_at))[0];
+          return latestRun
+            ? {
+                status: latestRun.status,
+              }
+            : undefined;
+        },
+        all: () => [],
+      };
+    }
+
     if (normalized.includes('FROM steps WHERE test_case_id = ?')) {
       return {
         run: () => ({ changes: 0 }),
-        get: () => undefined,
+        get: (...args) => {
+          const [testCaseId] = args as [string];
+          const firstStep = this.steps
+            .filter((step) => step.test_case_id === testCaseId)
+            .sort((a, b) => a.step_order - b.step_order)[0];
+          return firstStep ? { 1: 1 } : undefined;
+        },
         all: (...args) => {
           const [testCaseId] = args as [string];
           return this.steps

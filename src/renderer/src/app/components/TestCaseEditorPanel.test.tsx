@@ -5,6 +5,7 @@ import type { TestFormState } from '../types';
 import { TestCaseEditorPanel } from './TestCaseEditorPanel';
 
 function TestCaseEditorPanelHarness(props: {
+  onGenerateSteps?: () => void;
   onStartRun?: () => void;
 }): JSX.Element {
   const [testForm, setTestForm] = useState<TestFormState>({
@@ -13,20 +14,40 @@ function TestCaseEditorPanelHarness(props: {
     testType: 'positive',
     priority: 'medium',
     isAiGenerated: false,
+    stepsText: 'Click "Sign in"',
+    generatedCode: 'await page.getByRole("button", { name: "Sign in" }).click();',
+    customCode: '',
+    isCustomized: false,
+    isCodeEditingEnabled: false,
+    activeView: 'steps',
   });
 
   return (
     <TestCaseEditorPanel
       testCasePanelTitle="Scenario Setup"
       testCasePanelDescription="Define metadata first."
+      hasAtLeastOneTestCase
       testForm={testForm}
       setTestForm={setTestForm}
       testTitleError={null}
+      customCodeError={null}
+      testStepsErrors={[null]}
+      stepParseWarnings={[[]]}
+      ambiguousStepWarningCount={0}
+      isGeneratingSteps={false}
       hasSelectedTest
       isSelectedTestDeleteBlocked={false}
-      selectedTestHasSteps={false}
-      canStartRun={false}
+      effectiveCode={testForm.generatedCode}
+      isCodeModified={false}
+      browser="chromium"
+      setBrowser={vi.fn()}
+      canStartRun
+      setEditorView={(view) => setTestForm((previous) => ({ ...previous, activeView: view }))}
+      onEnableCodeEditing={vi.fn()}
+      onCodeChange={vi.fn()}
+      onRestoreGeneratedCode={vi.fn()}
       onBeginCreateTest={vi.fn()}
+      onGenerateSteps={props.onGenerateSteps ?? vi.fn()}
       onDeleteSelectedTest={vi.fn()}
       onStartRun={props.onStartRun ?? vi.fn()}
     />
@@ -38,40 +59,55 @@ describe('TestCaseEditorPanel', () => {
     cleanup();
   });
 
-  it('renders planning metadata fields and updates test title', () => {
+  it('renders editable steps editor and updates step text', () => {
     render(<TestCaseEditorPanelHarness />);
 
-    const titleInput = screen.getByPlaceholderText(
-      'Checkout applies promo and captures payment',
-    ) as HTMLInputElement;
-    expect(titleInput.value).toBe('Checkout flow');
+    const stepsEditor = document.querySelector(
+      '.qa-steps-editor__textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(stepsEditor).not.toBeNull();
+    if (!stepsEditor) {
+      return;
+    }
+    expect(stepsEditor.value).toBe('Click "Sign in"');
 
-    fireEvent.input(titleInput, { target: { value: 'Checkout edge flow' } });
-    const updatedInput = screen.getByPlaceholderText(
-      'Checkout applies promo and captures payment',
-    ) as HTMLInputElement;
-    expect(updatedInput.value).toBe('Checkout edge flow');
+    fireEvent.input(stepsEditor, {
+      target: { value: 'Enter "john@example.com" in "Email" field' },
+    });
+    const updatedEditor = document.querySelector(
+      '.qa-steps-editor__textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(updatedEditor?.value).toBe('Enter "john@example.com" in "Email" field');
   });
 
-  it('renders planning-mode guidance', () => {
-    render(<TestCaseEditorPanelHarness />);
-
-    expect(screen.getByText('Planning mode')).toBeTruthy();
-    expect(
-      screen.getByText('Feature planning is active. Step authoring is deferred to a later phase.'),
-    ).toBeTruthy();
-  });
-
-  it('keeps Start Run control functional when enabled', () => {
+  it('keeps Generate and Start Run controls functional in steps view', () => {
+    const onGenerateSteps = vi.fn();
     const onStartRun = vi.fn();
+    render(
+      <TestCaseEditorPanelHarness onGenerateSteps={onGenerateSteps} onStartRun={onStartRun} />,
+    );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Steps (AI)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));
+
+    expect(onGenerateSteps).toHaveBeenCalledTimes(1);
+    expect(onStartRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders ambiguous warning indicator and inline suggested rewrite', () => {
     const [testForm, setTestForm] = [
       {
         id: 'test-1',
         title: 'Checkout flow',
         testType: 'positive',
         priority: 'high',
-        isAiGenerated: true,
+        isAiGenerated: false,
+        stepsText: 'Enter "product1" in "Search" field',
+        generatedCode: '',
+        customCode: '',
+        isCustomized: false,
+        isCodeEditingEnabled: false,
+        activeView: 'steps' as const,
       } satisfies TestFormState,
       vi.fn(),
     ];
@@ -80,20 +116,44 @@ describe('TestCaseEditorPanel', () => {
       <TestCaseEditorPanel
         testCasePanelTitle="Scenario Setup"
         testCasePanelDescription="Define metadata first."
+        hasAtLeastOneTestCase
         testForm={testForm}
         setTestForm={setTestForm}
         testTitleError={null}
+        customCodeError={null}
+        testStepsErrors={[null]}
+        stepParseWarnings={[
+          [
+            {
+              code: 'ambiguous_target',
+              message: 'Target lookup is ambiguous.',
+              suggestedStep: 'Enter "product1" in "Search" field using placeholder',
+            },
+          ],
+        ]}
+        ambiguousStepWarningCount={1}
+        isGeneratingSteps={false}
         hasSelectedTest
         isSelectedTestDeleteBlocked={false}
-        selectedTestHasSteps
+        effectiveCode=""
+        isCodeModified={false}
+        browser="chromium"
+        setBrowser={vi.fn()}
         canStartRun
+        setEditorView={vi.fn()}
+        onEnableCodeEditing={vi.fn()}
+        onCodeChange={vi.fn()}
+        onRestoreGeneratedCode={vi.fn()}
         onBeginCreateTest={vi.fn()}
+        onGenerateSteps={vi.fn()}
         onDeleteSelectedTest={vi.fn()}
-        onStartRun={onStartRun}
-      />, 
+        onStartRun={vi.fn()}
+      />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));
-    expect(onStartRun).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Ambiguous Steps: 1')).toBeTruthy();
+    expect(
+      screen.getByText(/Enter "product1" in "Search" field using placeholder/),
+    ).toBeTruthy();
   });
 });

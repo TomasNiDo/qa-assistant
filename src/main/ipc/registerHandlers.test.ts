@@ -201,6 +201,16 @@ function createServicesMock() {
       update: testUpdate,
       delete: vi.fn(() => true),
       listByFeature: vi.fn(() => []),
+      executionSummaryByFeature: vi.fn((featureId: string) => ({
+        featureId,
+        totalApproved: 0,
+        passedCount: 0,
+        failedCount: 0,
+        runningCount: 0,
+        coveredCount: 0,
+        coveragePercent: 0,
+        testCases: [],
+      })),
       listByProject: vi.fn(() => []),
       listSteps: vi.fn(() => []),
       getById: vi.fn(() => null),
@@ -395,6 +405,42 @@ describe('registerHandlers IPC input validation', () => {
       featureId: 'feature-1',
       title: 'Checkout flow',
       planningStatus: 'approved',
+    });
+  });
+
+  it('validates test execution summary payloads and routes to service', async () => {
+    const { services } = createServicesMock();
+    const executionSummaryByFeature = vi.fn((featureId: string) => ({
+      featureId,
+      totalApproved: 2,
+      passedCount: 1,
+      failedCount: 1,
+      runningCount: 0,
+      coveredCount: 2,
+      coveragePercent: 100,
+      testCases: [],
+    }));
+    services.testCaseService.executionSummaryByFeature = executionSummaryByFeature;
+    registerHandlers(services);
+
+    const okResult = await invoke(IPC_CHANNELS.testExecutionSummaryByFeature, 'feature-123');
+    expect(okResult).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        featureId: 'feature-123',
+        totalApproved: 2,
+      }),
+    });
+    expect(executionSummaryByFeature).toHaveBeenCalledWith('feature-123');
+
+    const badResult = await invoke(IPC_CHANNELS.testExecutionSummaryByFeature, '   ');
+    expect(badResult).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid test.executionSummaryByFeature payload: ID is required.',
+        ),
+      },
     });
   });
 

@@ -6,7 +6,10 @@ import {
 import type {
   CreateTestInput,
   CustomCodeSyntaxValidationResult,
+  ExecutionIndicatorStatus,
+  FeatureExecutionSummary,
   ParsedAction,
+  RunStatus,
   Step,
   TestCase,
   UpdateTestInput,
@@ -250,6 +253,99 @@ export class TestCaseService {
     return rows.map(toTestCase);
   }
 
+  executionSummaryByFeature(featureId: string): FeatureExecutionSummary {
+    const rows = this.db
+      .prepare(
+        `SELECT id,
+                feature_id,
+                title,
+                test_type,
+                priority
+         FROM test_cases
+         WHERE feature_id = ? AND planning_status = 'approved'
+         ORDER BY updated_at DESC`,
+      )
+      .all(featureId) as Array<{
+      id: string;
+      feature_id: string;
+      title: string;
+      test_type: TestCase['testType'];
+      priority: TestCase['priority'];
+    }>;
+
+    const hasStepsStatement = this.db.prepare(
+      `SELECT 1
+       FROM steps
+       WHERE test_case_id = ?
+       LIMIT 1`,
+    );
+    const latestRunStatement = this.db.prepare(
+      `SELECT status
+       FROM runs
+       WHERE test_case_id = ?
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    );
+
+    let passedCount = 0;
+    let failedCount = 0;
+    let runningCount = 0;
+    let coveredCount = 0;
+
+    const testCases = rows.map((row) => {
+      const hasSteps = Boolean(hasStepsStatement.get(row.id));
+      const latestRun = latestRunStatement.get(row.id) as
+        | {
+            status: RunStatus;
+          }
+        | undefined;
+      const latestRunStatus = latestRun?.status ?? null;
+      const executionStatus = mapRunStatusToExecutionIndicator(latestRunStatus);
+
+      if (executionStatus === 'passed') {
+        passedCount += 1;
+      } else if (executionStatus === 'failed') {
+        failedCount += 1;
+      } else if (executionStatus === 'running') {
+        runningCount += 1;
+      }
+
+      if (
+        latestRunStatus === 'passed' ||
+        latestRunStatus === 'failed' ||
+        latestRunStatus === 'cancelled'
+      ) {
+        coveredCount += 1;
+      }
+
+      return {
+        id: row.id,
+        featureId: row.feature_id,
+        title: row.title,
+        testType: row.test_type,
+        priority: row.priority,
+        hasSteps,
+        latestRunStatus,
+        executionStatus,
+      };
+    });
+
+    const totalApproved = rows.length;
+    const coveragePercent =
+      totalApproved === 0 ? 0 : Math.round((coveredCount / totalApproved) * 100);
+
+    return {
+      featureId,
+      totalApproved,
+      passedCount,
+      failedCount,
+      runningCount,
+      coveredCount,
+      coveragePercent,
+      testCases,
+    };
+  }
+
   listSteps(testCaseId: string): Step[] {
     const rows = this.db
       .prepare(
@@ -404,6 +500,24 @@ interface ResolveCodeFieldsInput {
   isCustomized?: boolean;
   customCode?: string | null;
   regeneratedCode?: string;
+}
+
+function mapRunStatusToExecutionIndicator(
+  status: RunStatus | null,
+): ExecutionIndicatorStatus {
+  if (status === 'running' || status === 'queued') {
+    return 'running';
+  }
+
+  if (status === 'passed') {
+    return 'passed';
+  }
+
+  if (status === 'failed' || status === 'cancelled') {
+    return 'failed';
+  }
+
+  return 'not_run';
 }
 
 function resolveCodeFields(input: ResolveCodeFieldsInput): {

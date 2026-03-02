@@ -21,6 +21,8 @@ const api: QaAssistantApi = {
   testUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.testUpdate, input),
   testDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.testDelete, id),
   testListByFeature: (featureId) => ipcRenderer.invoke(IPC_CHANNELS.testListByFeature, featureId),
+  testExecutionSummaryByFeature: (featureId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.testExecutionSummaryByFeature, featureId),
   stepList: (testCaseId) => ipcRenderer.invoke(IPC_CHANNELS.stepList, testCaseId),
   stepParse: (rawText) => ipcRenderer.invoke(IPC_CHANNELS.stepParse, rawText),
   testValidateCustomCodeSyntax: (customCode) =>

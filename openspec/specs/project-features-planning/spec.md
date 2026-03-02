@@ -40,17 +40,22 @@ The system SHALL migrate existing project-level test cases into project-level de
 - **THEN** all pre-existing test cases remain accessible through their project via a feature association
 
 ### Requirement: Feature Planning Page Shows Drafted Test Case Workspace
-The system SHALL render a drafted test-case workspace below the feature form.
+The system SHALL render a triage workspace below the feature form with both `Drafted Test Cases` and `Approved Test Cases` sections.
 
-#### Scenario: Show Add Test Case entry point and drafted list section
+#### Scenario: Show drafted and approved test case sections
 - **WHEN** a user opens a Feature Planning page
-- **THEN** the page shows an `Add Test Case` action below the Feature form
-- **AND** the page shows a `Drafted Test Cases` section for that feature
+- **THEN** the page shows a `Drafted Test Cases` section
+- **AND** the page shows an `Approved Test Cases` section
 
-#### Scenario: Remove legacy inline planning form and run history from feature page
-- **WHEN** a user opens the Feature Planning page
-- **THEN** the page does not render the legacy inline test-case form
-- **AND** the page does not render run-history content
+#### Scenario: Show drafted triage controls
+- **WHEN** a user views items in `Drafted Test Cases`
+- **THEN** each drafted test case row shows a checkmark beside the title for selection
+- **AND** each drafted test case row shows an approve action icon and a delete action
+
+#### Scenario: Show approved triage controls
+- **WHEN** a user views items in `Approved Test Cases`
+- **THEN** each approved test case row shows a move-back action icon to return it to drafted
+- **AND** each approved test case row shows a delete action
 
 ### Requirement: Sidebar Uses Feature-Only Hierarchy
 The system SHALL present feature planning navigation as `Project -> Feature` without test-case sidebar nodes.
@@ -63,4 +68,12 @@ The system SHALL present feature planning navigation as `Project -> Feature` wit
 #### Scenario: Sidebar excludes add-test-case shortcut
 - **WHEN** a user views feature entries in the sidebar
 - **THEN** the sidebar does not show an add-test-case button or equivalent shortcut
+
+### Requirement: Feature Planning Supports Bulk Approval From Drafted List
+The system SHALL allow users to approve multiple selected drafted test cases in one action.
+
+#### Scenario: Bulk approve selected drafted test cases
+- **WHEN** a user selects multiple drafted test cases and activates the `Approved Test Cases` action button
+- **THEN** the selected test cases are moved from `Drafted Test Cases` to `Approved Test Cases`
+- **AND** unselected drafted test cases remain in `Drafted Test Cases`
 

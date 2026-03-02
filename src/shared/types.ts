@@ -56,6 +56,7 @@ export type StepStatus = 'pending' | 'passed' | 'failed' | 'cancelled';
 export type TestType = 'positive' | 'negative' | 'edge';
 export type TestPriority = 'high' | 'medium' | 'low';
 export type TestPlanningStatus = 'drafted' | 'approved';
+export type ExecutionIndicatorStatus = 'not_run' | 'passed' | 'failed' | 'running';
 
 export interface Project {
   id: string;
@@ -108,6 +109,28 @@ export interface Run {
   status: RunStatus;
   startedAt: string;
   endedAt: string | null;
+}
+
+export interface FeatureExecutionTestCase {
+  id: string;
+  featureId: string;
+  title: string;
+  testType: TestType;
+  priority: TestPriority;
+  hasSteps: boolean;
+  latestRunStatus: RunStatus | null;
+  executionStatus: ExecutionIndicatorStatus;
+}
+
+export interface FeatureExecutionSummary {
+  featureId: string;
+  totalApproved: number;
+  passedCount: number;
+  failedCount: number;
+  runningCount: number;
+  coveredCount: number;
+  coveragePercent: number;
+  testCases: FeatureExecutionTestCase[];
 }
 
 export interface ActiveRunContext {
