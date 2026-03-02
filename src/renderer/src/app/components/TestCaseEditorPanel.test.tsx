@@ -11,6 +11,9 @@ function TestCaseEditorPanelHarness(props: {
   const [testForm, setTestForm] = useState<TestFormState>({
     id: 'test-1',
     title: 'Checkout flow',
+    testType: 'positive',
+    priority: 'medium',
+    isAiGenerated: false,
     stepsText: 'Click "Sign in"',
     generatedCode: 'await page.getByRole("button", { name: "Sign in" }).click();',
     customCode: '',
@@ -59,15 +62,21 @@ describe('TestCaseEditorPanel', () => {
   it('renders editable steps editor and updates step text', () => {
     render(<TestCaseEditorPanelHarness />);
 
-    const stepsEditor = document.querySelector('.qa-steps-editor__textarea') as HTMLTextAreaElement | null;
+    const stepsEditor = document.querySelector(
+      '.qa-steps-editor__textarea',
+    ) as HTMLTextAreaElement | null;
     expect(stepsEditor).not.toBeNull();
     if (!stepsEditor) {
       return;
     }
     expect(stepsEditor.value).toBe('Click "Sign in"');
 
-    fireEvent.input(stepsEditor, { target: { value: 'Enter "john@example.com" in "Email" field' } });
-    const updatedEditor = document.querySelector('.qa-steps-editor__textarea') as HTMLTextAreaElement | null;
+    fireEvent.input(stepsEditor, {
+      target: { value: 'Enter "john@example.com" in "Email" field' },
+    });
+    const updatedEditor = document.querySelector(
+      '.qa-steps-editor__textarea',
+    ) as HTMLTextAreaElement | null;
     expect(updatedEditor?.value).toBe('Enter "john@example.com" in "Email" field');
   });
 
@@ -75,10 +84,7 @@ describe('TestCaseEditorPanel', () => {
     const onGenerateSteps = vi.fn();
     const onStartRun = vi.fn();
     render(
-      <TestCaseEditorPanelHarness
-        onGenerateSteps={onGenerateSteps}
-        onStartRun={onStartRun}
-      />,
+      <TestCaseEditorPanelHarness onGenerateSteps={onGenerateSteps} onStartRun={onStartRun} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Generate Steps (AI)' }));
@@ -93,13 +99,16 @@ describe('TestCaseEditorPanel', () => {
       {
         id: 'test-1',
         title: 'Checkout flow',
+        testType: 'positive',
+        priority: 'high',
+        isAiGenerated: false,
         stepsText: 'Enter "product1" in "Search" field',
         generatedCode: '',
         customCode: '',
         isCustomized: false,
         isCodeEditingEnabled: false,
         activeView: 'steps' as const,
-      },
+      } satisfies TestFormState,
       vi.fn(),
     ];
 
@@ -143,6 +152,8 @@ describe('TestCaseEditorPanel', () => {
     );
 
     expect(screen.getByText('Ambiguous Steps: 1')).toBeTruthy();
-    expect(screen.getByText(/Enter "product1" in "Search" field using placeholder/)).toBeTruthy();
+    expect(
+      screen.getByText(/Enter "product1" in "Search" field using placeholder/),
+    ).toBeTruthy();
   });
 });

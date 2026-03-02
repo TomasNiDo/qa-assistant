@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
+import { FeatureService } from '../featureService';
 import { ProjectService } from '../projectService';
 import { TestCaseService } from '../testCaseService';
 import { createTestDb } from './testDb';
@@ -79,13 +80,19 @@ describe('ProjectService', () => {
   it('blocks delete when the project has a running run', () => {
     db = createTestDb();
     const service = new ProjectService(db);
+    const features = new FeatureService(db);
     const tests = new TestCaseService(db);
     const project = service.create({
       name: 'Checkout',
       baseUrl: 'https://example.com',
     });
-    const testCase = tests.create({
+    const feature = features.create({
       projectId: project.id,
+      title: 'Checkout planning',
+      acceptanceCriteria: 'Checkout must work end-to-end.',
+    });
+    const testCase = tests.create({
+      featureId: feature.id,
       title: 'Checkout flow',
       steps: ['Click "Checkout"'],
     });

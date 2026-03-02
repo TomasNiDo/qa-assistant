@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { BrowserName, StepParseWarning } from '@shared/types';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
@@ -7,7 +7,14 @@ import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-typescript';
 import { highlightStepsInput } from '../stepsHighlight';
 import type { TestFormState } from '../types';
-import { dangerButtonClass, fieldClass, mutedButtonClass, panelClass, primaryButtonClass, subtleButtonClass } from '../uiClasses';
+import {
+  dangerButtonClass,
+  fieldClass,
+  mutedButtonClass,
+  panelClass,
+  primaryButtonClass,
+  subtleButtonClass,
+} from '../uiClasses';
 
 interface TestCaseEditorPanelProps {
   testCasePanelTitle: string;
@@ -103,12 +110,22 @@ export function TestCaseEditorPanel({
   const codeEditorHostRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(
-    () => bindEditorScrollSync(stepsEditorHostRef.current, '.qa-steps-editor__textarea', '.qa-steps-editor__pre'),
+    () =>
+      bindEditorScrollSync(
+        stepsEditorHostRef.current,
+        '.qa-steps-editor__textarea',
+        '.qa-steps-editor__pre',
+      ),
     [isStepsView, testForm.stepsText],
   );
 
   useEffect(
-    () => bindEditorScrollSync(codeEditorHostRef.current, '.qa-code-editor__textarea', '.qa-code-editor__pre'),
+    () =>
+      bindEditorScrollSync(
+        codeEditorHostRef.current,
+        '.qa-code-editor__textarea',
+        '.qa-code-editor__pre',
+      ),
     [isStepsView, effectiveCode],
   );
 
@@ -150,10 +167,14 @@ export function TestCaseEditorPanel({
           <input
             className={fieldClass}
             value={testForm.title}
-            onChange={(event) => setTestForm((previous) => ({ ...previous, title: event.target.value }))}
+            onChange={(event) =>
+              setTestForm((previous) => ({ ...previous, title: event.target.value }))
+            }
             placeholder="Checkout applies promo and captures payment"
           />
-          {testTitleError ? <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span> : null}
+          {testTitleError ? (
+            <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span>
+          ) : null}
         </label>
 
         <label className="block text-xs font-semibold text-[#b3c5dd]">
@@ -188,13 +209,17 @@ export function TestCaseEditorPanel({
             <div ref={stepsEditorHostRef}>
               <Editor
                 value={testForm.stepsText}
-                onValueChange={(nextValue) => setTestForm((previous) => ({ ...previous, stepsText: nextValue }))}
+                onValueChange={(nextValue) =>
+                  setTestForm((previous) => ({ ...previous, stepsText: nextValue }))
+                }
                 highlight={highlightStepsInput}
                 padding={12}
                 className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
                 textareaClassName="qa-steps-editor__textarea"
                 preClassName="qa-steps-editor__pre"
-                placeholder={'1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'}
+                placeholder={
+                  '1. Open checkout with one item.\n2. Apply SAVE20 coupon.\n3. Complete payment with saved card.'
+                }
                 aria-label="Test Steps"
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -208,7 +233,8 @@ export function TestCaseEditorPanel({
                 This test has custom code. Step edits will not auto-sync.
               </p>
             ) : null}
-            {testStepsErrors.some(Boolean) || stepParseWarnings.some((warnings) => warnings.length > 0) ? (
+            {testStepsErrors.some(Boolean) ||
+            stepParseWarnings.some((warnings) => warnings.length > 0) ? (
               <div className="space-y-1.5 rounded-md border border-[#223244] bg-[#0f1722]/65 px-2.5 py-2">
                 {testStepsErrors.map((error, index) => {
                   const warnings = stepParseWarnings[index] ?? [];
@@ -218,12 +244,14 @@ export function TestCaseEditorPanel({
 
                   return (
                     <div key={`step-issue-${index}`} className="space-y-1 text-[11px]">
-                      {error ? (
-                        <p className="text-danger">Line {index + 1}: {error}</p>
-                      ) : null}
+                      {error ? <p className="text-danger">Line {index + 1}: {error}</p> : null}
                       {warnings.map((warning, warningIndex) => (
-                        <p key={`step-warning-${index}-${warningIndex}`} className="text-warning">
-                          Line {index + 1}: {warning.message} Suggested: <code>{warning.suggestedStep}</code>
+                        <p
+                          key={`step-warning-${index}-${warningIndex}`}
+                          className="text-warning"
+                        >
+                          Line {index + 1}: {warning.message} Suggested:{' '}
+                          <code>{warning.suggestedStep}</code>
                         </p>
                       ))}
                     </div>

@@ -37,13 +37,49 @@ function createServicesMock() {
     createdAt: '2025-01-01T00:00:00.000Z',
   }));
 
-  const testCreate = vi.fn((input: { title: string; steps: string[]; projectId: string }) => ({
+  const testCreate = vi.fn((input: {
+    title: string;
+    steps?: string[];
+    featureId: string;
+    planningStatus?: 'drafted' | 'approved';
+  }) => ({
     id: 'test-1',
-    projectId: input.projectId,
+    projectId: 'project-1',
+    featureId: input.featureId,
     title: input.title,
+    testType: 'positive',
+    priority: 'medium',
+    planningStatus: input.planningStatus ?? 'drafted',
+    isAiGenerated: false,
     generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
     customCode: null,
     isCustomized: false,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+  }));
+
+  const testUpdate = vi.fn((input: {
+    id: string;
+    title: string;
+    featureId: string;
+    planningStatus?: 'drafted' | 'approved';
+    testType?: 'positive' | 'negative' | 'edge';
+    priority?: 'high' | 'medium' | 'low';
+    isAiGenerated?: boolean;
+    customCode?: string | null;
+    isCustomized?: boolean;
+  }) => ({
+    id: input.id,
+    projectId: 'project-1',
+    featureId: input.featureId,
+    title: input.title,
+    testType: input.testType ?? 'positive',
+    priority: input.priority ?? 'medium',
+    planningStatus: input.planningStatus ?? 'drafted',
+    isAiGenerated: Boolean(input.isAiGenerated),
+    generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
+    customCode: input.customCode ?? null,
+    isCustomized: Boolean(input.isCustomized),
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
   }));
@@ -64,6 +100,14 @@ function createServicesMock() {
     lastError: null,
   }));
   const aiGenerateSteps = vi.fn(async () => []);
+  const aiGenerateFeatureScenarioDrafts = vi.fn(
+    async () =>
+      [] as Array<{
+        title: string;
+        type: 'positive' | 'negative' | 'edge';
+        priority: 'high' | 'medium' | 'low';
+      }>,
+  );
   const validateCustomCodeSyntax = vi.fn((customCode: string) => ({
     valid: !customCode.includes('(,'),
     line: customCode.includes('(,') ? 1 : null,
@@ -95,14 +139,29 @@ function createServicesMock() {
         testCase: {
           id: 'test-seed-1',
           projectId: 'project-seed-1',
+          featureId: 'feature-seed-1',
           title: 'Sample login flow',
+          testType: 'positive',
+          priority: 'high',
+          isAiGenerated: false,
           generatedCode: 'await page.getByRole("button", { name: "Sign in" }).first().click();',
           customCode: null,
           isCustomized: false,
           createdAt: '2025-01-01T00:00:00.000Z',
           updatedAt: '2025-01-01T00:00:00.000Z',
         },
+        feature: {
+          id: 'feature-seed-1',
+          projectId: 'project-seed-1',
+          title: 'Sample Login Feature',
+          acceptanceCriteria: 'Login works',
+          requirements: null,
+          notes: null,
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
         createdProject: true,
+        createdFeature: true,
         createdTestCase: true,
       })),
     },
@@ -120,20 +179,47 @@ function createServicesMock() {
       list: vi.fn(() => []),
       getById: vi.fn(() => null),
     },
-    testCaseService: {
-      create: testCreate,
+    featureService: {
+      create: vi.fn((input) => ({
+        id: 'feature-1',
+        projectId: input.projectId,
+        title: input.title,
+        acceptanceCriteria: input.acceptanceCriteria,
+        requirements: input.requirements ?? null,
+        notes: input.notes ?? null,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      })),
       update: vi.fn((input) => ({
         id: input.id,
         projectId: input.projectId,
         title: input.title,
-        generatedCode: 'await page.getByRole("button", { name: "Continue" }).first().click();',
-        customCode: input.customCode ?? null,
-        isCustomized: Boolean(input.isCustomized),
+        acceptanceCriteria: input.acceptanceCriteria,
+        requirements: input.requirements ?? null,
+        notes: input.notes ?? null,
         createdAt: '2025-01-01T00:00:00.000Z',
         updatedAt: '2025-01-01T00:00:00.000Z',
       })),
       delete: vi.fn(() => true),
       list: vi.fn(() => []),
+      getById: vi.fn(() => null),
+    },
+    testCaseService: {
+      create: testCreate,
+      update: testUpdate,
+      delete: vi.fn(() => true),
+      listByFeature: vi.fn(() => []),
+      executionSummaryByFeature: vi.fn((featureId: string) => ({
+        featureId,
+        totalApproved: 0,
+        passedCount: 0,
+        failedCount: 0,
+        runningCount: 0,
+        coveredCount: 0,
+        coveragePercent: 0,
+        testCases: [],
+      })),
+      listByProject: vi.fn(() => []),
       listSteps: vi.fn(() => []),
       getById: vi.fn(() => null),
       validateCustomCodeSyntax,
@@ -162,6 +248,7 @@ function createServicesMock() {
     },
     aiService: {
       generateSteps: aiGenerateSteps,
+      generateFeatureScenarioDrafts: aiGenerateFeatureScenarioDrafts,
       generateBugReport: vi.fn(async () => ({
         title: 'Bug title',
         environment: 'local | chromium | https://example.com',
@@ -176,9 +263,11 @@ function createServicesMock() {
   const spies = {
     projectCreate,
     testCreate,
+    testUpdate,
     runStart,
     runInstallBrowser,
     aiGenerateSteps,
+    aiGenerateFeatureScenarioDrafts,
     validateCustomCodeSyntax,
   };
 
@@ -252,7 +341,7 @@ describe('registerHandlers IPC input validation', () => {
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: '   ',
       steps: ['Click "Continue"'],
     });
@@ -264,21 +353,105 @@ describe('registerHandlers IPC input validation', () => {
     expect(spies.testCreate).not.toHaveBeenCalled();
   });
 
-  it('rejects empty step lists', async () => {
+  it('accepts empty step lists in planning mode', async () => {
     const { services, spies } = createServicesMock();
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: 'Checkout flow',
       steps: [],
     });
 
     expect(result).toEqual({
-      ok: false,
-      error: { message: expect.stringContaining('Invalid test.create payload: At least one step is required.') },
+      ok: true,
+      data: expect.any(Object),
     });
-    expect(spies.testCreate).not.toHaveBeenCalled();
+    expect(spies.testCreate).toHaveBeenCalledWith({
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      steps: [],
+    });
+  });
+
+  it('accepts planning status values on test create payloads', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.testCreate, {
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ planningStatus: 'approved' }),
+    });
+    expect(spies.testCreate).toHaveBeenCalledWith({
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+  });
+
+  it('accepts planning status values on test update payloads', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.testUpdate, {
+      id: 'test-1',
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: expect.objectContaining({ planningStatus: 'approved' }),
+    });
+    expect(spies.testUpdate).toHaveBeenCalledWith({
+      id: 'test-1',
+      featureId: 'feature-1',
+      title: 'Checkout flow',
+      planningStatus: 'approved',
+    });
+  });
+
+  it('validates test execution summary payloads and routes to service', async () => {
+    const { services } = createServicesMock();
+    const executionSummaryByFeature = vi.fn((featureId: string) => ({
+      featureId,
+      totalApproved: 2,
+      passedCount: 1,
+      failedCount: 1,
+      runningCount: 0,
+      coveredCount: 2,
+      coveragePercent: 100,
+      testCases: [],
+    }));
+    services.testCaseService.executionSummaryByFeature = executionSummaryByFeature;
+    registerHandlers(services);
+
+    const okResult = await invoke(IPC_CHANNELS.testExecutionSummaryByFeature, 'feature-123');
+    expect(okResult).toEqual({
+      ok: true,
+      data: expect.objectContaining({
+        featureId: 'feature-123',
+        totalApproved: 2,
+      }),
+    });
+    expect(executionSummaryByFeature).toHaveBeenCalledWith('feature-123');
+
+    const badResult = await invoke(IPC_CHANNELS.testExecutionSummaryByFeature, '   ');
+    expect(badResult).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid test.executionSummaryByFeature payload: ID is required.',
+        ),
+      },
+    });
   });
 
   it('rejects step entries that become empty after trimming', async () => {
@@ -286,7 +459,7 @@ describe('registerHandlers IPC input validation', () => {
     registerHandlers(services);
 
     const result = await invoke(IPC_CHANNELS.testCreate, {
-      projectId: 'project-1',
+      featureId: 'feature-1',
       title: 'Checkout flow',
       steps: ['   ', 'Click "Continue"'],
     });
@@ -490,6 +663,153 @@ describe('registerHandlers IPC input validation', () => {
       },
     });
     expect(spies.aiGenerateSteps).not.toHaveBeenCalled();
+  });
+
+  it('validates AI scenario generation payload before invoking services', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.generateFeatureScenarios, { featureId: '   ' });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid ai.generateFeatureScenarios payload: ID is required.',
+        ),
+      },
+    });
+    expect(spies.aiGenerateFeatureScenarioDrafts).not.toHaveBeenCalled();
+  });
+
+  it('returns structured failure when selected feature is missing for AI generation', async () => {
+    const { services, spies } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.generateFeatureScenarios, { featureId: 'feature-404' });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        success: false,
+        message: 'Feature not found.',
+      },
+    });
+    expect(spies.aiGenerateFeatureScenarioDrafts).not.toHaveBeenCalled();
+  });
+
+  it('generates and inserts drafted AI scenarios for a feature', async () => {
+    const { services, spies } = createServicesMock();
+    services.featureService.getById = vi.fn(() => ({
+      id: 'feature-1',
+      projectId: 'project-1',
+      title: 'Login',
+      acceptanceCriteria: 'User logs in with valid credentials.',
+      requirements: null,
+      notes: null,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    }));
+    services.projectService.getById = vi.fn(() => ({
+      id: 'project-1',
+      name: 'Auth',
+      baseUrl: 'https://example.com',
+      envLabel: 'local',
+      metadataJson: '{}',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    }));
+    services.testCaseService.listByFeature = vi.fn(() => [
+      {
+        id: 'draft-1',
+        projectId: 'project-1',
+        featureId: 'feature-1',
+        title: 'Existing drafted title',
+        testType: 'positive',
+        priority: 'medium',
+        planningStatus: 'drafted',
+        isAiGenerated: false,
+        generatedCode: '',
+        customCode: null,
+        isCustomized: false,
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      },
+    ]);
+    spies.aiGenerateFeatureScenarioDrafts.mockResolvedValue([
+      {
+        title: 'User logs in with valid credentials',
+        type: 'positive',
+        priority: 'high',
+      },
+      {
+        title: 'User cannot log in with invalid password',
+        type: 'negative',
+        priority: 'medium',
+      },
+    ]);
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.generateFeatureScenarios, { featureId: 'feature-1' });
+
+    expect(spies.aiGenerateFeatureScenarioDrafts).toHaveBeenCalledWith({
+      projectName: 'Auth',
+      featureTitle: 'Login',
+      acceptanceCriteria: 'User logs in with valid credentials.',
+      existingDraftTitles: ['Existing drafted title'],
+    });
+    expect(spies.testCreate).toHaveBeenCalledTimes(2);
+    expect(spies.testCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        featureId: 'feature-1',
+        planningStatus: 'drafted',
+        isAiGenerated: true,
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        success: true,
+        scenarios: expect.any(Array),
+      },
+    });
+  });
+
+  it('returns structured generation failure payload when AI service throws', async () => {
+    const { services, spies } = createServicesMock();
+    services.featureService.getById = vi.fn(() => ({
+      id: 'feature-1',
+      projectId: 'project-1',
+      title: 'Login',
+      acceptanceCriteria: 'User logs in with valid credentials.',
+      requirements: null,
+      notes: null,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+    }));
+    services.projectService.getById = vi.fn(() => ({
+      id: 'project-1',
+      name: 'Auth',
+      baseUrl: 'https://example.com',
+      envLabel: 'local',
+      metadataJson: '{}',
+      createdAt: '2025-01-01T00:00:00.000Z',
+    }));
+    services.testCaseService.listByFeature = vi.fn(() => []);
+    spies.aiGenerateFeatureScenarioDrafts.mockRejectedValueOnce(
+      new Error('AI scenario generation timed out. Please retry.'),
+    );
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.generateFeatureScenarios, { featureId: 'feature-1' });
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        success: false,
+        message: 'AI scenario generation timed out. Please retry.',
+      },
+    });
   });
 
   it('accepts valid async payloads and forwards validated values', async () => {

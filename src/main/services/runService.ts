@@ -222,9 +222,10 @@ export class RunService {
       .prepare(
         `SELECT runs.id AS run_id,
                 runs.test_case_id,
-                test_cases.project_id
+                features.project_id
          FROM runs
          JOIN test_cases ON test_cases.id = runs.test_case_id
+         JOIN features ON features.id = test_cases.feature_id
          WHERE runs.status = 'running'
          ORDER BY runs.started_at DESC
          LIMIT 1`,
@@ -495,7 +496,8 @@ export class RunService {
                 projects.id AS project_id,
                 projects.base_url
          FROM test_cases
-         JOIN projects ON projects.id = test_cases.project_id
+         JOIN features ON features.id = test_cases.feature_id
+         JOIN projects ON projects.id = features.project_id
          WHERE test_cases.id = ?`,
       )
       .get(testCaseId) as

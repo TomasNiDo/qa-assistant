@@ -12,11 +12,17 @@ const api: QaAssistantApi = {
   projectUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.projectUpdate, input),
   projectDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.projectDelete, id),
   projectList: () => ipcRenderer.invoke(IPC_CHANNELS.projectList),
+  featureCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.featureCreate, input),
+  featureUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.featureUpdate, input),
+  featureDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.featureDelete, id),
+  featureList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.featureList, projectId),
 
   testCreate: (input) => ipcRenderer.invoke(IPC_CHANNELS.testCreate, input),
   testUpdate: (input) => ipcRenderer.invoke(IPC_CHANNELS.testUpdate, input),
   testDelete: (id) => ipcRenderer.invoke(IPC_CHANNELS.testDelete, id),
-  testList: (projectId) => ipcRenderer.invoke(IPC_CHANNELS.testList, projectId),
+  testListByFeature: (featureId) => ipcRenderer.invoke(IPC_CHANNELS.testListByFeature, featureId),
+  testExecutionSummaryByFeature: (featureId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.testExecutionSummaryByFeature, featureId),
   stepList: (testCaseId) => ipcRenderer.invoke(IPC_CHANNELS.stepList, testCaseId),
   stepParse: (rawText) => ipcRenderer.invoke(IPC_CHANNELS.stepParse, rawText),
   testValidateCustomCodeSyntax: (customCode) =>
@@ -75,6 +81,8 @@ const api: QaAssistantApi = {
 
   aiGenerateSteps: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateSteps, input),
   aiGenerateBugReport: (input) => ipcRenderer.invoke(IPC_CHANNELS.aiGenerateBugReport, input),
+  generateFeatureScenarios: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.generateFeatureScenarios, input),
 };
 
 contextBridge.exposeInMainWorld('qaApi', api);

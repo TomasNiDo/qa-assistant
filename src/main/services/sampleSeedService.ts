@@ -1,4 +1,10 @@
-import type { CreateProjectInput, CreateTestInput, SampleSeedResult } from '@shared/types';
+import type {
+  CreateFeatureInput,
+  CreateProjectInput,
+  CreateTestInput,
+  SampleSeedResult,
+} from '@shared/types';
+import { FeatureService } from './featureService';
 import { ProjectService } from './projectService';
 import { TestCaseService } from './testCaseService';
 
@@ -11,8 +17,19 @@ const SAMPLE_PROJECT: CreateProjectInput = {
   },
 };
 
-const SAMPLE_TEST: Omit<CreateTestInput, 'projectId'> = {
+const SAMPLE_FEATURE: Omit<CreateFeatureInput, 'projectId'> = {
+  title: 'Sample Login Feature',
+  acceptanceCriteria:
+    'A user with valid credentials can sign in and see the dashboard.',
+  requirements: 'Use the seeded sample credentials and verify dashboard visibility.',
+  notes: 'Auto-created by sample seed.',
+};
+
+const SAMPLE_TEST: Omit<CreateTestInput, 'featureId'> = {
   title: 'Sample login flow',
+  testType: 'positive',
+  priority: 'high',
+  isAiGenerated: false,
   steps: [
     'Enter "qa.user@example.com" in "Email" field',
     'Enter "password123" in "Password" field',
@@ -24,6 +41,7 @@ const SAMPLE_TEST: Omit<CreateTestInput, 'projectId'> = {
 export class SampleSeedService {
   constructor(
     private readonly projectService: ProjectService,
+    private readonly featureService: FeatureService,
     private readonly testCaseService: TestCaseService,
   ) {}
 
@@ -38,22 +56,33 @@ export class SampleSeedService {
       );
 
     const project = existingProject ?? this.projectService.create(SAMPLE_PROJECT);
-    const existingTestCase = this.testCaseService
+    const existingFeature = this.featureService
       .list(project.id)
+      .find((feature) => feature.title === SAMPLE_FEATURE.title);
+    const feature =
+      existingFeature ??
+      this.featureService.create({
+        projectId: project.id,
+        ...SAMPLE_FEATURE,
+      });
+
+    const existingTestCase = this.testCaseService
+      .listByFeature(feature.id)
       .find((testCase) => testCase.title === SAMPLE_TEST.title);
     const testCase =
       existingTestCase ??
       this.testCaseService.create({
-        projectId: project.id,
+        featureId: feature.id,
         ...SAMPLE_TEST,
       });
 
     return {
       project,
+      feature,
       testCase,
       createdProject: !existingProject,
+      createdFeature: !existingFeature,
       createdTestCase: !existingTestCase,
     };
   }
 }
-

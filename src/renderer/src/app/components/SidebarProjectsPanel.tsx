@@ -1,48 +1,52 @@
-﻿import { useEffect, useRef, useState } from 'react';
-import type { Project, RunStatus, TestCase } from '@shared/types';
+import { useEffect, useRef, useState } from 'react';
+import type { Feature, Project } from '@shared/types';
 
 interface SidebarProjectsPanelProps {
   projects: Project[];
-  testCasesByProject: Record<string, TestCase[]>;
-  latestRunStatusByTestId: Record<string, RunStatus>;
+  featuresByProject: Record<string, Feature[]>;
   selectedProjectId: string;
-  selectedTestId: string;
+  selectedFeatureId: string;
   appVersion: string;
   isProjectDeleteBlocked: (projectId: string) => boolean;
   onSelectProject: (projectId: string) => void;
-  onSelectTest: (projectId: string, testId: string) => void;
+  onSelectFeature: (projectId: string, featureId: string) => void;
   onBeginCreateProject: () => void;
-  onCreateTestForProject: (projectId: string) => void;
+  onCreateFeatureForProject: (projectId: string) => void;
   onBeginEditProject: (projectId: string) => void;
   onDeleteProject: (projectId: string) => void;
+  onBeginEditFeature: (featureId: string) => void;
+  onDeleteFeature: (featureId: string) => void;
   onOpenStepDocs: () => void;
   onOpenBrowserInstall: () => void;
 }
 
 export function SidebarProjectsPanel({
   projects,
-  testCasesByProject,
-  latestRunStatusByTestId,
+  featuresByProject,
   selectedProjectId,
-  selectedTestId,
+  selectedFeatureId,
   appVersion,
   isProjectDeleteBlocked,
   onSelectProject,
-  onSelectTest,
+  onSelectFeature,
   onBeginCreateProject,
-  onCreateTestForProject,
+  onCreateFeatureForProject,
   onBeginEditProject,
   onDeleteProject,
+  onBeginEditFeature,
+  onDeleteFeature,
   onOpenStepDocs,
   onOpenBrowserInstall,
 }: SidebarProjectsPanelProps): JSX.Element {
   const [openMenuProjectId, setOpenMenuProjectId] = useState('');
+  const [openMenuFeatureId, setOpenMenuFeatureId] = useState('');
   const menuRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent): void {
       if (!menuRootRef.current?.contains(event.target as Node)) {
         setOpenMenuProjectId('');
+        setOpenMenuFeatureId('');
       }
     }
 
@@ -51,18 +55,6 @@ export function SidebarProjectsPanel({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  function getTestIndicatorClass(status: RunStatus | undefined): string {
-    if (status === 'passed') {
-      return 'bg-[#2bb673]';
-    }
-
-    if (status === 'failed') {
-      return 'bg-[#d85b75]';
-    }
-
-    return 'bg-[#6f7f95]';
-  }
 
   return (
     <aside className="flex h-full min-h-0 flex-col bg-[#0e131b]/95 px-3 py-2">
@@ -136,10 +128,10 @@ export function SidebarProjectsPanel({
         ) : null}
 
         {projects.map((project) => {
-          const tests = testCasesByProject[project.id] ?? [];
+          const features = featuresByProject[project.id] ?? [];
           const isSelectedProject = project.id === selectedProjectId;
-          const isMenuOpen = openMenuProjectId === project.id;
-          const actionVisibilityClass = isMenuOpen
+          const isProjectMenuOpen = openMenuProjectId === project.id;
+          const actionVisibilityClass = isProjectMenuOpen
             ? 'opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto';
 
@@ -163,12 +155,12 @@ export function SidebarProjectsPanel({
                 <button
                   type="button"
                   className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary/65 text-[#c2d0e6] transition hover:bg-secondary/85 ${actionVisibilityClass}`}
-                  title="Create test case"
-                  aria-label={`Create test case in ${project.name}`}
-                  data-testid={`project-create-test-${project.id}`}
+                  title="Create feature"
+                  aria-label={`Create feature in ${project.name}`}
+                  data-testid={`project-create-feature-${project.id}`}
                   onClick={() => {
                     onSelectProject(project.id);
-                    onCreateTestForProject(project.id);
+                    onCreateFeatureForProject(project.id);
                   }}
                 >
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
@@ -183,7 +175,10 @@ export function SidebarProjectsPanel({
                   aria-label={`Project actions for ${project.name}`}
                   data-testid={`project-actions-${project.id}`}
                   onClick={() => {
-                    setOpenMenuProjectId((previous) => (previous === project.id ? '' : project.id));
+                    setOpenMenuProjectId((previous) =>
+                      previous === project.id ? '' : project.id,
+                    );
+                    setOpenMenuFeatureId('');
                     onSelectProject(project.id);
                   }}
                 >
@@ -194,7 +189,7 @@ export function SidebarProjectsPanel({
                   </svg>
                 </button>
 
-                {isMenuOpen ? (
+                {isProjectMenuOpen ? (
                   <div className="absolute right-0 top-[calc(100%+0.3rem)] z-20 w-32 rounded-xl bg-[#11161d]/95 p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
                     <button
                       type="button"
@@ -221,31 +216,84 @@ export function SidebarProjectsPanel({
                 ) : null}
               </div>
 
-              {tests.length > 0 ? (
+              {features.length > 0 ? (
                 <ul className="space-y-1 pl-2">
-                  {tests.map((testCase) => (
-                    <li key={testCase.id}>
-                      <button
-                        type="button"
-                        className={`w-full rounded-xl px-2 py-1 text-left text-xs transition ${
-                          testCase.id === selectedTestId
-                            ? 'bg-[#173452]/75 text-[#e4edf9]'
-                            : 'text-[#b8c2cf] hover:bg-[#131c2b]/75'
-                        }`}
-                        onClick={() => onSelectTest(project.id, testCase.id)}
-                      >
-                        <span
-                          className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${getTestIndicatorClass(latestRunStatusByTestId[testCase.id])}`}
-                          data-testid={`test-status-${testCase.id}`}
-                          aria-hidden="true"
-                        />
-                        <span className="align-middle">{testCase.title}</span>
-                      </button>
-                    </li>
-                  ))}
+                  {features.map((feature) => {
+                    const isSelectedFeature = feature.id === selectedFeatureId;
+                    const isFeatureMenuOpen = openMenuFeatureId === feature.id;
+                    const featureActionVisibilityClass = isFeatureMenuOpen
+                      ? 'opacity-100 pointer-events-auto'
+                      : 'opacity-0 pointer-events-none group-hover/feature:opacity-100 group-hover/feature:pointer-events-auto group-focus-within/feature:opacity-100 group-focus-within/feature:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto';
+
+                    return (
+                      <li key={feature.id} className="space-y-1">
+                        <div
+                          className={`group/feature relative flex items-center gap-1 rounded-lg px-1 py-1 transition ${
+                            isSelectedFeature ? 'bg-[#10273a]/70' : 'hover:bg-[#122031]/70'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className={`min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-medium transition ${
+                              isSelectedFeature ? 'text-[#d7e9ff]' : 'text-[#9fb2ca]'
+                            }`}
+                            onClick={() => onSelectFeature(project.id, feature.id)}
+                          >
+                            {feature.title}
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-secondary/60 text-[#c2d0e6] transition hover:bg-secondary/85 ${featureActionVisibilityClass}`}
+                            title="Feature actions"
+                            aria-label={`Feature actions for ${feature.title}`}
+                            data-testid={`feature-actions-${feature.id}`}
+                            onClick={() => {
+                              setOpenMenuFeatureId((previous) =>
+                                previous === feature.id ? '' : feature.id,
+                              );
+                              setOpenMenuProjectId('');
+                              onSelectFeature(project.id, feature.id);
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-3 w-3" aria-hidden="true">
+                              <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+                              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                              <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+                            </svg>
+                          </button>
+
+                          {isFeatureMenuOpen ? (
+                            <div className="absolute right-0 top-[calc(100%+0.25rem)] z-20 w-32 rounded-xl bg-[#11161d]/95 p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
+                              <button
+                                type="button"
+                                className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#cbd3dd] transition hover:bg-[#1a2230]"
+                                onClick={() => {
+                                  setOpenMenuFeatureId('');
+                                  onBeginEditFeature(feature.id);
+                                }}
+                              >
+                                Edit feature
+                              </button>
+                              <button
+                                type="button"
+                                className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#f1a3b4] transition hover:bg-[#2a1a24]"
+                                onClick={() => {
+                                  setOpenMenuFeatureId('');
+                                  onDeleteFeature(feature.id);
+                                }}
+                              >
+                                Delete feature
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
-                <p className="pl-2 text-[11px] text-[#6f7d91]">No test cases yet</p>
+                <p className="pl-2 text-[11px] text-[#6f7d91]">No features yet</p>
               )}
             </div>
           );

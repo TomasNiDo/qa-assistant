@@ -1,19 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type {
   ActiveRunContext,
   CustomCodeSyntaxValidationResult,
-  Project,
-  StepParseWarning,
+  Feature,
   StepParseResult,
+  StepParseWarning,
   TestCase,
 } from '@shared/types';
 import { DEFAULT_TEST_FORM, type TestFormState } from '../types';
 import { parseStepLines, toErrorMessage } from '../utils';
 
 interface UseTestsDomainArgs {
-  projects: Project[];
+  featuresByProject: Record<string, Feature[]>;
   selectedProjectId: string;
-  selectedProject: Project | null;
+  selectedFeatureId: string;
   activeRunContext: ActiveRunContext | null;
   selectedTestId: string;
   setSelectedTestId: (testId: string) => void;
@@ -21,11 +29,12 @@ interface UseTestsDomainArgs {
 }
 
 export interface UseTestsDomainResult {
-  testCasesByProject: Record<string, TestCase[]>;
+  testCasesByFeature: Record<string, TestCase[]>;
   selectedTestId: string;
   setSelectedTestId: (testId: string) => void;
-  selectedProjectTests: TestCase[];
+  selectedFeatureTests: TestCase[];
   selectedTest: TestCase | null;
+  selectedTestHasSteps: boolean;
   isTestEditing: boolean;
   testForm: TestFormState;
   setTestForm: Dispatch<SetStateAction<TestFormState>>;
@@ -42,15 +51,15 @@ export interface UseTestsDomainResult {
   hasStepErrors: boolean;
   effectiveCode: string;
   isCodeModified: boolean;
-  autoSaveStatus: 'saving' | 'saved';
   canSaveTestCase: boolean;
+  autoSaveStatus: 'saving' | 'saved';
   isSelectedTestDeleteBlocked: boolean;
   refreshTestsTree: (
-    projectRows: Project[],
-    preferredProjectId: string,
+    featuresTree: Record<string, Feature[]>,
+    preferredFeatureId: string,
     preferredTestId?: string,
   ) => Promise<Record<string, TestCase[]>>;
-  selectProject: (projectId: string) => void;
+  selectFeature: (featureId: string) => void;
   beginCreateTest: () => void;
   setEditorView: (view: TestFormState['activeView']) => void;
   enableCodeEditing: () => void;
@@ -63,38 +72,10 @@ export interface UseTestsDomainResult {
 
 interface SelectTestResolutionInput {
   nextTree: Record<string, TestCase[]>;
-  projectRows: Project[];
-  preferredProjectId: string;
+  featureRows: Feature[];
+  preferredFeatureId: string;
   preferredTestId?: string;
   selectedTestId: string;
-}
-
-export function resolveSelectedTestId({
-  nextTree,
-  projectRows,
-  preferredProjectId,
-  preferredTestId,
-  selectedTestId,
-}: SelectTestResolutionInput): string {
-  if (preferredTestId) {
-    const exists = Object.values(nextTree).some((tests) => tests.some((test) => test.id === preferredTestId));
-    if (exists) {
-      return preferredTestId;
-    }
-  }
-
-  const selectedStillExists = Object.values(nextTree).some((tests) => tests.some((test) => test.id === selectedTestId));
-  if (selectedStillExists) {
-    return selectedTestId;
-  }
-
-  const preferredTests = nextTree[preferredProjectId] ?? [];
-  if (preferredTests.length > 0) {
-    return preferredTests[0].id;
-  }
-
-  const firstTest = projectRows.flatMap((project) => nextTree[project.id] ?? [])[0];
-  return firstTest?.id ?? '';
 }
 
 export function getStepParseErrors(
@@ -157,39 +138,72 @@ export function getCustomCodeError(
   return customCodeSyntaxError;
 }
 
+export function resolveSelectedTestId({
+  nextTree,
+  featureRows,
+  preferredFeatureId,
+  preferredTestId,
+  selectedTestId,
+}: SelectTestResolutionInput): string {
+  if (preferredTestId) {
+    const exists = Object.values(nextTree).some((tests) =>
+      tests.some((test) => test.id === preferredTestId),
+    );
+    if (exists) {
+      return preferredTestId;
+    }
+  }
+
+  const selectedStillExists = Object.values(nextTree).some((tests) =>
+    tests.some((test) => test.id === selectedTestId),
+  );
+  if (selectedStillExists) {
+    return selectedTestId;
+  }
+
+  const preferredTests = nextTree[preferredFeatureId] ?? [];
+  if (preferredTests.length > 0) {
+    return preferredTests[0].id;
+  }
+
+  const firstTest = featureRows.flatMap((feature) => nextTree[feature.id] ?? [])[0];
+  return firstTest?.id ?? '';
+}
+
 export function useTestsDomain({
-  projects,
+  featuresByProject,
   selectedProjectId,
-  selectedProject,
+  selectedFeatureId,
   activeRunContext,
   selectedTestId,
   setSelectedTestId,
   onMessage,
 }: UseTestsDomainArgs): UseTestsDomainResult {
-  const [testCasesByProject, setTestCasesByProject] = useState<Record<string, TestCase[]>>({});
+  const [testCasesByFeature, setTestCasesByFeature] = useState<Record<string, TestCase[]>>({});
   const [isTestEditing, setIsTestEditing] = useState(false);
   const [testForm, setTestForm] = useState<TestFormState>(DEFAULT_TEST_FORM);
   const [stepParsePreview, setStepParsePreview] = useState<StepParseResult[]>([]);
   const [isValidatingSteps, setIsValidatingSteps] = useState(false);
   const [isGeneratingSteps, setIsGeneratingSteps] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saving' | 'saved'>('saved');
+  const [selectedTestHasSteps, setSelectedTestHasSteps] = useState(false);
 
   const stepValidationVersion = useRef(0);
   const customCodeValidationVersion = useRef(0);
-  const testFormLoadVersion = useRef(0);
   const autoSaveVersion = useRef(0);
+  const testFormLoadVersion = useRef(0);
   const lastSavedSignatureRef = useRef('');
   const [customCodeSyntaxError, setCustomCodeSyntaxError] = useState<string | null>(null);
   const [isValidatingCustomCode, setIsValidatingCustomCode] = useState(false);
 
-  const selectedProjectTests = useMemo(
-    () => (selectedProjectId ? testCasesByProject[selectedProjectId] ?? [] : []),
-    [selectedProjectId, testCasesByProject],
+  const selectedFeatureTests = useMemo(
+    () => (selectedFeatureId ? testCasesByFeature[selectedFeatureId] ?? [] : []),
+    [selectedFeatureId, testCasesByFeature],
   );
 
   const selectedTest = useMemo(
-    () => selectedProjectTests.find((testCase) => testCase.id === selectedTestId) ?? null,
-    [selectedProjectTests, selectedTestId],
+    () => selectedFeatureTests.find((testCase) => testCase.id === selectedTestId) ?? null,
+    [selectedFeatureTests, selectedTestId],
   );
 
   const parsedSteps = useMemo(() => parseStepLines(testForm.stepsText), [testForm.stepsText]);
@@ -199,8 +213,7 @@ export function useTestsDomain({
   );
   const isCodeModified = useMemo(
     () =>
-      testForm.isCustomized &&
-      testForm.customCode.trim() !== testForm.generatedCode.trim(),
+      testForm.isCustomized && testForm.customCode.trim() !== testForm.generatedCode.trim(),
     [testForm.customCode, testForm.generatedCode, testForm.isCustomized],
   );
 
@@ -218,69 +231,78 @@ export function useTestsDomain({
   );
   const hasStepErrors = testStepsErrors.some(Boolean) || parsedSteps.length === 0;
   const canSaveTestCase =
-    Boolean(selectedProjectId) &&
+    Boolean(selectedFeatureId) &&
     !testTitleError &&
     !customCodeError &&
     !isValidatingCustomCode &&
     !hasStepErrors &&
     !isValidatingSteps;
 
-  const isSelectedTestDeleteBlocked = Boolean(selectedTestId) && activeRunContext?.testCaseId === selectedTestId;
+  const isSelectedTestDeleteBlocked =
+    Boolean(selectedTestId) && activeRunContext?.testCaseId === selectedTestId;
 
   const buildTestSignature = useCallback(
     (
-      projectId: string,
+      featureId: string,
       testId: string,
       title: string,
       steps: string[],
+      testType: TestFormState['testType'],
+      priority: TestFormState['priority'],
+      planningStatus: TestCase['planningStatus'],
+      isAiGenerated: boolean,
       isCustomized: boolean,
       customCode: string,
     ): string =>
-      `${projectId}::${testId}::${title.trim()}::${steps.join('\n')}::${isCustomized ? '1' : '0'}::${
-        isCustomized ? customCode : ''
-      }`,
+      `${featureId}::${testId}::${title.trim()}::${steps.join('\n')}::${testType}::${priority}::${planningStatus}::${
+        isAiGenerated ? '1' : '0'
+      }::${isCustomized ? '1' : '0'}::${isCustomized ? customCode : ''}`,
     [],
   );
 
   const refreshTestsTree = useCallback(
     async (
-      projectRows: Project[],
-      preferredProjectId: string,
+      featuresTree: Record<string, Feature[]>,
+      preferredFeatureId: string,
       preferredTestId?: string,
     ): Promise<Record<string, TestCase[]>> => {
-      if (projectRows.length === 0) {
-        setTestCasesByProject({});
+      const allFeatures = Object.values(featuresTree).flat();
+
+      if (allFeatures.length === 0) {
+        setTestCasesByFeature({});
         setSelectedTestId('');
         return {};
       }
 
       const nextTree: Record<string, TestCase[]> = {};
 
-      for (const project of projectRows) {
-        let result: Awaited<ReturnType<typeof window.qaApi.testList>>;
+      for (const feature of allFeatures) {
+        let result: Awaited<ReturnType<typeof window.qaApi.testListByFeature>>;
         try {
-          result = await window.qaApi.testList(project.id);
+          result = await window.qaApi.testListByFeature(feature.id);
         } catch (error) {
-          onMessage(`Failed loading test cases for ${project.name}: ${toErrorMessage(error)}`);
-          nextTree[project.id] = [];
+          onMessage(
+            `Failed loading test cases for feature ${feature.title}: ${toErrorMessage(error)}`,
+          );
+          nextTree[feature.id] = [];
           continue;
         }
 
         if (!result.ok) {
           onMessage(result.error.message);
-          nextTree[project.id] = [];
+          nextTree[feature.id] = [];
           continue;
         }
 
-        nextTree[project.id] = result.data;
+        nextTree[feature.id] = result.data;
       }
 
-      setTestCasesByProject(nextTree);
+      setTestCasesByFeature(nextTree);
       setSelectedTestId(
         resolveSelectedTestId({
           nextTree,
-          projectRows,
-          preferredProjectId,
+          featureRows: allFeatures,
+          preferredFeatureId,
           preferredTestId,
           selectedTestId,
         }),
@@ -300,25 +322,40 @@ export function useTestsDomain({
       setAutoSaveStatus('saved');
       setIsTestEditing(false);
       setTestForm(DEFAULT_TEST_FORM);
+      setSelectedTestHasSteps(false);
       return;
     }
 
-    const stepRowsResult = await window.qaApi.stepList(selectedTest.id);
+    let stepRowsResult: Awaited<ReturnType<typeof window.qaApi.stepList>>;
+    try {
+      stepRowsResult = await window.qaApi.stepList(selectedTest.id);
+    } catch (error) {
+      onMessage(`Failed loading test steps: ${toErrorMessage(error)}`);
+      setSelectedTestHasSteps(false);
+      return;
+    }
+
     if (currentLoadVersion !== testFormLoadVersion.current) {
       return;
     }
 
     if (!stepRowsResult.ok) {
       onMessage(stepRowsResult.error.message);
+      setSelectedTestHasSteps(false);
       return;
     }
 
+    setSelectedTestHasSteps(stepRowsResult.data.length > 0);
     const loadedStepsText = stepRowsResult.data.map((step) => step.rawText).join('\n');
     lastSavedSignatureRef.current = buildTestSignature(
-      selectedTest.projectId,
+      selectedTest.featureId,
       selectedTest.id,
       selectedTest.title,
       parseStepLines(loadedStepsText),
+      selectedTest.testType,
+      selectedTest.priority,
+      selectedTest.planningStatus,
+      selectedTest.isAiGenerated,
       selectedTest.isCustomized,
       selectedTest.customCode ?? '',
     );
@@ -327,10 +364,12 @@ export function useTestsDomain({
     setAutoSaveStatus('saved');
     setTestForm((previous) => {
       const isSameTest = previous.id === selectedTest.id;
-
       return {
         id: selectedTest.id,
         title: selectedTest.title,
+        testType: selectedTest.testType,
+        priority: selectedTest.priority,
+        isAiGenerated: selectedTest.isAiGenerated,
         stepsText: loadedStepsText,
         generatedCode: selectedTest.generatedCode,
         customCode: selectedTest.customCode ?? '',
@@ -360,7 +399,6 @@ export function useTestsDomain({
 
     void (async () => {
       const results: StepParseResult[] = [];
-
       for (const stepText of parsedSteps) {
         const rawStep = stepText.trim();
         if (!rawStep) {
@@ -373,7 +411,6 @@ export function useTestsDomain({
           results.push({ ok: false, error: parsed.error.message });
           continue;
         }
-
         results.push(parsed.data);
       }
 
@@ -421,14 +458,14 @@ export function useTestsDomain({
     };
   }, [testForm.customCode, testForm.isCustomized]);
 
-  const selectProject = useCallback(
-    (projectId: string): void => {
-      const testsForProject = testCasesByProject[projectId] ?? [];
-      if (!testsForProject.some((testCase) => testCase.id === selectedTestId)) {
-        setSelectedTestId(testsForProject[0]?.id ?? '');
+  const selectFeature = useCallback(
+    (featureId: string): void => {
+      const testsForFeature = testCasesByFeature[featureId] ?? [];
+      if (!testsForFeature.some((testCase) => testCase.id === selectedTestId)) {
+        setSelectedTestId(testsForFeature[0]?.id ?? '');
       }
     },
-    [selectedTestId, setSelectedTestId, testCasesByProject],
+    [selectedTestId, setSelectedTestId, testCasesByFeature],
   );
 
   const beginCreateTest = useCallback(() => {
@@ -437,6 +474,7 @@ export function useTestsDomain({
     setAutoSaveStatus('saved');
     setSelectedTestId('');
     setIsTestEditing(false);
+    setSelectedTestHasSteps(false);
     setTestForm(DEFAULT_TEST_FORM);
   }, [setSelectedTestId]);
 
@@ -480,8 +518,8 @@ export function useTestsDomain({
   }, []);
 
   const saveTestCase = useCallback(async (): Promise<TestCase | null> => {
-    if (!selectedProjectId) {
-      onMessage('Select a project first.');
+    if (!selectedFeatureId) {
+      onMessage('Select a feature first.');
       return null;
     }
 
@@ -497,15 +535,23 @@ export function useTestsDomain({
       isTestEditing && testForm.id
         ? await window.qaApi.testUpdate({
             id: testForm.id,
-            projectId: selectedProjectId,
+            featureId: selectedFeatureId,
             title: testForm.title.trim(),
+            testType: testForm.testType,
+            priority: testForm.priority,
+            planningStatus: selectedTest?.planningStatus ?? 'drafted',
+            isAiGenerated: testForm.isAiGenerated,
             steps: cleanSteps,
             customCode: nextCustomCode,
             isCustomized: testForm.isCustomized,
           })
         : await window.qaApi.testCreate({
-            projectId: selectedProjectId,
+            featureId: selectedFeatureId,
             title: testForm.title.trim(),
+            testType: testForm.testType,
+            priority: testForm.priority,
+            planningStatus: selectedTest?.planningStatus ?? 'drafted',
+            isAiGenerated: testForm.isAiGenerated,
             steps: cleanSteps,
             customCode: nextCustomCode,
             isCustomized: testForm.isCustomized,
@@ -516,66 +562,96 @@ export function useTestsDomain({
       return null;
     }
 
-    const savedTitle = result.data.title.trim();
-    const savedStepsText = cleanSteps.join('\n');
     lastSavedSignatureRef.current = buildTestSignature(
-      selectedProjectId,
+      selectedFeatureId,
       result.data.id,
-      savedTitle,
+      result.data.title,
       cleanSteps,
+      result.data.testType,
+      result.data.priority,
+      result.data.planningStatus,
+      result.data.isAiGenerated,
       result.data.isCustomized,
       result.data.customCode ?? '',
     );
 
     setSelectedTestId(result.data.id);
     setIsTestEditing(true);
+    setSelectedTestHasSteps(cleanSteps.length > 0);
     setTestForm((previous) => ({
       ...previous,
       id: result.data.id,
       title: result.data.title,
-      stepsText: savedStepsText,
+      testType: result.data.testType,
+      priority: result.data.priority,
+      isAiGenerated: result.data.isAiGenerated,
+      stepsText: cleanSteps.join('\n'),
       generatedCode: result.data.generatedCode,
       customCode: result.data.customCode ?? '',
       isCustomized: result.data.isCustomized,
       isCodeEditingEnabled: previous.isCodeEditingEnabled && result.data.isCustomized,
     }));
 
-    setTestCasesByProject((previous) => {
-      const testsForProject = previous[selectedProjectId] ?? [];
-      const existingIndex = testsForProject.findIndex((testCase) => testCase.id === result.data.id);
+    setTestCasesByFeature((previous) => {
+      const testsForFeature = previous[selectedFeatureId] ?? [];
+      const existingIndex = testsForFeature.findIndex(
+        (testCase) => testCase.id === result.data.id,
+      );
       if (existingIndex >= 0) {
-        const updatedTests = [...testsForProject];
+        const updatedTests = [...testsForFeature];
         updatedTests[existingIndex] = result.data;
         return {
           ...previous,
-          [selectedProjectId]: updatedTests,
+          [selectedFeatureId]: updatedTests,
         };
       }
 
       return {
         ...previous,
-        [selectedProjectId]: [...testsForProject, result.data],
+        [selectedFeatureId]: [...testsForFeature, result.data],
       };
     });
 
     return result.data;
-  }, [buildTestSignature, canSaveTestCase, customCodeError, isTestEditing, onMessage, selectedProjectId, setSelectedTestId, testForm.customCode, testForm.id, testForm.isCustomized, testForm.stepsText, testForm.title, testTitleError]);
+  }, [
+    buildTestSignature,
+    canSaveTestCase,
+    customCodeError,
+    isTestEditing,
+    onMessage,
+    selectedFeatureId,
+    selectedTest?.planningStatus,
+    setSelectedTestId,
+    testForm.customCode,
+    testForm.id,
+    testForm.isAiGenerated,
+    testForm.isCustomized,
+    testForm.priority,
+    testForm.stepsText,
+    testForm.testType,
+    testForm.title,
+    testTitleError,
+  ]);
 
   useEffect(() => {
-    if (!selectedProjectId || !canSaveTestCase) {
+    if (!selectedFeatureId || !canSaveTestCase) {
       setAutoSaveStatus('saved');
       return;
     }
 
-    const cleanSteps = parseStepLines(testForm.stepsText);
     const currentSignature = buildTestSignature(
-      selectedProjectId,
+      selectedFeatureId,
       testForm.id,
       testForm.title,
-      cleanSteps,
+      parseStepLines(testForm.stepsText),
+      testForm.testType,
+      testForm.priority,
+      selectedTest?.planningStatus ?? 'drafted',
+      testForm.isAiGenerated,
       testForm.isCustomized,
       testForm.customCode,
     );
+
     if (currentSignature === lastSavedSignatureRef.current) {
       setAutoSaveStatus('saved');
       return;
@@ -597,52 +673,99 @@ export function useTestsDomain({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [buildTestSignature, canSaveTestCase, saveTestCase, selectedProjectId, testForm.customCode, testForm.id, testForm.isCustomized, testForm.stepsText, testForm.title]);
+  }, [
+    buildTestSignature,
+    canSaveTestCase,
+    saveTestCase,
+    selectedFeatureId,
+    testForm.id,
+    testForm.isAiGenerated,
+    testForm.isCustomized,
+    testForm.priority,
+    testForm.customCode,
+    testForm.stepsText,
+    testForm.testType,
+    testForm.title,
+    selectedTest?.planningStatus,
+  ]);
 
-  const deleteSelectedTest = useCallback(async (onTestDeleted: () => Promise<void>): Promise<boolean> => {
-    if (!selectedTestId) {
-      onMessage('Select a test case first.');
-      return false;
-    }
+  const deleteSelectedTest = useCallback(
+    async (onTestDeleted: () => Promise<void>): Promise<boolean> => {
+      if (!selectedTestId) {
+        onMessage('Select a test case first.');
+        return false;
+      }
 
-    if (activeRunContext?.testCaseId === selectedTestId) {
-      onMessage('Cannot delete this test case while it is running.');
-      return false;
-    }
+      if (activeRunContext?.testCaseId === selectedTestId) {
+        onMessage('Cannot delete this test case while it is running.');
+        return false;
+      }
 
-    if (!window.confirm('Delete this test case?')) {
-      return false;
-    }
+      if (!window.confirm('Delete this test case?')) {
+        return false;
+      }
 
-    const result = await window.qaApi.testDelete(selectedTestId);
-    if (!result.ok) {
-      onMessage(result.error.message);
-      return false;
-    }
+      const result = await window.qaApi.testDelete(selectedTestId);
+      if (!result.ok) {
+        onMessage(result.error.message);
+        return false;
+      }
 
-    await onTestDeleted();
-    onMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
-    return true;
-  }, [activeRunContext?.testCaseId, onMessage, selectedTestId]);
+      await onTestDeleted();
+      onMessage(result.data ? 'Test case deleted.' : 'Test case was already deleted.');
+      return true;
+    },
+    [activeRunContext?.testCaseId, onMessage, selectedTestId],
+  );
 
   const generateSteps = useCallback(async (): Promise<void> => {
     if (isGeneratingSteps) {
       return;
     }
 
-    if (!selectedProject) {
+    const selectedFeature = Object.values(featuresByProject)
+      .flat()
+      .find((feature) => feature.id === selectedFeatureId);
+    const testTitle = testForm.title.trim();
+
+    if (!selectedFeature || !selectedProjectId) {
       onMessage('Create or select a project first.');
       return;
     }
 
-    const testTitle = testForm.title.trim();
     if (!testTitle) {
       onMessage('Enter a test title before generating steps.');
       return;
     }
 
+    const projectFromTree = Object.entries(featuresByProject).find(([projectId, features]) => {
+      if (projectId !== selectedProjectId) {
+        return false;
+      }
+      return features.some((feature) => feature.id === selectedFeature.id);
+    });
+
+    if (!projectFromTree) {
+      onMessage('Project context missing for AI step generation.');
+      return;
+    }
+
     setIsGeneratingSteps(true);
     try {
+      const projectResult = await window.qaApi.projectList();
+      if (!projectResult.ok) {
+        onMessage(projectResult.error.message);
+        return;
+      }
+
+      const selectedProject = projectResult.data.find(
+        (project) => project.id === selectedProjectId,
+      );
+      if (!selectedProject) {
+        onMessage('Project not found for AI step generation.');
+        return;
+      }
+
       const result = await window.qaApi.aiGenerateSteps({
         title: testTitle,
         baseUrl: selectedProject.baseUrl,
@@ -673,27 +796,45 @@ export function useTestsDomain({
     } finally {
       setIsGeneratingSteps(false);
     }
-  }, [isGeneratingSteps, onMessage, selectedProject, testForm.title]);
+  }, [
+    featuresByProject,
+    isGeneratingSteps,
+    onMessage,
+    selectedFeatureId,
+    selectedProjectId,
+    testForm.title,
+  ]);
 
   useEffect(() => {
-    const projectIds = new Set(projects.map((project) => project.id));
-    setTestCasesByProject((previous) => {
+    const projectIds = new Set(Object.keys(featuresByProject));
+    const validFeatureIds = new Set(
+      Object.values(featuresByProject)
+        .flat()
+        .map((feature) => feature.id),
+    );
+
+    setTestCasesByFeature((previous) => {
       const next: Record<string, TestCase[]> = {};
-      for (const projectId of Object.keys(previous)) {
-        if (projectIds.has(projectId)) {
-          next[projectId] = previous[projectId];
+      for (const featureId of Object.keys(previous)) {
+        if (validFeatureIds.has(featureId)) {
+          next[featureId] = previous[featureId];
         }
       }
       return next;
     });
-  }, [projects]);
+
+    if (!projectIds.has(selectedProjectId)) {
+      setSelectedTestId('');
+    }
+  }, [featuresByProject, selectedProjectId, setSelectedTestId]);
 
   return {
-    testCasesByProject,
+    testCasesByFeature,
     selectedTestId,
     setSelectedTestId,
-    selectedProjectTests,
+    selectedFeatureTests,
     selectedTest,
+    selectedTestHasSteps,
     isTestEditing,
     testForm,
     setTestForm,
@@ -710,11 +851,11 @@ export function useTestsDomain({
     hasStepErrors,
     effectiveCode,
     isCodeModified,
-    autoSaveStatus,
     canSaveTestCase,
+    autoSaveStatus,
     isSelectedTestDeleteBlocked,
     refreshTestsTree,
-    selectProject,
+    selectFeature,
     beginCreateTest,
     setEditorView,
     enableCodeEditing,

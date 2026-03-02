@@ -70,3 +70,4 @@ Current implementation includes:
 - `run.start` currently uses a synthetic runner loop while Playwright integration is pending.
 - Bug reports are restricted to failed runs.
 - PII masking is intentionally removed from MVP scope for personal-use iteration.
+- Feature planning mode is metadata-first in this phase; AI prompt enrichment with feature context is deferred.
