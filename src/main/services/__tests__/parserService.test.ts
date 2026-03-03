@@ -73,14 +73,36 @@ describe('parseStep', () => {
       warnings: [],
     });
 
-    expect(parseStep('Upload file "/tmp/a.png" to "Receipt" input using testid')).toEqual({
+    expect(parseStep('Upload file "/tmp/a.png" to "Receipt" input using testId')).toEqual({
       ok: true,
       source: 'strict',
       action: {
         type: 'upload',
         filePaths: ['/tmp/a.png'],
         target: 'Receipt',
-        targetLocator: { kind: 'testid' },
+        targetLocator: { kind: 'testId' },
+      },
+      warnings: [],
+    });
+
+    expect(parseStep('Click "//button[@id=\'submit\']" using xpath')).toEqual({
+      ok: true,
+      source: 'strict',
+      action: {
+        type: 'click',
+        target: "//button[@id='submit']",
+        targetLocator: { kind: 'xpath' },
+      },
+      warnings: [],
+    });
+
+    expect(parseStep('Click "Search" using role')).toEqual({
+      ok: true,
+      source: 'strict',
+      action: {
+        type: 'click',
+        target: 'Search',
+        targetLocator: { kind: 'role', role: 'button' },
       },
       warnings: [],
     });
@@ -175,13 +197,7 @@ describe('parseStep', () => {
     expect(parseStep('Click "Search" using banana')).toEqual({
       ok: false,
       error:
-        'Invalid locator in "using banana". Allowed locator kinds: label, placeholder, role <name>, text, testid, css, id, class.',
-    });
-
-    expect(parseStep('Click "Search" using role')).toEqual({
-      ok: false,
-      error:
-        'Invalid locator in "using role". Allowed locator kinds: label, placeholder, role <name>, text, testid, css, id, class.',
+        'Invalid locator in "using banana". Allowed locator kinds: label, placeholder, role, role <name>, text, testId, css, xpath, id, class.',
     });
 
     expect(parseStep('Click "Search" using role bad role')).toEqual({

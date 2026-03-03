@@ -99,7 +99,7 @@ function createServicesMock() {
     executablePath: null,
     lastError: null,
   }));
-  const aiGenerateSteps = vi.fn(async () => []);
+  const aiGenerateSteps = vi.fn(async (): Promise<string[]> => []);
   const aiGenerateFeatureScenarioDrafts = vi.fn(
     async () =>
       [] as Array<{
@@ -642,6 +642,48 @@ describe('registerHandlers IPC input validation', () => {
     expect(result).toEqual({
       ok: false,
       error: { message: 'AI unavailable' },
+    });
+  });
+
+  it('returns AI-generated step strings for successful ai.generateSteps calls', async () => {
+    const { services, spies } = createServicesMock();
+    spies.aiGenerateSteps.mockResolvedValueOnce([
+      'Enter "checkout" in "Search" field using placeholder',
+      'Click "Search" using role',
+    ]);
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.aiGenerateSteps, {
+      title: 'Checkout flow',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      data: [
+        'Enter "checkout" in "Search" field using placeholder',
+        'Click "Search" using role',
+      ],
+    });
+  });
+
+  it('returns malformed-model-output errors for ai.generateSteps calls', async () => {
+    const { services, spies } = createServicesMock();
+    spies.aiGenerateSteps.mockRejectedValueOnce(
+      new Error('AI step generation returned an unexpected format. Try again with more specific input.'),
+    );
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.aiGenerateSteps, {
+      title: 'Checkout flow',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: 'AI step generation returned an unexpected format. Try again with more specific input.',
+      },
     });
   });
 

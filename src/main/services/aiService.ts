@@ -14,11 +14,14 @@ import { parseFeatureScenarioResponse } from './ai/parseFeatureScenarioResponse'
 import { parseStep } from './parserService';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
-const RISKY_VERBS = ['delete', 'remove', 'purchase', 'buy', 'transfer', 'submit order'];
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_BASE_DELAY_MS = 400;
 const DEFAULT_RETRY_MAX_DELAY_MS = 3_000;
+const GENERATED_STEP_PATTERN_WITH_VALUE =
+  /^(Enter|Select|Upload|Press|Expect)\s+"([^"\r\n]+)"\s+in\s+"([^"\r\n]+)"(?:\s+(?:field|dropdown|input))?\s+using\s+(.+)$/;
+const GENERATED_STEP_PATTERN_TARGET_ONLY =
+  /^(Click|Hover|Check|Uncheck|Download)\s+"([^"\r\n]+)"(?:\s+checkbox)?\s+using\s+(.+)$/;
 
 interface GeminiTextResponse {
   text: string;
@@ -55,14 +58,7 @@ class AIRequestError extends Error {
 }
 
 const generatedStepsResponseSchema = z.object({
-  steps: z
-    .array(
-      z.object({
-        rawText: z.string().trim().min(1),
-        reason: z.string().optional(),
-      }),
-    )
-    .min(1),
+  steps: z.array(z.string().trim().min(1)).min(1),
 });
 
 const generatedBugReportResponseSchema = z
@@ -119,24 +115,20 @@ export class AIService {
     }
 
     const prompt = [
-      'You are a QA automation assistant for a desktop app that supports only these step types:',
-      'Locator vocabulary for DOM-targeting steps: label, placeholder, role <name>, text, testid, css, id, class.',
-      '1) Enter "<value>" in "<field>" field using <locator-kind>',
-      '2) Click "<target>" using <locator-kind>',
-      '3) Go to "<path-or-url>"',
-      '4) Expect <assertion>',
-      '5) Select "<option>" from "<field>" dropdown using <locator-kind>',
-      '6) Check/Uncheck "<label>" checkbox using <locator-kind>',
-      '7) Hover over "<target>" using <locator-kind>',
-      '8) Press "<key>" (optionally in "<field>" field using <locator-kind>)',
-      '9) Upload file "<path>" to "<input>" input using <locator-kind>',
-      '10) Accept/Dismiss browser dialog',
-      '11) Wait for request "<METHOD url-pattern>" (optionally expect status)',
-      '12) Wait for request "<pattern>" after clicking "<target>" using <locator-kind> (optional within timeout)',
-      '13) Wait for download after clicking "<target>" using <locator-kind>',
-      'Avoid ambiguous DOM targets: always include the locator suffix for Enter/Click/Select/Check/Hover/Press with field/Upload/Wait-after-click/Download.',
-      'Return strict JSON with shape: {"steps":[{"rawText":string,"reason":string}]}.',
-      'No markdown fences.',
+      'You are a QA automation assistant that generates executable UI test steps.',
+      'Return valid JSON only.',
+      'Do not include markdown, explanations, comments, or code fences.',
+      'Output schema must be exactly: {"steps":["<step-string>"]}.',
+      'Every step must be a single-line string.',
+      'Allowed step patterns:',
+      '1) <Action> "<Value>" in "<Target>" using <LocatorKind>',
+      '2) <Action> "<Target>" using <LocatorKind>',
+      'Use Pattern 1 only for: Enter, Select, Upload, Press, Expect.',
+      'Use Pattern 2 only for: Click, Hover, Check, Uncheck, Download.',
+      'Allowed locator kinds: role, text, label, placeholder, testId, css, xpath.',
+      'Always use double quotes around Value and Target.',
+      'Avoid duplicates.',
+      'If a step cannot be expressed in the allowed patterns, omit it.',
       `Test title: ${input.title}`,
       `Base URL: ${input.baseUrl}`,
       `Metadata: ${input.metadataJson ?? '{}'}`,
@@ -154,24 +146,31 @@ export class AIService {
         );
       }
 
-      const generated = validated.data.steps.map((row) => {
-        const rawText = row.rawText.trim();
-        const parseResult = parseStep(rawText);
-
-        if (!parseResult.ok) {
-          throw new AIRequestError(
-            'model_output',
-            `AI produced unsupported step: ${rawText}`,
-            false,
-          );
+      const generated: GeneratedStep[] = [];
+      const seen = new Set<string>();
+      for (const row of validated.data.steps) {
+        const rawText = row.trim().replace(/\s+/g, ' ');
+        if (!rawText) {
+          continue;
         }
 
-        return {
-          rawText,
-          reason: row.reason?.trim() || 'Generated from title context',
-          isDestructive: isDestructive(rawText),
-        } satisfies GeneratedStep;
-      });
+        const normalized = normalizeGeneratedStepForComparison(rawText);
+        if (seen.has(normalized)) {
+          continue;
+        }
+        seen.add(normalized);
+
+        if (!isCanonicalGeneratedStep(rawText)) {
+          continue;
+        }
+
+        const parseResult = parseStep(rawText);
+        if (!parseResult.ok) {
+          continue;
+        }
+
+        generated.push(rawText);
+      }
 
       if (generated.length === 0) {
         throw new AIRequestError('model_output', 'AI did not return usable steps.', false);
@@ -433,16 +432,8 @@ export class AIService {
   private fallbackSteps(title: string): GeneratedStep[] {
     const sanitized = title.trim() || 'Untitled test case';
     return [
-      {
-        rawText: `Click "${sanitized}" using role button`,
-        reason: 'Fallback when GEMINI_API_KEY is not configured.',
-        isDestructive: false,
-      },
-      {
-        rawText: 'Expect page updates correctly',
-        reason: 'Fallback expectation',
-        isDestructive: false,
-      },
+      `Enter "${sanitized}" in "Search" field using placeholder`,
+      `Click "${sanitized}" using text`,
     ];
   }
 }
@@ -558,9 +549,40 @@ function ensureStringArray(value: unknown, fallback: string[]): string[] {
   return out.length > 0 ? out : fallback.length > 0 ? fallback : ['TODO: no data provided'];
 }
 
-function isDestructive(rawText: string): boolean {
-  const normalized = rawText.toLowerCase();
-  return RISKY_VERBS.some((verb) => normalized.includes(verb));
+function isCanonicalGeneratedStep(rawText: string): boolean {
+  const trimmed = rawText.trim();
+  if (!trimmed || /[\r\n]/.test(trimmed)) {
+    return false;
+  }
+
+  const withValueMatch = trimmed.match(GENERATED_STEP_PATTERN_WITH_VALUE);
+  if (withValueMatch) {
+    return isAllowedGeneratedLocator(withValueMatch[4]);
+  }
+
+  const targetOnlyMatch = trimmed.match(GENERATED_STEP_PATTERN_TARGET_ONLY);
+  if (targetOnlyMatch) {
+    return isAllowedGeneratedLocator(targetOnlyMatch[3]);
+  }
+
+  return false;
+}
+
+function isAllowedGeneratedLocator(rawLocator: string): boolean {
+  const normalized = rawLocator.trim().toLowerCase();
+  return (
+    normalized === 'role' ||
+    normalized === 'text' ||
+    normalized === 'label' ||
+    normalized === 'placeholder' ||
+    normalized === 'testid' ||
+    normalized === 'css' ||
+    normalized === 'xpath'
+  );
+}
+
+function normalizeGeneratedStepForComparison(rawText: string): string {
+  return rawText.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 function joinStepContext(

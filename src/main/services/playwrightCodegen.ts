@@ -310,11 +310,15 @@ function toLocatorExpression(target: string, locator: TargetLocator): string {
     return `page.getByText(${toCodeString(target)}).first()`;
   }
 
-  if (locator.kind === 'testid') {
+  if (locator.kind === 'testId') {
     return `page.getByTestId(${toCodeString(target)}).first()`;
   }
 
   if (locator.kind === 'css') {
+    return `page.locator(${toCodeString(target)}).first()`;
+  }
+
+  if (locator.kind === 'xpath') {
     return `page.locator(${toCodeString(target)}).first()`;
   }
 

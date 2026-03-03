@@ -5,8 +5,9 @@ export type LocatorKind =
   | 'placeholder'
   | 'role'
   | 'text'
-  | 'testid'
+  | 'testId'
   | 'css'
+  | 'xpath'
   | 'id'
   | 'class';
 
@@ -292,11 +293,7 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ApiError };
 
-export interface GeneratedStep {
-  rawText: string;
-  reason: string;
-  isDestructive?: boolean;
-}
+export type GeneratedStep = string;
 
 export interface GeneratedBugReport {
   title: string;

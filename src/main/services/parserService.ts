@@ -15,12 +15,12 @@ const STRICT_CLICK_DELAYED =
 const STRICT_GO_TO = /^Go to\s+(.+)$/i;
 const STRICT_REDIRECT_TO = /^Redirect to\s+(.+?)(?:\s+url)?$/i;
 const STRICT_EXPECT = /^Expect\s+(.+)$/i;
-const STRICT_SELECT = /^Select\s+"(.+?)"\s+from\s+"(.+?)"\s+dropdown$/i;
-const STRICT_CHECK = /^Check\s+"(.+?)"\s+checkbox$/i;
-const STRICT_UNCHECK = /^Uncheck\s+"(.+?)"\s+checkbox$/i;
+const STRICT_SELECT = /^Select\s+"(.+?)"\s+(?:from|in)\s+"(.+?)"\s+dropdown$/i;
+const STRICT_CHECK = /^Check\s+"(.+?)"(?:\s+checkbox)?$/i;
+const STRICT_UNCHECK = /^Uncheck\s+"(.+?)"(?:\s+checkbox)?$/i;
 const STRICT_HOVER = /^Hover(?:\s+over)?\s+"(.+?)"$/i;
-const STRICT_PRESS = /^Press\s+"(.+?)"(?:\s+in\s+"(.+?)"\s+field)?$/i;
-const STRICT_UPLOAD = /^Upload\s+files?\s+"(.+?)"\s+to\s+"(.+?)"\s+input$/i;
+const STRICT_PRESS = /^Press\s+"(.+?)"(?:\s+in\s+"(.+?)"(?:\s+field)?)?$/i;
+const STRICT_UPLOAD = /^Upload(?:\s+files?)?\s+"(.+?)"\s+(?:to|in)\s+"(.+?)"(?:\s+input)?$/i;
 const STRICT_DIALOG_ACCEPT = /^Accept\s+browser\s+dialog$/i;
 const STRICT_DIALOG_DISMISS = /^Dismiss\s+browser\s+dialog$/i;
 const STRICT_DIALOG_PROMPT_ACCEPT = /^Enter\s+"(.+?)"\s+in\s+prompt\s+dialog\s+and\s+accept$/i;
@@ -30,6 +30,7 @@ const STRICT_WAIT_REQUEST_AFTER_CLICK =
   /^Wait\s+for\s+request\s+"(.+?)"\s+after\s+clicking\s+"(.+?)"(?:\s+and\s+expect\s+status\s+"?(\d{3})"?)?(?:\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes))?$/i;
 const STRICT_WAIT_DOWNLOAD_AFTER_CLICK =
   /^Wait\s+for\s+download\s+after\s+clicking\s+"(.+?)"(?:\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes))?$/i;
+const STRICT_DOWNLOAD = /^Download\s+"(.+?)"$/i;
 const EXPECT_TIMEOUT_SUFFIX =
   /\s+within\s+(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes)\s*$/i;
 const EXPECT_TIMEOUT_PREFIX =
@@ -44,7 +45,8 @@ const USING_SUFFIX_WITH_TIMEOUT =
   /^(.*)\s+using\s+(.+?)\s+(within\s+\d+\s*(?:s|sec|secs|second|seconds|m|min|mins|minute|minutes))\s*$/i;
 const USING_SUFFIX_AT_END = /^(.*)\s+using\s+(.+?)\s*$/i;
 const ROLE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/i;
-const LOCATOR_KINDS_LABEL = 'label, placeholder, role <name>, text, testid, css, id, class';
+const LOCATOR_KINDS_LABEL =
+  'label, placeholder, role, role <name>, text, testId, css, xpath, id, class';
 
 interface ParsedActionMatch {
   action: ParsedAction;
@@ -377,6 +379,17 @@ function parseStrict(text: string): ParsedActionMatch | null {
     };
   }
 
+  const directDownloadMatch = text.match(STRICT_DOWNLOAD);
+  if (directDownloadMatch) {
+    return {
+      action: {
+        type: 'download',
+        triggerClickTarget: directDownloadMatch[1],
+      },
+      ambiguousTarget: true,
+    };
+  }
+
   return null;
 }
 
@@ -700,11 +713,15 @@ function parseLocatorToken(
   }
 
   if (lower === 'testid') {
-    return { ok: true, locator: { kind: 'testid' } };
+    return { ok: true, locator: { kind: 'testId' } };
   }
 
   if (lower === 'css') {
     return { ok: true, locator: { kind: 'css' } };
+  }
+
+  if (lower === 'xpath') {
+    return { ok: true, locator: { kind: 'xpath' } };
   }
 
   if (lower === 'id') {
@@ -713,6 +730,13 @@ function parseLocatorToken(
 
   if (lower === 'class') {
     return { ok: true, locator: { kind: 'class' } };
+  }
+
+  if (lower === 'role') {
+    return {
+      ok: true,
+      locator: { kind: 'role', role: 'button' },
+    };
   }
 
   if (lower.startsWith('role ')) {
@@ -941,7 +965,14 @@ function toCanonicalStep(action: ParsedAction, locator: TargetLocator): string {
 
 function toLocatorSuffix(locator: TargetLocator): string {
   if (locator.kind === 'role') {
+    if (locator.role.toLowerCase() === 'button') {
+      return 'role';
+    }
     return `role ${locator.role}`;
+  }
+
+  if (locator.kind === 'testId') {
+    return 'testId';
   }
 
   return locator.kind;

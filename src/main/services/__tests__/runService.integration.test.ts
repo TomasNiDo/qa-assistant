@@ -558,6 +558,33 @@ describe('RunService integration', () => {
     expect(tracker.locatorCalls.filter((value) => value === 'role').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('supports explicit testId and xpath locators in generated-step flows', async () => {
+    const ctx = setupRealDb();
+    db = ctx.db;
+    tempDir = ctx.dir;
+
+    const tracker = { locatorCalls: [] as string[] };
+    const { testCaseId } = seedTestCase(db, [
+      'Click "//button[@data-testid=\'continue\']" using xpath',
+      'Upload "/tmp/avatar.png" in "avatar-upload" input using testId',
+    ]);
+    const service = new RunService(
+      db,
+      ctx.artifactsDir,
+      createBrowserServiceStub({ tracker }),
+      () => config(),
+    );
+
+    const run = service.start({ testCaseId, browser: 'chromium' });
+    const terminal = await waitForTerminalRun(service, run.id);
+    const results = service.stepResults(run.id);
+
+    expect(terminal.status).toBe('passed');
+    expect(results.map((result) => result.status)).toEqual(['passed', 'passed']);
+    expect(tracker.locatorCalls).toContain('css');
+    expect(tracker.locatorCalls).toContain('testid');
+  });
+
   it('executes stored custom code when the test case is customized', async () => {
     const ctx = setupRealDb();
     db = ctx.db;

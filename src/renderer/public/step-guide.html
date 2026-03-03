@@ -185,6 +185,11 @@
         margin-top: 10px;
       }
 
+      .example-block pre {
+        border-color: hsl(from var(--accent) h s l / 0.45);
+        background: hsl(from var(--accent) h s l / 0.11);
+      }
+
       code,
       pre {
         font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
@@ -263,10 +268,11 @@
             <ul class="syntax-list">
               <li><strong>label</strong>: <code>using label</code></li>
               <li><strong>placeholder</strong>: <code>using placeholder</code></li>
-              <li><strong>role</strong>: <code>using role button</code></li>
+              <li><strong>role</strong>: <code>using role</code> or <code>using role button</code></li>
               <li><strong>text</strong>: <code>using text</code></li>
-              <li><strong>testid</strong>: <code>using testid</code></li>
+              <li><strong>testId</strong>: <code>using testId</code></li>
               <li><strong>css</strong>: <code>using css</code></li>
+              <li><strong>xpath</strong>: <code>using xpath</code></li>
               <li><strong>id</strong>: <code>using id</code></li>
               <li><strong>class</strong>: <code>using class</code></li>
             </ul>
@@ -279,43 +285,53 @@
             <article class="card">
               <span class="tag">Enter</span>
               <h3>Fill input</h3>
-              <div class="code-block"><pre>Enter "&lt;value&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Enter "&lt;value&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Enter "headphones" in "Search" field using placeholder</pre></div>
             </article>
             <article class="card">
               <span class="tag">Click</span>
               <h3>Click target</h3>
-              <div class="code-block"><pre>Click "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Click "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Click "Search" using role</pre></div>
             </article>
             <article class="card">
               <span class="tag">Select</span>
               <h3>Select dropdown option</h3>
-              <div class="code-block"><pre>Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Select "&lt;option&gt;" from "&lt;dropdown&gt;" dropdown using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Select "Business" from "Plan type" dropdown using label</pre></div>
             </article>
             <article class="card">
               <span class="tag">Checkbox</span>
               <h3>Check / Uncheck</h3>
-              <div class="code-block"><pre>Check "&lt;label&gt;" checkbox using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Check/Uncheck "&lt;label&gt;" checkbox using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Check "Remember me" checkbox using label
+Example: Uncheck "Remember me" checkbox using label</pre></div>
             </article>
             <article class="card">
               <span class="tag">Hover</span>
               <h3>Hover target</h3>
-              <div class="code-block"><pre>Hover over "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Hover over "&lt;target&gt;" using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Hover over "Profile menu" using text</pre></div>
             </article>
             <article class="card">
               <span class="tag">Press</span>
               <h3>Press key (optional target)</h3>
-              <div class="code-block"><pre>Press "&lt;key&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Press "&lt;key&gt;" in "&lt;field&gt;" field using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Press "Enter" in "Search" field using placeholder</pre></div>
             </article>
             <article class="card">
               <span class="tag">Upload</span>
               <h3>Upload file(s)</h3>
-              <div class="code-block"><pre>Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block"><pre>Syntax: Upload file/files "&lt;paths&gt;" to "&lt;input&gt;" input using &lt;locator-kind&gt;</pre></div>
+              <div class="code-block example-block"><pre>Example: Upload file "/tmp/avatar.png" to "Avatar" input using testId</pre></div>
             </article>
             <article class="card">
               <span class="tag">Network / Download</span>
               <h3>Wait after click</h3>
-              <div class="code-block"><pre>Wait for request "&lt;METHOD pattern&gt;" after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 10s
-Wait for download after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 15s</pre></div>
+              <div class="code-block"><pre>Syntax: Wait for request "&lt;METHOD pattern&gt;" after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 10s
+Syntax: Wait for download after clicking "&lt;target&gt;" using &lt;locator-kind&gt; within 15s</pre></div>
+              <div class="code-block example-block"><pre>Example: Wait for request "POST **/api/login" after clicking "Login" using role button within 10s
+Example: Wait for download after clicking "Export CSV" using role button within 15s</pre></div>
             </article>
           </div>
 
@@ -325,28 +341,6 @@ Wait for download after clicking "&lt;target&gt;" using &lt;locator-kind&gt; wit
 Expect "Successfully added to cart" within 10s
 Accept browser dialog
 Dismiss browser dialog</pre></div>
-          </div>
-
-          <div class="section">
-            <h2>Generated Playwright Code Shape (Default)</h2>
-            <div class="code-block"><pre>import { test, expect } from '@playwright/test';
-
-test('Add headphone to cart', async ({ page }) => {
-  // Enter "headphone" in "Search" field using placeholder
-  await page.getByPlaceholder('Search').fill('headphone');
-
-  // Click "Search"
-  await page.getByRole('button', { name: 'Search' }).click();
-
-  // Click "Wireless Bluetooth Headphone"
-  await page.getByRole('button', { name: 'Wireless Bluetooth Headphone' }).click();
-
-  // Click "Add to Cart"
-  await page.getByRole('button', { name: 'Add to Cart' }).click();
-
-  // Expect "Successfully added to cart" within 10s
-  await expect(page.getByText('Successfully added to cart')).toBeVisible({ timeout: 10000 });
-});</pre></div>
           </div>
 
           <div class="note">

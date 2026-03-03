@@ -54,7 +54,7 @@ describe('generatePlaywrightCode', () => {
       {
         type: 'click',
         target: 'Search',
-        targetLocator: { kind: 'role', role: 'button' },
+        targetLocator: { kind: 'testId' },
       },
       {
         type: 'waitForRequest',
@@ -69,9 +69,24 @@ describe('generatePlaywrightCode', () => {
     expect(generated).toContain("import { test, expect } from '@playwright/test';");
     expect(generated).toContain('test("Login request waits", async ({ page }) => {');
     expect(generated).toContain('await page.getByPlaceholder("Search").first().fill("wireless headphone");');
-    expect(generated).toContain('await page.getByRole("button", { name: "Search" }).first().click();');
+    expect(generated).toContain('await page.getByTestId("Search").first().click();');
     expect(generated).toContain('page.getByRole("button", { name: "Login" }).first().click()');
     expect(generated).not.toContain('qa.');
+  });
+
+  it('uses locator() for explicit xpath locators', () => {
+    const actions: ParsedAction[] = [
+      {
+        type: 'click',
+        target: '//button[@data-testid="continue"]',
+        targetLocator: { kind: 'xpath' },
+      },
+    ];
+
+    const generated = generatePlaywrightCode(actions, { testTitle: 'XPath click' });
+    expect(generated).toContain(
+      'await page.locator("//button[@data-testid=\\"continue\\"]").first().click();',
+    );
   });
 
   it('includes timeout and click-triggered request handling when present', () => {
