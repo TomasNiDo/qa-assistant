@@ -117,16 +117,14 @@ describe('AIService', () => {
     });
 
     expect(result).toHaveLength(2);
-    expect(result[0].rawText).toContain('Checkout flow');
+    expect(result[0]).toContain('Checkout flow');
   });
 
   it('retries transient Gemini failures and succeeds', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(geminiErrorResponse(503, 'Service Unavailable'))
-      .mockResolvedValueOnce(
-        geminiSuccessResponse('{"steps":[{"rawText":"Click \\"Login\\"","reason":"primary CTA"}]}'),
-      );
+      .mockResolvedValueOnce(geminiSuccessResponse('{"steps":["Click \\"Login\\" using role"]}'));
 
     const service = new AIService({} as Database.Database, 'test-key', 'gemini-2.5-flash', {
       fetchFn: fetchMock as unknown as typeof fetch,
@@ -141,13 +139,7 @@ describe('AIService', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result).toEqual([
-      {
-        rawText: 'Click "Login"',
-        reason: 'primary CTA',
-        isDestructive: false,
-      },
-    ]);
+    expect(result).toEqual(['Click "Login" using role']);
   });
 
   it('fails with classified timeout message', async () => {
@@ -222,7 +214,7 @@ describe('AIService', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
-        geminiSuccessResponse('{"steps":[{"rawText":"Do quantum shuffle now","reason":"creative"}]}'),
+        geminiSuccessResponse('{"steps":["Do quantum shuffle now"]}'),
       );
 
     const service = new AIService({} as Database.Database, 'test-key', 'gemini-2.5-flash', {
@@ -240,6 +232,28 @@ describe('AIService', () => {
     ).rejects.toThrow(
       'AI step generation returned an unexpected format. Try again with more specific input.',
     );
+  });
+
+  it('keeps only unique, grammar-valid generated steps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      geminiSuccessResponse(
+        '{"steps":["Click \\"Login\\" using role","Click \\"Login\\" using role","Hover \\"Profile\\" using text","bad step"]}',
+      ),
+    );
+
+    const service = new AIService({} as Database.Database, 'test-key', 'gemini-2.5-flash', {
+      fetchFn: fetchMock as unknown as typeof fetch,
+      delay: async () => undefined,
+      maxRetries: 0,
+      requestTimeoutMs: 50,
+    });
+
+    const result = await service.generateSteps({
+      title: 'Login flow',
+      baseUrl: 'https://example.com',
+    });
+
+    expect(result).toEqual(['Click "Login" using role', 'Hover "Profile" using text']);
   });
 
   it('classifies malformed bug report JSON response', async () => {

@@ -1181,11 +1181,15 @@ export class RunService {
       return page.getByText(targetMatcher).first();
     }
 
-    if (targetLocator.kind === 'testid') {
+    if (targetLocator.kind === 'testId') {
       return page.getByTestId(trimmedTarget).first();
     }
 
     if (targetLocator.kind === 'css') {
+      return page.locator(trimmedTarget).first();
+    }
+
+    if (targetLocator.kind === 'xpath') {
       return page.locator(trimmedTarget).first();
     }
 
@@ -1661,12 +1665,17 @@ function validateTargetLocator(raw: unknown, message: string): TargetLocator | u
     candidate.kind === 'label' ||
     candidate.kind === 'placeholder' ||
     candidate.kind === 'text' ||
-    candidate.kind === 'testid' ||
+    candidate.kind === 'testId' ||
     candidate.kind === 'css' ||
+    candidate.kind === 'xpath' ||
     candidate.kind === 'id' ||
     candidate.kind === 'class'
   ) {
     return { kind: candidate.kind };
+  }
+
+  if (candidate.kind === 'testid') {
+    return { kind: 'testId' };
   }
 
   throw new Error(message);

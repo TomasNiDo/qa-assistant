@@ -778,7 +778,14 @@ export function useTestsDomain({
       }
 
       const generatedSteps = result.data
-        .map((step) => step.rawText.trim())
+        .map((step) => {
+          if (typeof step === 'string') {
+            return step.trim();
+          }
+
+          const legacyRawText = (step as { rawText?: unknown }).rawText;
+          return typeof legacyRawText === 'string' ? legacyRawText.trim() : '';
+        })
         .filter((stepText) => Boolean(stepText));
 
       if (generatedSteps.length === 0) {
