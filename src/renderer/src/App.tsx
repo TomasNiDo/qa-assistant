@@ -1098,7 +1098,7 @@ export function App(): JSX.Element {
           onSelectFeature={handleSelectFeature}
           onBeginCreateProject={beginCreateProject}
           onCreateFeatureForProject={(projectId) => {
-            handleSelectProject(projectId);
+            setSelectedProjectId(projectId);
             beginCreateFeature();
             setFeaturePhase('planning');
             setSelectedDraftedTestIds([]);
