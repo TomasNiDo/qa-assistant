@@ -8,12 +8,12 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build && npm run build:copy-migrations",
+    "prepare:native:win": "node scripts/prepare-native-win.cjs",
+    "rebuild:native": "npm run prepare:native:win && electron-builder install-app-deps",
     "dist:win": "npm run build && electron-builder --win nsis --publish never",
     "publish:win": "npm run build && electron-builder --win nsis --publish always",
     "build:copy-migrations": "node scripts/copy-main-migrations.cjs",
     "preview": "electron-vite preview",
-    "postinstall": "npm run rebuild:native",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "seed:sample": "electron scripts/seed-sample.cjs",
     "test": "node scripts/run-tests.cjs",
     "test:vitest": "vitest run --pool=forks",
@@ -36,7 +36,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.1",
     "@tailwindcss/vite": "^4.1.18",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -69,6 +68,8 @@
     "directories": {
       "output": "dist"
     },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
     "files": [
       "out/**/*",
       "package.json"
