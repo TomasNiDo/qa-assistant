@@ -12,6 +12,17 @@ interface UseFeaturesDomainArgs {
   onMessage: (message: string) => void;
 }
 
+interface ProjectFeatureSelectionInput {
+  featuresForProject: Feature[];
+  selectedFeatureId: string;
+}
+
+interface ProjectFeatureSelectionResult {
+  selectedFeatureId: string;
+  featureFormMode: ProjectFormMode;
+  featureForm: FeatureFormState;
+}
+
 export interface UseFeaturesDomainResult {
   featuresByProject: Record<string, Feature[]>;
   selectedFeatureId: string;
@@ -35,6 +46,34 @@ export interface UseFeaturesDomainResult {
   createFeature: () => Promise<Feature | null>;
   updateSelectedFeature: () => Promise<Feature | null>;
   deleteSelectedFeature: (onFeatureDeleted: () => Promise<void>, featureId?: string) => Promise<boolean>;
+}
+
+export function resolveProjectFeatureSelection({
+  featuresForProject,
+  selectedFeatureId,
+}: ProjectFeatureSelectionInput): ProjectFeatureSelectionResult {
+  const selectedFeature =
+    featuresForProject.find((feature) => feature.id === selectedFeatureId) ?? featuresForProject[0];
+
+  if (!selectedFeature) {
+    return {
+      selectedFeatureId: '',
+      featureFormMode: 'create',
+      featureForm: DEFAULT_FEATURE_FORM,
+    };
+  }
+
+  return {
+    selectedFeatureId: selectedFeature.id,
+    featureFormMode: 'edit',
+    featureForm: {
+      id: selectedFeature.id,
+      title: selectedFeature.title,
+      acceptanceCriteria: selectedFeature.acceptanceCriteria,
+      requirements: selectedFeature.requirements ?? '',
+      notes: selectedFeature.notes ?? '',
+    },
+  };
 }
 
 export function useFeaturesDomain({
@@ -135,9 +174,13 @@ export function useFeaturesDomain({
   const selectProject = useCallback(
     (projectId: string): void => {
       const featuresForProject = featuresByProject[projectId] ?? [];
-      if (!featuresForProject.some((feature) => feature.id === selectedFeatureId)) {
-        setSelectedFeatureId(featuresForProject[0]?.id ?? '');
-      }
+      const nextSelection = resolveProjectFeatureSelection({
+        featuresForProject,
+        selectedFeatureId,
+      });
+      setSelectedFeatureId(nextSelection.selectedFeatureId);
+      setFeatureFormMode(nextSelection.featureFormMode);
+      setFeatureForm(nextSelection.featureForm);
     },
     [featuresByProject, selectedFeatureId],
   );

@@ -71,6 +71,7 @@ describe('SidebarProjectsPanel', () => {
   });
 
   it('supports project and feature actions', () => {
+    const onSelectProject = vi.fn();
     const onCreateFeatureForProject = vi.fn();
     const onBeginEditProject = vi.fn();
     const onDeleteProject = vi.fn();
@@ -85,7 +86,7 @@ describe('SidebarProjectsPanel', () => {
         selectedFeatureId="feature-1"
         appVersion="0.1.1-beta.2"
         isProjectDeleteBlocked={() => false}
-        onSelectProject={vi.fn()}
+        onSelectProject={onSelectProject}
         onSelectFeature={vi.fn()}
         onBeginCreateProject={vi.fn()}
         onCreateFeatureForProject={onCreateFeatureForProject}
@@ -100,6 +101,7 @@ describe('SidebarProjectsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create feature in ShopFlow' }));
     expect(onCreateFeatureForProject).toHaveBeenCalledWith('project-1');
+    expect(onSelectProject).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Project actions for ShopFlow' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit project' }));
