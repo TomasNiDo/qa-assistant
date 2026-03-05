@@ -88,7 +88,7 @@ export function App(): JSX.Element {
     'planning',
   );
   const [executionFilter, setExecutionFilter] = useState<
-    'all' | 'passed' | 'failed' | 'running'
+    'all' | 'passed' | 'failed' | 'running' | 'not_run'
   >('all');
   const [executionSummary, setExecutionSummary] = useState<FeatureExecutionSummary | null>(null);
   const [isGeneratingAiScenarios, setIsGeneratingAiScenarios] = useState(false);
@@ -1232,6 +1232,9 @@ export function App(): JSX.Element {
               }}
               onRunTestCase={(testCaseId) => {
                 void handleRunApprovedTestCase(testCaseId);
+              }}
+              onStopActiveRun={() => {
+                void cancelRun();
               }}
               runBlocked={Boolean(activeRunContext)}
             />

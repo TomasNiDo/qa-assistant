@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCase } from '@shared/types';
@@ -6,6 +6,7 @@ import type { FeatureFormState } from '../types';
 import { FeaturePlanningPage } from './FeaturePlanningPage';
 
 function FeaturePlanningPageHarness(props: {
+  selectedProjectName?: string;
   draftedTests?: TestCase[];
   approvedTests?: TestCase[];
   selectedDraftedTestIds?: string[];
@@ -32,7 +33,7 @@ function FeaturePlanningPageHarness(props: {
   return (
     <FeaturePlanningPage
       hasSelectedProject
-      selectedProjectName="ShopFlow"
+      selectedProjectName={props.selectedProjectName ?? 'ShopFlow'}
       featureForm={featureForm}
       setFeatureForm={setFeatureForm}
       featureFormMode="edit"
@@ -151,10 +152,9 @@ describe('FeaturePlanningPage', () => {
   it('disables bulk approval when no drafted selections', () => {
     render(<FeaturePlanningPageHarness selectedDraftedTestIds={[]} />);
 
-    expect(
-      (screen.getByRole('button', { name: 'Approved Test Cases' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    expect((screen.getByRole('button', { name: 'Approve' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
 
   it('renders phase switch and forwards execution selection', () => {
@@ -171,7 +171,7 @@ describe('FeaturePlanningPage', () => {
       <FeaturePlanningPageHarness onGenerateAiScenarios={onGenerateAiScenarios} />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Scenarios (AI)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Scenarios' }));
     expect(onGenerateAiScenarios).toHaveBeenCalledTimes(1);
 
     rerender(
@@ -344,7 +344,66 @@ describe('FeaturePlanningPage', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Drafted Test Cases (2)' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Approved Test Cases (1)' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /^Drafted Test Cases/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /^Approved Test Cases/ })).toBeTruthy();
+    expect(screen.getByLabelText('Drafted count: 2')).toBeTruthy();
+    expect(screen.getByLabelText('Approved count: 1')).toBeTruthy();
+  });
+
+  it('filters approved test cases by type', () => {
+    render(
+      <FeaturePlanningPageHarness
+        approvedTests={[
+          {
+            id: 'approved-positive',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved positive case',
+            testType: 'positive',
+            priority: 'high',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'approved-negative',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved negative case',
+            testType: 'negative',
+            priority: 'medium',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+      />,
+    );
+
+    const approvedHeading = screen.getByRole('heading', { name: /^Approved Test Cases/ });
+    const approvedSection = approvedHeading.closest('article');
+    expect(approvedSection).toBeTruthy();
+
+    const scoped = within(approvedSection as HTMLElement);
+    expect(scoped.getByText('Approved positive case')).toBeTruthy();
+    expect(scoped.getByText('Approved negative case')).toBeTruthy();
+
+    fireEvent.click(scoped.getByRole('button', { name: 'Negative' }));
+    expect(scoped.queryByText('Approved positive case')).toBeNull();
+    expect(scoped.getByText('Approved negative case')).toBeTruthy();
+  });
+
+  it('formats snake_case project names for display', () => {
+    render(<FeaturePlanningPageHarness selectedProjectName="to_do_list" />);
+
+    expect(screen.getByText('To do list /')).toBeTruthy();
   });
 });
