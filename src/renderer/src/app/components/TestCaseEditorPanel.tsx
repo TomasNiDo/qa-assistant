@@ -9,12 +9,8 @@ import { highlightStepsInput } from '../stepsHighlight';
 import type { TestFormState } from '../types';
 import {
   dangerButtonClass,
-  fieldClass,
-  helperTextClass,
   mutedButtonClass,
-  panelClass,
   primaryButtonClass,
-  sectionTitleClass,
   subtleButtonClass,
 } from '../uiClasses';
 
@@ -110,6 +106,11 @@ export function TestCaseEditorPanel({
   const isStepsView = testForm.activeView === 'steps';
   const stepsEditorHostRef = useRef<HTMLDivElement | null>(null);
   const codeEditorHostRef = useRef<HTMLDivElement | null>(null);
+  void setBrowser;
+  const stepLineCount = Math.max(1, testForm.stepsText.split('\n').length);
+  const parseIssueCount =
+    testStepsErrors.filter(Boolean).length +
+    stepParseWarnings.reduce((total, warnings) => total + warnings.length, 0);
 
   useEffect(
     () =>
@@ -132,10 +133,10 @@ export function TestCaseEditorPanel({
   );
 
   const viewToggle = (
-    <div className="inline-flex items-center rounded-md border border-border bg-card p-1">
+    <div className="inline-flex items-center rounded-md border border-border bg-background p-1">
       <button
         type="button"
-        className={`rounded-sm px-3 py-1 text-[11px] font-semibold transition-colors ${
+        className={`rounded-sm px-3 py-1 text-[10px] font-semibold transition-colors ${
           isStepsView ? 'bg-primary text-primary-foreground' : 'text-secondary-foreground'
         }`}
         onClick={() => setEditorView('steps')}
@@ -145,7 +146,7 @@ export function TestCaseEditorPanel({
       </button>
       <button
         type="button"
-        className={`rounded-sm px-3 py-1 text-[11px] font-semibold transition-colors ${
+        className={`rounded-sm px-3 py-1 text-[10px] font-semibold transition-colors ${
           !isStepsView ? 'bg-primary text-primary-foreground' : 'text-secondary-foreground'
         }`}
         onClick={() => setEditorView('code')}
@@ -157,58 +158,52 @@ export function TestCaseEditorPanel({
   );
 
   return (
-    <section className={`${panelClass} space-y-4`}>
-      <div>
-        <h2 className={sectionTitleClass}>{testCasePanelTitle}</h2>
-        <p className={helperTextClass}>{testCasePanelDescription}</p>
+    <section className="flex min-h-0 flex-col rounded-[14px] border border-[#242424] bg-card p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          {viewToggle}
+          <span className="inline-flex rounded-sm border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground">
+            {isStepsView ? 'Natural language' : 'TypeScript'}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-md border border-purple/45 bg-purple/12 px-3 py-1.5 text-[11px] font-semibold text-purple transition-colors hover:bg-purple/18 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onGenerateSteps}
+          disabled={isGeneratingSteps}
+          aria-busy={isGeneratingSteps}
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+            <path
+              d="M12 3l1.7 4.7L18.5 9l-4.8 1.3L12 15l-1.7-4.7L5.5 9l4.8-1.3L12 3z"
+              fill="currentColor"
+            />
+          </svg>
+          {isGeneratingSteps ? 'Generating...' : 'Generate with AI'}
+        </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-        <label className="block text-xs font-semibold text-secondary-foreground">
-          <span className="mb-3 block">Test Case Title</span>
-          <input
-            className={fieldClass}
-            value={testForm.title}
-            onChange={(event) =>
-              setTestForm((previous) => ({ ...previous, title: event.target.value }))
-            }
-            placeholder="Checkout applies promo and captures payment"
-          />
-          {testTitleError ? (
-            <span className="mt-1 block text-[11px] text-danger">{testTitleError}</span>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>{testCasePanelTitle}</span>
+        <div className="flex items-center gap-2">
+          {ambiguousStepWarningCount > 0 ? (
+            <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+              Ambiguous Steps: {ambiguousStepWarningCount}
+            </span>
           ) : null}
-        </label>
-
-        <label className="block text-xs font-semibold text-secondary-foreground">
-          <span className="mb-3 block">Browser</span>
-          <select
-            className={fieldClass}
-            value={browser}
-            onChange={(event) => setBrowser(event.target.value as BrowserName)}
-          >
-            <option value="chromium">Chromium</option>
-            <option value="firefox">Firefox</option>
-            <option value="webkit">WebKit</option>
-          </select>
-        </label>
+          <span>{testCasePanelDescription}</span>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold text-secondary-foreground">Execution Input</p>
-          <div className="flex items-center gap-2">
-            {ambiguousStepWarningCount > 0 ? (
-              <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                Ambiguous Steps: {ambiguousStepWarningCount}
-              </span>
-            ) : null}
-            {viewToggle}
-          </div>
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>{isCodeModified ? 'Modified' : 'Auto-synced'}</span>
+          <span>{isStepsView ? 'Steps mode' : 'Playwright mode'}</span>
         </div>
 
         {isStepsView ? (
           <>
-            <div ref={stepsEditorHostRef}>
+            <div ref={stepsEditorHostRef} className="min-h-0 flex-1">
               <Editor
                 value={testForm.stepsText}
                 onValueChange={(nextValue) =>
@@ -216,7 +211,7 @@ export function TestCaseEditorPanel({
                 }
                 highlight={highlightStepsInput}
                 padding={12}
-                className="qa-steps-editor h-80 rounded-md border border-border bg-input"
+                className="qa-steps-editor h-[460px] rounded-md border border-[#2A2B2E] bg-[#111214]"
                 textareaClassName="qa-steps-editor__textarea"
                 preClassName="qa-steps-editor__pre"
                 placeholder={
@@ -226,7 +221,7 @@ export function TestCaseEditorPanel({
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 12,
-                  lineHeight: 1.6,
+                  lineHeight: 1.5,
                 }}
               />
             </div>
@@ -235,8 +230,7 @@ export function TestCaseEditorPanel({
                 This test has custom code. Step edits will not auto-sync.
               </p>
             ) : null}
-            {testStepsErrors.some(Boolean) ||
-            stepParseWarnings.some((warnings) => warnings.length > 0) ? (
+            {parseIssueCount > 0 ? (
               <div className="space-y-1.5 rounded-md border border-border bg-background px-2.5 py-2">
                 {testStepsErrors.map((error, index) => {
                   const warnings = stepParseWarnings[index] ?? [];
@@ -264,22 +258,16 @@ export function TestCaseEditorPanel({
           </>
         ) : (
           <>
-            {isCodeModified ? (
-              <span className="inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                Modified
-              </span>
-            ) : null}
-
             <div className="space-y-2">
-              <div ref={codeEditorHostRef}>
+              <div ref={codeEditorHostRef} className="min-h-0 flex-1">
                 <Editor
                   value={effectiveCode}
                   onValueChange={onCodeChange}
                   highlight={highlightPlaywrightCode}
                   padding={12}
-                  className="qa-code-editor h-80 rounded-md border border-border bg-input"
+                  className="qa-code-editor language-typescript h-[460px] rounded-md border border-[#2A2B2E] bg-[#111214]"
                   textareaClassName="qa-code-editor__textarea"
-                  preClassName="qa-code-editor__pre"
+                  preClassName="qa-code-editor__pre language-typescript"
                   placeholder="Generated Playwright code will appear here."
                   readOnly={!testForm.isCodeEditingEnabled}
                   aria-label="Playwright Code"
@@ -290,7 +278,7 @@ export function TestCaseEditorPanel({
                   }}
                 />
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
                 <p className="mr-auto text-[11px] text-muted-foreground">
                   {testForm.isCodeEditingEnabled
                     ? 'Code edits are enabled. The next run uses this custom code once auto-saved.'
@@ -299,18 +287,18 @@ export function TestCaseEditorPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className={subtleButtonClass}
-                    onClick={onEnableCodeEditing}
-                    disabled={testForm.isCodeEditingEnabled}
-                  >
+                      className={mutedButtonClass}
+                      onClick={onEnableCodeEditing}
+                      disabled={testForm.isCodeEditingEnabled}
+                    >
                     {testForm.isCodeEditingEnabled ? 'Editing Enabled' : 'Enable Editing'}
                   </button>
                   <button
                     type="button"
-                    className={subtleButtonClass}
-                    onClick={onRestoreGeneratedCode}
-                    disabled={!testForm.isCustomized}
-                  >
+                      className={subtleButtonClass}
+                      onClick={onRestoreGeneratedCode}
+                      disabled={!testForm.isCustomized}
+                    >
                     Restore Auto-Generated
                   </button>
                 </div>
@@ -320,29 +308,39 @@ export function TestCaseEditorPanel({
         )}
       </div>
 
+      {testTitleError ? <p className="text-[11px] text-danger">{testTitleError}</p> : null}
       {customCodeError ? <p className="text-[11px] text-danger">{customCodeError}</p> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <button
-          type="button"
-          className={dangerButtonClass}
-          onClick={onDeleteSelectedTest}
-          disabled={!hasSelectedTest || isSelectedTestDeleteBlocked}
-        >
-          Delete Test Case
-        </button>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+        <span className="text-[10px] text-muted-foreground">
+          {stepLineCount} lines · {parseIssueCount} issues · {browser}
+        </span>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button type="button" className={subtleButtonClass} onClick={onBeginCreateTest}>
-            Reset Form
+            Reset
           </button>
           <button
             type="button"
             className={mutedButtonClass}
-            onClick={onGenerateSteps}
-            disabled={isGeneratingSteps}
-            aria-busy={isGeneratingSteps}
+            onClick={isStepsView ? onGenerateSteps : onEnableCodeEditing}
+            disabled={isStepsView ? isGeneratingSteps : testForm.isCodeEditingEnabled}
+            aria-busy={isStepsView ? isGeneratingSteps : undefined}
           >
-            {isGeneratingSteps ? 'Generating...' : 'Generate Steps (AI)'}
+            {isStepsView
+              ? isGeneratingSteps
+                ? 'Generating...'
+                : 'Validate Steps'
+              : testForm.isCodeEditingEnabled
+                ? 'Editing Enabled'
+                : 'Enable Editing'}
+          </button>
+          <button
+            type="button"
+            className={dangerButtonClass}
+            onClick={onDeleteSelectedTest}
+            disabled={!hasSelectedTest || isSelectedTestDeleteBlocked}
+          >
+            Delete
           </button>
           <button
             type="button"
@@ -350,7 +348,7 @@ export function TestCaseEditorPanel({
             onClick={onStartRun}
             disabled={!canStartRun || !hasAtLeastOneTestCase}
           >
-            Start Run
+            Run
           </button>
         </div>
       </div>

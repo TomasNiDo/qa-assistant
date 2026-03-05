@@ -62,7 +62,6 @@
   font-display: swap;
 }
 
-@import url('prismjs/themes/prism-tomorrow.css');
 @import "tailwindcss";
 @import "tw-animate-css";
 

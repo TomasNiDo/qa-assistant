@@ -80,15 +80,15 @@ describe('TestCaseEditorPanel', () => {
     expect(updatedEditor?.value).toBe('Enter "john@example.com" in "Email" field');
   });
 
-  it('keeps Generate and Start Run controls functional in steps view', () => {
+  it('keeps Validate and Run controls functional in steps view', () => {
     const onGenerateSteps = vi.fn();
     const onStartRun = vi.fn();
     render(
       <TestCaseEditorPanelHarness onGenerateSteps={onGenerateSteps} onStartRun={onStartRun} />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Steps (AI)' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Start Run' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Validate Steps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     expect(onGenerateSteps).toHaveBeenCalledTimes(1);
     expect(onStartRun).toHaveBeenCalledTimes(1);
