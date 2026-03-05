@@ -16,6 +16,9 @@ Current implementation includes:
 - Gemini API (`gemini-2.5-flash`)
 
 ## Quick Start
+0. Use a compatible Node version:
+   - `nvm install`
+   - `nvm use`
 1. Install dependencies:
    - `npm install`
 2. Configure env:
@@ -26,6 +29,7 @@ Current implementation includes:
 
 ## Scripts
 - `npm run dev`
+- `npm run rebuild:native` (rebuild native modules for Electron runtime, including `better-sqlite3`)
 - `npm run build`
 - `npm run dist:win` (build Windows `.exe` installer locally)
 - `npm run publish:win` (build + publish Windows release artifacts)

@@ -1,6 +1,11 @@
-﻿import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type { ProjectFormMode, ProjectFormState } from '../types';
-import { fieldClass, mutedButtonClass, primaryButtonClass } from '../uiClasses';
+import {
+  fieldClass,
+  fieldLabelClass,
+  mutedButtonClass,
+  primaryButtonClass,
+} from '../uiClasses';
 import { ModalShell } from './ModalShell';
 
 interface ProjectModalProps {
@@ -31,17 +36,19 @@ export function ProjectModal({
   return (
     <ModalShell title={isCreate ? 'Add Project' : 'Edit Project'} onClose={onClose}>
       <div className="space-y-3">
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Project Name
           <input
             className={fieldClass}
             value={projectForm.name}
-            onChange={(event) => setProjectForm((previous) => ({ ...previous, name: event.target.value }))}
+            onChange={(event) =>
+              setProjectForm((previous) => ({ ...previous, name: event.target.value }))
+            }
           />
           {projectNameError ? <span className="text-[11px] text-danger">{projectNameError}</span> : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           URL
           <input
             className={fieldClass}
@@ -55,12 +62,14 @@ export function ProjectModal({
           ) : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Environment
           <input
             className={fieldClass}
             value={projectForm.envLabel}
-            onChange={(event) => setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))}
+            onChange={(event) =>
+              setProjectForm((previous) => ({ ...previous, envLabel: event.target.value }))
+            }
           />
         </label>
 
@@ -81,4 +90,3 @@ export function ProjectModal({
     </ModalShell>
   );
 }
-

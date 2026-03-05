@@ -24,7 +24,12 @@ import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
 import { toErrorMessage } from './app/utils';
-import { appShellClass } from './app/uiClasses';
+import {
+  appShellClass,
+  mutedButtonClass,
+  pageSubtitleClass,
+  pageTitleClass,
+} from './app/uiClasses';
 
 const DEFAULT_DRAFTED_TEST_CASE_FORM: DraftedTestCaseFormState = {
   id: '',
@@ -1055,7 +1060,7 @@ export function App(): JSX.Element {
   if (activeScreen === 'install') {
     return (
       <main className="h-screen w-screen bg-background">
-        <div className="h-full w-full overflow-hidden bg-[#0b0d12]">
+        <div className="h-full w-full overflow-hidden bg-background">
           <BrowserInstallScreen
             browserStates={browserStates}
             browserInstallProgress={browserInstallProgress}
@@ -1122,30 +1127,30 @@ export function App(): JSX.Element {
           }}
         />
 
-        <section className="min-w-0 overflow-y-auto bg-transparent px-7 py-6">
+        <section className="min-w-0 overflow-y-auto bg-transparent px-8 py-6">
           {activeScreen === 'empty' ? (
             <ProjectSetupScreen onBeginCreateProject={beginCreateProject} />
           ) : featurePhase === 'workspace' ? (
             <div className="space-y-4">
               <header className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h1 className="text-2xl font-semibold text-[#edf3fb]">Test Case Workspace</h1>
-                  <p className="text-sm text-[#a9b8cb]">
+                  <h1 className={pageTitleClass}>Test Case Workspace</h1>
+                  <p className={pageSubtitleClass}>
                     Project:{' '}
-                    <span className="font-semibold text-[#d9e4f5]">
+                    <span className="font-semibold text-foreground">
                       {selectedProject?.name ?? 'Unselected'}
                     </span>
                   </p>
-                  <p className="text-sm text-[#a9b8cb]">
+                  <p className={pageSubtitleClass}>
                     Feature:{' '}
-                    <span className="font-semibold text-[#d9e4f5]">
+                    <span className="font-semibold text-foreground">
                       {selectedFeature?.title ?? 'Unselected'}
                     </span>
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="inline-flex h-8 items-center justify-center rounded-full bg-secondary/50 px-3 text-[11px] font-medium text-secondary-foreground transition hover:bg-secondary/72"
+                  className={mutedButtonClass}
                   onClick={() => setFeaturePhase('execution')}
                 >
                   Back To Execution

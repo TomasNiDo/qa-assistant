@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Feature, Project } from '@shared/types';
+import { sidebarActionButtonClass } from '../uiClasses';
 
 interface SidebarProjectsPanelProps {
   projects: Project[];
@@ -57,15 +58,15 @@ export function SidebarProjectsPanel({
   }, []);
 
   return (
-    <aside className="flex h-full min-h-0 flex-col bg-[#0e131b]/95 px-3 py-2">
-      <div className="space-y-3">
+    <aside className="flex h-full min-h-0 flex-col border-r border-border-divider bg-sidebar px-4 py-3">
+      <div className="space-y-3 border-b border-border-divider pb-3">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-0.5 py-0.5 text-[13px] font-normal text-[#e6edf7] transition hover:text-white"
+            className="inline-flex items-center gap-2 rounded-sm px-0.5 py-0.5 text-[12px] text-secondary-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             onClick={onBeginCreateProject}
           >
-            <svg viewBox="0 0 24 24" className="h-[13px] w-[13px] text-[#9fb0c8]" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="h-[13px] w-[13px] text-secondary-foreground" aria-hidden="true">
               <path
                 d="M3 6a3 3 0 0 1 3-3h5M21 8V6a3 3 0 0 0-3-3h-2M8 21H6a3 3 0 0 1-3-3v-2M21 14v4a3 3 0 0 1-3 3h-4M14 7l3 3M5 16v3h3l9-9a2.12 2.12 0 1 0-3-3z"
                 fill="none"
@@ -78,10 +79,10 @@ export function SidebarProjectsPanel({
             New project
           </button>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="inline-flex h-5 w-5 items-center justify-center text-[#9fb0c8] transition hover:text-[#d6e2f4]"
+              className={sidebarActionButtonClass}
               onClick={onOpenStepDocs}
               aria-label="Open step documentation"
               title="Open step documentation"
@@ -94,13 +95,19 @@ export function SidebarProjectsPanel({
                   strokeWidth="1.8"
                   strokeLinejoin="round"
                 />
-                <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <path
+                  d="M14 2v6h6M8 13h8M8 17h8M8 9h2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
 
             <button
               type="button"
-              className="inline-flex h-5 w-5 items-center justify-center text-[#9fb0c8] transition hover:text-[#d6e2f4]"
+              className={sidebarActionButtonClass}
               onClick={onOpenBrowserInstall}
               aria-label="Open browser installation settings"
               title="Open browser installation settings"
@@ -119,12 +126,12 @@ export function SidebarProjectsPanel({
           </div>
         </div>
 
-        <p className="text-[11px] font-semibold text-[#8b96a5]">Projects</p>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Projects</p>
       </div>
 
-      <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" ref={menuRootRef}>
+      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" ref={menuRootRef}>
         {projects.length === 0 ? (
-          <p className="text-[11px] text-[#6f7d91]">No projects yet</p>
+          <p className="text-[11px] text-muted-foreground">No projects yet</p>
         ) : null}
 
         {projects.map((project) => {
@@ -136,16 +143,18 @@ export function SidebarProjectsPanel({
             : 'opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto';
 
           return (
-            <div key={project.id} className="space-y-1">
+            <div key={project.id} className="space-y-1.5">
               <div
-                className={`group/project relative flex items-center gap-1 rounded-xl px-1 py-1 transition ${
-                  isSelectedProject ? 'bg-[#122131]/75' : 'hover:bg-[#121927]/75'
+                className={`group/project relative flex items-center gap-1 rounded-md border px-1 py-1 transition-colors ${
+                  isSelectedProject
+                    ? 'border-border-strong bg-card'
+                    : 'border-transparent hover:border-border hover:bg-card'
                 }`}
               >
                 <button
                   type="button"
-                  className={`min-w-0 flex-1 truncate rounded-md px-1 py-1 text-left text-xs font-medium transition ${
-                    isSelectedProject ? 'text-[#d7e1f0]' : 'text-[#b8c2cf]'
+                  className={`min-w-0 flex-1 truncate rounded-sm px-1 py-1 text-left text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
+                    isSelectedProject ? 'text-foreground' : 'text-secondary-foreground'
                   }`}
                   onClick={() => onSelectProject(project.id)}
                 >
@@ -154,7 +163,7 @@ export function SidebarProjectsPanel({
 
                 <button
                   type="button"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary/65 text-[#c2d0e6] transition hover:bg-secondary/85 ${actionVisibilityClass}`}
+                  className={`${sidebarActionButtonClass} ${actionVisibilityClass}`}
                   title="Create feature"
                   aria-label={`Create feature in ${project.name}`}
                   data-testid={`project-create-feature-${project.id}`}
@@ -167,7 +176,7 @@ export function SidebarProjectsPanel({
 
                 <button
                   type="button"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary/65 text-[#c2d0e6] transition hover:bg-secondary/85 ${actionVisibilityClass}`}
+                  className={`${sidebarActionButtonClass} ${actionVisibilityClass}`}
                   title="Project actions"
                   aria-label={`Project actions for ${project.name}`}
                   data-testid={`project-actions-${project.id}`}
@@ -187,10 +196,10 @@ export function SidebarProjectsPanel({
                 </button>
 
                 {isProjectMenuOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+0.3rem)] z-20 w-32 rounded-xl bg-[#11161d]/95 p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
+                  <div className="absolute right-0 top-[calc(100%+0.3rem)] z-20 w-32 rounded-md border border-border bg-card p-1 shadow-[0_18px_40px_-28px_rgb(0_0_0/0.95)]">
                     <button
                       type="button"
-                      className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#cbd3dd] transition hover:bg-[#1a2230]"
+                      className="block w-full rounded-sm px-2 py-1.5 text-left text-xs font-medium text-secondary-foreground transition-colors hover:bg-muted/45 hover:text-foreground"
                       onClick={() => {
                         setOpenMenuProjectId('');
                         onBeginEditProject(project.id);
@@ -200,7 +209,7 @@ export function SidebarProjectsPanel({
                     </button>
                     <button
                       type="button"
-                      className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#f1a3b4] transition hover:bg-[#2a1a24] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="block w-full rounded-sm px-2 py-1.5 text-left text-xs font-medium text-danger transition-colors hover:bg-danger/16 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={isProjectDeleteBlocked(project.id)}
                       onClick={() => {
                         setOpenMenuProjectId('');
@@ -214,7 +223,7 @@ export function SidebarProjectsPanel({
               </div>
 
               {features.length > 0 ? (
-                <ul className="space-y-1 pl-2">
+                <ul className="space-y-1.5 pl-2">
                   {features.map((feature) => {
                     const isSelectedFeature = feature.id === selectedFeatureId;
                     const isFeatureMenuOpen = openMenuFeatureId === feature.id;
@@ -225,14 +234,16 @@ export function SidebarProjectsPanel({
                     return (
                       <li key={feature.id} className="space-y-1">
                         <div
-                          className={`group/feature relative flex items-center gap-1 rounded-lg px-1 py-1 transition ${
-                            isSelectedFeature ? 'bg-[#10273a]/70' : 'hover:bg-[#122031]/70'
+                          className={`group/feature relative flex items-center gap-1 rounded-md border px-1 py-1 transition-colors ${
+                            isSelectedFeature
+                              ? 'border-border-strong bg-muted/55'
+                              : 'border-transparent hover:border-border hover:bg-card'
                           }`}
                         >
                           <button
                             type="button"
-                            className={`min-w-0 flex-1 truncate rounded px-1 py-0.5 text-left text-[11px] font-medium transition ${
-                              isSelectedFeature ? 'text-[#d7e9ff]' : 'text-[#9fb2ca]'
+                            className={`min-w-0 flex-1 truncate rounded-sm px-1 py-0.5 text-left text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
+                              isSelectedFeature ? 'text-foreground' : 'text-secondary-foreground'
                             }`}
                             onClick={() => onSelectFeature(project.id, feature.id)}
                           >
@@ -241,7 +252,7 @@ export function SidebarProjectsPanel({
 
                           <button
                             type="button"
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-secondary/60 text-[#c2d0e6] transition hover:bg-secondary/85 ${featureActionVisibilityClass}`}
+                            className={`${sidebarActionButtonClass} h-5 w-5 ${featureActionVisibilityClass}`}
                             title="Feature actions"
                             aria-label={`Feature actions for ${feature.title}`}
                             data-testid={`feature-actions-${feature.id}`}
@@ -261,10 +272,10 @@ export function SidebarProjectsPanel({
                           </button>
 
                           {isFeatureMenuOpen ? (
-                            <div className="absolute right-0 top-[calc(100%+0.25rem)] z-20 w-32 rounded-xl bg-[#11161d]/95 p-1 shadow-[0_12px_30px_-18px_hsl(220_70%_3%/0.95)]">
+                            <div className="absolute right-0 top-[calc(100%+0.25rem)] z-20 w-32 rounded-md border border-border bg-card p-1 shadow-[0_18px_40px_-28px_rgb(0_0_0/0.95)]">
                               <button
                                 type="button"
-                                className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#cbd3dd] transition hover:bg-[#1a2230]"
+                                className="block w-full rounded-sm px-2 py-1.5 text-left text-xs font-medium text-secondary-foreground transition-colors hover:bg-muted/45 hover:text-foreground"
                                 onClick={() => {
                                   setOpenMenuFeatureId('');
                                   onBeginEditFeature(feature.id);
@@ -274,7 +285,7 @@ export function SidebarProjectsPanel({
                               </button>
                               <button
                                 type="button"
-                                className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-[#f1a3b4] transition hover:bg-[#2a1a24]"
+                                className="block w-full rounded-sm px-2 py-1.5 text-left text-xs font-medium text-danger transition-colors hover:bg-danger/16"
                                 onClick={() => {
                                   setOpenMenuFeatureId('');
                                   onDeleteFeature(feature.id);
@@ -290,14 +301,14 @@ export function SidebarProjectsPanel({
                   })}
                 </ul>
               ) : (
-                <p className="pl-2 text-[11px] text-[#6f7d91]">No features yet</p>
+                <p className="pl-2 text-[11px] text-muted-foreground">No features yet</p>
               )}
             </div>
           );
         })}
       </div>
 
-      <p className="pt-2 text-[10px] text-[#5f6b7c]">v{appVersion}</p>
+      <p className="pt-3 text-[10px] text-muted-foreground">v{appVersion}</p>
     </aside>
   );
 }

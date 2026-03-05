@@ -2,11 +2,19 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { TestCase } from '@shared/types';
 import type { FeatureFormState } from '../types';
 import {
+  aiTagClass,
   dangerButtonClass,
   fieldClass,
-  panelClass,
+  fieldLabelClass,
+  helperTextClass,
+  listRowClass,
+  pageSectionClass,
+  pageSubtitleClass,
+  pageTitleClass,
   primaryButtonClass,
+  sectionTitleClass,
   subtleButtonClass,
+  tagClass,
 } from '../uiClasses';
 import { FeaturePhaseToggle } from './FeaturePhaseToggle';
 
@@ -47,6 +55,16 @@ function formatEnumLabel(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function statusDotClass(status: 'saving' | 'saved' | 'error'): string {
+  if (status === 'saving') {
+    return 'animate-pulse bg-warning';
+  }
+  if (status === 'error') {
+    return 'bg-danger';
+  }
+  return 'bg-success';
+}
+
 export function FeaturePlanningPage({
   hasSelectedProject,
   selectedProjectName,
@@ -79,11 +97,9 @@ export function FeaturePlanningPage({
 
   if (!hasSelectedProject) {
     return (
-      <section className={`${panelClass} bg-[#101722]/55`}>
-        <h1 className="text-xl font-semibold text-[#edf3fb]">Feature Planning Page</h1>
-        <p className="mt-2 text-sm text-[#a9b8cb]">
-          Select or create a project to start planning features.
-        </p>
+      <section className={pageSectionClass}>
+        <h1 className={pageTitleClass}>Feature Planning Page</h1>
+        <p className={pageSubtitleClass}>Select or create a project to start planning features.</p>
       </section>
     );
   }
@@ -101,20 +117,14 @@ export function FeaturePlanningPage({
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-[#edf3fb]">Feature Planning Page</h1>
-            <p className="text-sm text-[#a9b8cb]">
-              Project: <span className="font-semibold text-[#d9e4f5]">{selectedProjectName}</span>
+            <h1 className={pageTitleClass}>Feature Planning Page</h1>
+            <p className={pageSubtitleClass}>
+              Project: <span className="font-semibold text-foreground">{selectedProjectName}</span>
             </p>
           </div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#121c2a]/75 px-3 py-1.5 text-xs font-semibold text-[#d9e4f5]">
+          <span className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-secondary-foreground">
             <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${
-                featureAutoSaveStatus === 'saving'
-                  ? 'animate-pulse bg-warning'
-                  : featureAutoSaveStatus === 'error'
-                    ? 'bg-danger'
-                    : 'bg-success'
-              }`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(featureAutoSaveStatus)}`}
               aria-hidden="true"
             />
             {featureAutoSaveMessage}
@@ -122,15 +132,15 @@ export function FeaturePlanningPage({
         </div>
       </header>
 
-      <section className={`${panelClass} space-y-4 bg-[#0f141d]/60`}>
+      <section className={`${pageSectionClass} space-y-4`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
+          <h2 className={sectionTitleClass}>
             {featureFormMode === 'create' ? 'New Feature' : 'Feature Details'}
           </h2>
         </div>
 
         <div className="grid gap-3">
-          <label className="block text-xs font-semibold text-[#b3c5dd]">
+          <label className={fieldLabelClass}>
             <span className="mb-2 block">Title</span>
             <input
               className={fieldClass}
@@ -145,7 +155,7 @@ export function FeaturePlanningPage({
             ) : null}
           </label>
 
-          <label className="block text-xs font-semibold text-[#b3c5dd]">
+          <label className={fieldLabelClass}>
             <span className="mb-2 block">Acceptance Criteria</span>
             <textarea
               className={`${fieldClass} min-h-24 resize-y py-2`}
@@ -165,7 +175,7 @@ export function FeaturePlanningPage({
             ) : null}
           </label>
 
-          <label className="block text-xs font-semibold text-[#b3c5dd]">
+          <label className={fieldLabelClass}>
             <span className="mb-2 block">Requirements</span>
             <textarea
               className={`${fieldClass} min-h-20 resize-y py-2`}
@@ -177,7 +187,7 @@ export function FeaturePlanningPage({
             />
           </label>
 
-          <label className="block text-xs font-semibold text-[#b3c5dd]">
+          <label className={fieldLabelClass}>
             <span className="mb-2 block">Notes</span>
             <textarea
               className={`${fieldClass} min-h-20 resize-y py-2`}
@@ -191,11 +201,9 @@ export function FeaturePlanningPage({
         </div>
       </section>
 
-      <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+      <section className={pageSectionClass}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
-            Drafted Test Cases ({sortedDraftedTests.length})
-          </h2>
+          <h2 className={sectionTitleClass}>Drafted Test Cases ({sortedDraftedTests.length})</h2>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -225,22 +233,19 @@ export function FeaturePlanningPage({
         </div>
 
         {!canManageDraftedTests ? (
-          <p className="text-xs text-[#94a8c2]">
+          <p className={helperTextClass}>
             Save the feature title and acceptance criteria first to add drafted test cases.
           </p>
         ) : sortedDraftedTests.length === 0 ? (
-          <p className="text-xs text-[#94a8c2]">No drafted test cases yet.</p>
+          <p className={helperTextClass}>No drafted test cases yet.</p>
         ) : (
           <ul className="space-y-2">
             {sortedDraftedTests.map((testCase) => (
-              <li
-                key={testCase.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
-              >
+              <li key={testCase.id} className={listRowClass}>
                 <div className="min-w-0 flex flex-1 items-start gap-2">
                   <input
                     type="checkbox"
-                    className="mt-1 h-3.5 w-3.5 accent-[#5eb0ff]"
+                    className="mt-1 h-3.5 w-3.5 accent-success"
                     checked={selectedDraftedTestIds.includes(testCase.id)}
                     onChange={(event) =>
                       onToggleDraftedSelection(testCase.id, event.target.checked)
@@ -248,21 +253,11 @@ export function FeaturePlanningPage({
                     aria-label={`Select ${testCase.title}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] font-semibold text-[#dce8f8]">
-                      {testCase.title}
-                    </p>
+                    <p className="truncate text-[12px] font-semibold text-foreground">{testCase.title}</p>
                     <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
-                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                        {formatEnumLabel(testCase.testType)}
-                      </span>
-                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                        {formatEnumLabel(testCase.priority)}
-                      </span>
-                      {testCase.isAiGenerated ? (
-                        <span className="rounded-full bg-[#1f2835] px-2 py-1 text-[#b9d5ff]">
-                          AI
-                        </span>
-                      ) : null}
+                      <span className={tagClass}>{formatEnumLabel(testCase.testType)}</span>
+                      <span className={tagClass}>{formatEnumLabel(testCase.priority)}</span>
+                      {testCase.isAiGenerated ? <span className={aiTagClass}>AI</span> : null}
                     </div>
                   </div>
                 </div>
@@ -300,37 +295,26 @@ export function FeaturePlanningPage({
         )}
       </section>
 
-      <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+      <section className={pageSectionClass}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
-            Approved Test Cases ({approvedTests.length})
-          </h2>
+          <h2 className={sectionTitleClass}>Approved Test Cases ({approvedTests.length})</h2>
         </div>
 
         {!canManageDraftedTests ? (
-          <p className="text-xs text-[#94a8c2]">
+          <p className={helperTextClass}>
             Approved cases will appear once the feature and drafted tests are saved.
           </p>
         ) : approvedTests.length === 0 ? (
-          <p className="text-xs text-[#94a8c2]">No approved test cases yet.</p>
+          <p className={helperTextClass}>No approved test cases yet.</p>
         ) : (
           <ul className="space-y-2">
             {approvedTests.map((testCase) => (
-              <li
-                key={testCase.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0f1a29]/80 px-3 py-2"
-              >
+              <li key={testCase.id} className={listRowClass}>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12px] font-semibold text-[#dce8f8]">
-                    {testCase.title}
-                  </p>
+                  <p className="truncate text-[12px] font-semibold text-foreground">{testCase.title}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
-                    <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                      {formatEnumLabel(testCase.testType)}
-                    </span>
-                    <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                      {formatEnumLabel(testCase.priority)}
-                    </span>
+                    <span className={tagClass}>{formatEnumLabel(testCase.testType)}</span>
+                    <span className={tagClass}>{formatEnumLabel(testCase.priority)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

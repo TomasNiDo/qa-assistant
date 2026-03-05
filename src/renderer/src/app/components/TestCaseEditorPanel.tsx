@@ -10,9 +10,11 @@ import type { TestFormState } from '../types';
 import {
   dangerButtonClass,
   fieldClass,
+  helperTextClass,
   mutedButtonClass,
   panelClass,
   primaryButtonClass,
+  sectionTitleClass,
   subtleButtonClass,
 } from '../uiClasses';
 
@@ -130,11 +132,11 @@ export function TestCaseEditorPanel({
   );
 
   const viewToggle = (
-    <div className="inline-flex items-center rounded-full bg-[#101924]/65 p-1">
+    <div className="inline-flex items-center rounded-md border border-border bg-card p-1">
       <button
         type="button"
-        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-          isStepsView ? 'bg-[#1b324e] text-[#dbeafe]' : 'text-[#9eb1ca]'
+        className={`rounded-sm px-3 py-1 text-[11px] font-semibold transition-colors ${
+          isStepsView ? 'bg-primary text-primary-foreground' : 'text-secondary-foreground'
         }`}
         onClick={() => setEditorView('steps')}
         aria-pressed={isStepsView}
@@ -143,8 +145,8 @@ export function TestCaseEditorPanel({
       </button>
       <button
         type="button"
-        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-          !isStepsView ? 'bg-[#2a5697] text-[#edf5ff]' : 'text-[#9eb1ca]'
+        className={`rounded-sm px-3 py-1 text-[11px] font-semibold transition-colors ${
+          !isStepsView ? 'bg-primary text-primary-foreground' : 'text-secondary-foreground'
         }`}
         onClick={() => setEditorView('code')}
         aria-pressed={!isStepsView}
@@ -155,14 +157,14 @@ export function TestCaseEditorPanel({
   );
 
   return (
-    <section className={`${panelClass} space-y-4 bg-[#0f141d]/60`}>
+    <section className={`${panelClass} space-y-4`}>
       <div>
-        <h2 className="text-[15px] font-semibold text-[#e7eef8]">{testCasePanelTitle}</h2>
-        <p className="text-[11px] text-[#9fb1c9]">{testCasePanelDescription}</p>
+        <h2 className={sectionTitleClass}>{testCasePanelTitle}</h2>
+        <p className={helperTextClass}>{testCasePanelDescription}</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
-        <label className="block text-xs font-semibold text-[#b3c5dd]">
+        <label className="block text-xs font-semibold text-secondary-foreground">
           <span className="mb-3 block">Test Case Title</span>
           <input
             className={fieldClass}
@@ -177,7 +179,7 @@ export function TestCaseEditorPanel({
           ) : null}
         </label>
 
-        <label className="block text-xs font-semibold text-[#b3c5dd]">
+        <label className="block text-xs font-semibold text-secondary-foreground">
           <span className="mb-3 block">Browser</span>
           <select
             className={fieldClass}
@@ -193,7 +195,7 @@ export function TestCaseEditorPanel({
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold text-[#aec0d8]">Execution Input</p>
+          <p className="text-xs font-semibold text-secondary-foreground">Execution Input</p>
           <div className="flex items-center gap-2">
             {ambiguousStepWarningCount > 0 ? (
               <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
@@ -214,7 +216,7 @@ export function TestCaseEditorPanel({
                 }
                 highlight={highlightStepsInput}
                 padding={12}
-                className="qa-steps-editor h-80 rounded-xl bg-[#0d1320]/75"
+                className="qa-steps-editor h-80 rounded-md border border-border bg-input"
                 textareaClassName="qa-steps-editor__textarea"
                 preClassName="qa-steps-editor__pre"
                 placeholder={
@@ -235,7 +237,7 @@ export function TestCaseEditorPanel({
             ) : null}
             {testStepsErrors.some(Boolean) ||
             stepParseWarnings.some((warnings) => warnings.length > 0) ? (
-              <div className="space-y-1.5 rounded-md border border-[#223244] bg-[#0f1722]/65 px-2.5 py-2">
+              <div className="space-y-1.5 rounded-md border border-border bg-background px-2.5 py-2">
                 {testStepsErrors.map((error, index) => {
                   const warnings = stepParseWarnings[index] ?? [];
                   if (!error && warnings.length === 0) {
@@ -275,7 +277,7 @@ export function TestCaseEditorPanel({
                   onValueChange={onCodeChange}
                   highlight={highlightPlaywrightCode}
                   padding={12}
-                  className="qa-code-editor h-80 rounded-xl bg-[#0d1320]/75"
+                  className="qa-code-editor h-80 rounded-md border border-border bg-input"
                   textareaClassName="qa-code-editor__textarea"
                   preClassName="qa-code-editor__pre"
                   placeholder="Generated Playwright code will appear here."
@@ -289,7 +291,7 @@ export function TestCaseEditorPanel({
                 />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="mr-auto text-[11px] text-[#7f95b1]">
+                <p className="mr-auto text-[11px] text-muted-foreground">
                   {testForm.isCodeEditingEnabled
                     ? 'Code edits are enabled. The next run uses this custom code once auto-saved.'
                     : 'Code is read-only while Guided mode is enabled.'}

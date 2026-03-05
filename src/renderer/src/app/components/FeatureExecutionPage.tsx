@@ -1,5 +1,15 @@
 import type { FeatureExecutionSummary } from '@shared/types';
-import { panelClass, primaryButtonClass, subtleButtonClass } from '../uiClasses';
+import {
+  helperTextClass,
+  listRowClass,
+  pageSectionClass,
+  pageSubtitleClass,
+  pageTitleClass,
+  primaryButtonClass,
+  sectionTitleClass,
+  subtleButtonClass,
+  tagClass,
+} from '../uiClasses';
 import { FeaturePhaseToggle } from './FeaturePhaseToggle';
 
 type ExecutionFilter = 'all' | 'passed' | 'failed' | 'running';
@@ -24,15 +34,28 @@ function formatEnumLabel(value: string): string {
 
 function indicatorClass(status: 'not_run' | 'passed' | 'failed' | 'running'): string {
   if (status === 'passed') {
-    return 'bg-[#26d26f]';
+    return 'bg-success';
   }
   if (status === 'failed') {
-    return 'bg-[#ff5151]';
+    return 'bg-danger';
   }
   if (status === 'running') {
-    return 'bg-[#3a8dff]';
+    return 'bg-info';
   }
-  return 'bg-[#8a93a0]';
+  return 'bg-muted-foreground';
+}
+
+function metricCardClass(kind: 'passed' | 'failed' | 'running' | 'coverage'): string {
+  if (kind === 'passed') {
+    return 'rounded-md border border-success/30 bg-success/10 px-3 py-2';
+  }
+  if (kind === 'failed') {
+    return 'rounded-md border border-danger/30 bg-danger/10 px-3 py-2';
+  }
+  if (kind === 'running') {
+    return 'rounded-md border border-info/30 bg-info/10 px-3 py-2';
+  }
+  return 'rounded-md border border-border bg-background px-3 py-2';
 }
 
 export function FeatureExecutionPage({
@@ -50,9 +73,9 @@ export function FeatureExecutionPage({
 }: FeatureExecutionPageProps): JSX.Element {
   if (!hasSelectedProject) {
     return (
-      <section className={`${panelClass} bg-[#101722]/55`}>
-        <h1 className="text-xl font-semibold text-[#edf3fb]">Feature Execution Page</h1>
-        <p className="mt-2 text-sm text-[#a9b8cb]">
+      <section className={pageSectionClass}>
+        <h1 className={pageTitleClass}>Feature Execution Page</h1>
+        <p className={pageSubtitleClass}>
           Select or create a project to start running approved test cases.
         </p>
       </section>
@@ -79,71 +102,57 @@ export function FeatureExecutionPage({
       <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-[#edf3fb]">Feature Execution Page</h1>
-            <p className="text-sm text-[#a9b8cb]">
-              Project: <span className="font-semibold text-[#d9e4f5]">{selectedProjectName}</span>
+            <h1 className={pageTitleClass}>Feature Execution Page</h1>
+            <p className={pageSubtitleClass}>
+              Project: <span className="font-semibold text-foreground">{selectedProjectName}</span>
             </p>
           </div>
         </div>
       </header>
 
-      <section className={`${panelClass} space-y-2 bg-[#0f141d]/60`}>
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#9fb4cf]">
+      <section className={`${pageSectionClass} space-y-2`}>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Feature Title
         </h2>
-        <p className="rounded-xl bg-[#101826]/75 px-3 py-2 text-sm font-semibold text-[#dce8f8]">
+        <p className="rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground">
           {featureTitle.trim() ? featureTitle : 'Untitled feature'}
         </p>
       </section>
 
-      <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
-        <h2 className="text-[15px] font-semibold text-[#e7eef8]">Execution Overview</h2>
+      <section className={pageSectionClass}>
+        <h2 className={sectionTitleClass}>Execution Overview</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="rounded-xl border border-[#1e3a55] bg-[#101d2b]/80 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9fb4cf]">Passed</p>
-            <p className="mt-1 text-2xl font-semibold text-[#56dfa5]">
-              {summary?.passedCount ?? 0}
-            </p>
+          <article className={metricCardClass('passed')}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-success">Passed</p>
+            <p className="mt-1 text-2xl font-semibold text-success">{summary?.passedCount ?? 0}</p>
           </article>
-          <article className="rounded-xl border border-[#3f2424] bg-[#221316]/80 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#d9a8a8]">Failed</p>
-            <p className="mt-1 text-2xl font-semibold text-[#ff6d6d]">
-              {summary?.failedCount ?? 0}
-            </p>
+          <article className={metricCardClass('failed')}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-danger">Failed</p>
+            <p className="mt-1 text-2xl font-semibold text-danger">{summary?.failedCount ?? 0}</p>
           </article>
-          <article className="rounded-xl border border-[#1f315a] bg-[#111b31]/80 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9fb4cf]">Running</p>
-            <p className="mt-1 text-2xl font-semibold text-[#4f9eff]">
-              {summary?.runningCount ?? 0}
-            </p>
+          <article className={metricCardClass('running')}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-info">Running</p>
+            <p className="mt-1 text-2xl font-semibold text-info">{summary?.runningCount ?? 0}</p>
           </article>
-          <article className="rounded-xl border border-[#2a384d] bg-[#101825]/80 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9fb4cf]">Coverage</p>
-            <p className="mt-1 text-2xl font-semibold text-[#dce8f8]">
-              {summary?.coveragePercent ?? 0}%
-            </p>
-            <p className="text-[11px] text-[#9fb4cf]">
+          <article className={metricCardClass('coverage')}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Coverage</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{summary?.coveragePercent ?? 0}%</p>
+            <p className="text-[11px] text-secondary-foreground">
               {summary?.coveredCount ?? 0}/{summary?.totalApproved ?? 0} approved executed
             </p>
           </article>
         </div>
       </section>
 
-      <section className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+      <section className={pageSectionClass}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[15px] font-semibold text-[#e7eef8]">
-            Approved Test Cases ({summary?.totalApproved ?? 0})
-          </h2>
+          <h2 className={sectionTitleClass}>Approved Test Cases ({summary?.totalApproved ?? 0})</h2>
           <div className="flex flex-wrap items-center gap-1.5">
             {(['all', 'passed', 'failed', 'running'] as const).map((filter) => (
               <button
                 key={filter}
                 type="button"
-                className={
-                  activeFilter === filter
-                    ? primaryButtonClass
-                    : subtleButtonClass
-                }
+                className={activeFilter === filter ? primaryButtonClass : subtleButtonClass}
                 onClick={() => onChangeFilter(filter)}
               >
                 {formatEnumLabel(filter)}
@@ -153,7 +162,7 @@ export function FeatureExecutionPage({
         </div>
 
         {filteredTests.length === 0 ? (
-          <p className="text-xs text-[#94a8c2]">
+          <p className={helperTextClass}>
             {summary?.totalApproved
               ? 'No approved test cases match this filter.'
               : 'No approved test cases yet.'}
@@ -161,28 +170,17 @@ export function FeatureExecutionPage({
         ) : (
           <ul className="space-y-2">
             {filteredTests.map((testCase) => (
-              <li
-                key={testCase.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#203244]/60 bg-[#0f1a29]/80 px-3 py-2"
-              >
+              <li key={testCase.id} className={listRowClass}>
                 <div className="min-w-0 flex flex-1 items-center gap-2.5">
                   <span
-                    className={`h-3 w-3 shrink-0 rounded-full ${indicatorClass(
-                      testCase.executionStatus,
-                    )}`}
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${indicatorClass(testCase.executionStatus)}`}
                     aria-hidden="true"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] font-semibold text-[#dce8f8]">
-                      {testCase.title}
-                    </p>
+                    <p className="truncate text-[12px] font-semibold text-foreground">{testCase.title}</p>
                     <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold">
-                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                        {formatEnumLabel(testCase.priority)}
-                      </span>
-                      <span className="rounded-full bg-[#17314f]/85 px-2 py-1 text-[#9fd1ff]">
-                        {formatEnumLabel(testCase.testType)}
-                      </span>
+                      <span className={tagClass}>{formatEnumLabel(testCase.priority)}</span>
+                      <span className={tagClass}>{formatEnumLabel(testCase.testType)}</span>
                     </div>
                   </div>
                 </div>

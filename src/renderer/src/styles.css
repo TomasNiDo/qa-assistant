@@ -1,35 +1,42 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import url('prismjs/themes/prism-tomorrow.css');
 @import "tailwindcss";
 @import "tw-animate-css";
 
 :root {
   color-scheme: dark;
-  --background: hsl(223 30% 5%);
-  --foreground: hsl(212 38% 94%);
-  --card: hsl(222 33% 8%);
-  --card-foreground: hsl(212 38% 94%);
-  --popover: hsl(222 33% 10%);
-  --popover-foreground: hsl(212 38% 94%);
-  --primary: hsl(220 86% 60%);
-  --primary-foreground: hsl(213 46% 97%);
-  --secondary: hsl(219 34% 14%);
-  --secondary-foreground: hsl(215 31% 86%);
-  --muted: hsl(221 29% 14%);
-  --muted-foreground: hsl(214 19% 67%);
-  --accent: hsl(207 64% 54%);
-  --accent-foreground: hsl(213 46% 97%);
-  --danger: hsl(345 72% 72%);
-  --danger-foreground: hsl(223 30% 5%);
-  --success: hsl(147 62% 72%);
-  --success-foreground: hsl(223 30% 5%);
-  --warning: hsl(40 94% 56%);
-  --warning-foreground: hsl(223 30% 5%);
-  --border: hsl(218 24% 20%);
-  --input: hsl(219 31% 13%);
-  --ring: hsl(220 86% 60%);
-  --radius: 0.625rem;
-  --shadow-soft: 0 16px 40px -24px hsl(220 70% 3% / 0.85);
+  --background: #0a0a0a;
+  --foreground: #f9fafb;
+  --card: #111111;
+  --card-foreground: #f9fafb;
+  --popover: #111111;
+  --popover-foreground: #f9fafb;
+  --primary: #22c55e;
+  --primary-foreground: #0a0a0a;
+  --secondary: #111111;
+  --secondary-foreground: #a3a3a3;
+  --muted: #1a1a1a;
+  --muted-foreground: #737373;
+  --accent: #3b82f6;
+  --accent-foreground: #f9fafb;
+  --danger: #ef4444;
+  --danger-foreground: #f9fafb;
+  --success: #22c55e;
+  --success-foreground: #0a0a0a;
+  --warning: #f59e0b;
+  --warning-foreground: #0a0a0a;
+  --info: #3b82f6;
+  --info-foreground: #f9fafb;
+  --purple: #8b5cf6;
+  --purple-foreground: #f9fafb;
+  --border: #1f1f1f;
+  --border-divider: #1a1a1a;
+  --border-strong: #2f2f2f;
+  --input: #0a0a0a;
+  --sidebar: #0c0c0c;
+  --ring: #22c55e;
+  --radius: 0.375rem;
+  --shadow-soft: 0 18px 42px -26px rgb(0 0 0 / 0.92);
 }
 
 @theme inline {
@@ -53,11 +60,18 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-purple: var(--purple);
+  --color-purple-foreground: var(--purple-foreground);
   --color-border: var(--border);
+  --color-border-divider: var(--border-divider);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
+  --color-sidebar: var(--sidebar);
   --color-ring: var(--ring);
   --radius-base: var(--radius);
-  --font-sans: 'Inter', 'Segoe UI', sans-serif;
+  --font-sans: 'JetBrains Mono', 'SFMono-Regular', monospace;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', monospace;
 }
 
@@ -77,13 +91,10 @@
     font-family: var(--font-sans);
     background-color: var(--background);
     color: var(--foreground);
-    background-image:
-      radial-gradient(circle at 30% -20%, hsl(219 92% 62% / 0.09), transparent 45%),
-      radial-gradient(circle at 95% 8%, hsl(200 75% 56% / 0.08), transparent 40%);
   }
 
   ::selection {
-    background-color: hsl(from var(--primary) h s l / 0.25);
+    background-color: rgb(34 197 94 / 0.35);
     color: var(--primary-foreground);
   }
 }
@@ -107,8 +118,8 @@
 }
 
 .qa-code-editor__textarea {
-  color: hsl(212 38% 94%);
-  caret-color: hsl(220 86% 60%);
+  color: var(--foreground);
+  caret-color: var(--primary);
   outline: none;
   overflow: auto !important;
 }
@@ -123,7 +134,7 @@
 }
 
 .qa-code-editor__textarea::selection {
-  background-color: hsl(from var(--primary) h s l / 0.25);
+  background-color: rgb(34 197 94 / 0.32);
 }
 
 .qa-steps-editor {
@@ -140,8 +151,8 @@
 }
 
 .qa-steps-editor__textarea {
-  color: hsl(212 38% 94%);
-  caret-color: hsl(220 86% 60%);
+  color: var(--foreground);
+  caret-color: var(--primary);
   outline: none;
   overflow: auto !important;
 }
@@ -156,18 +167,18 @@
 }
 
 .qa-steps-editor__textarea::selection {
-  background-color: hsl(from var(--primary) h s l / 0.25);
+  background-color: rgb(34 197 94 / 0.32);
 }
 
 .qa-step-token--action {
-  color: #7bb6ff;
+  color: #3b82f6;
   font-weight: 600;
 }
 
 .qa-step-token--value {
-  color: #f6c97f;
+  color: #f59e0b;
 }
 
 .qa-step-token--target {
-  color: #7fe3c2;
+  color: #22c55e;
 }

@@ -1,6 +1,12 @@
 import type { Run, StepResult } from '@shared/types';
 import { StepResultCard } from './StepResultCard';
-import { dangerButtonClass, mutedButtonClass, panelClass } from '../uiClasses';
+import {
+  dangerButtonClass,
+  helperTextClass,
+  mutedButtonClass,
+  panelClass,
+  sectionTitleClass,
+} from '../uiClasses';
 import { formatRunDuration, runStatusClassName } from '../utils';
 
 interface RunCenterPanelProps {
@@ -43,10 +49,10 @@ export function RunCenterPanel({
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+      <div className={`${panelClass} space-y-3`}>
         <div>
-          <h2 className="text-[15px] font-semibold text-[#eaf1fb]">Run Timeline</h2>
-          <p className="text-[11px] text-[#9db0c8]">Select a run to inspect step evidence and timing details.</p>
+          <h2 className={sectionTitleClass}>Run Timeline</h2>
+          <p className={helperTextClass}>Select a run to inspect step evidence and timing details.</p>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
@@ -57,7 +63,7 @@ export function RunCenterPanel({
               type="button"
               className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
                 run.id === selectedRunId
-                  ? 'bg-primary/26 text-[#9fdcff]'
+                  ? 'bg-primary/20 text-primary'
                   : runStatusClassName(run.status)
               }`}
               onClick={() => setSelectedRunId(run.id)}
@@ -68,9 +74,9 @@ export function RunCenterPanel({
         </div>
 
         {selectedRun ? (
-          <div className="space-y-3 rounded-[10px] bg-[#0f1622]/70 p-3">
+          <div className="space-y-3 rounded-md border border-border bg-background p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-[#dce4ef]">Focused Run · {formatRunTimeLabel(selectedRun.startedAt)}</p>
+              <p className="text-xs font-semibold text-foreground">Focused Run · {formatRunTimeLabel(selectedRun.startedAt)}</p>
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${selectedStatusClass}`}>
                 {selectedRun.status.toUpperCase()} · {formatRunDuration(selectedRun)} · {selectedRun.browser}
               </span>
@@ -86,9 +92,9 @@ export function RunCenterPanel({
         ) : null}
       </div>
 
-      <aside className={`${panelClass} space-y-3 bg-[#0f141d]/60`}>
+      <aside className={`${panelClass} space-y-3`}>
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold text-[#eaf1fb]">Latest Result</h2>
+          <h2 className={sectionTitleClass}>Latest Result</h2>
           {selectedRun ? (
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${selectedStatusClass}`}>
               {selectedRun.status.toUpperCase()} · {passedStepsCount}/{stepResults.length || 0} steps
@@ -97,7 +103,7 @@ export function RunCenterPanel({
         </div>
 
         {selectedRun ? (
-          <div className="space-y-1 text-xs text-[#b2c1d4]">
+          <div className="space-y-1 text-xs text-secondary-foreground">
             <p>Browser: {selectedRun.browser}</p>
             <p>Duration: {formatRunDuration(selectedRun)}</p>
             <p>Run ID: {selectedRun.id}</p>
@@ -108,14 +114,14 @@ export function RunCenterPanel({
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <span className="rounded-full bg-[#182231]/80 px-2 py-1 text-[11px] font-semibold text-[#c8d8ed]">
+          <span className="rounded-md border border-border bg-card px-2 py-1 text-[11px] font-semibold text-secondary-foreground">
             View Logs
           </span>
           <span
-            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${
               hasScreenshots
-                ? 'bg-[#182231]/80 text-[#c8d8ed]'
-                : 'bg-[#121a28]/65 text-[#7f95b1]'
+                ? 'border-info/30 bg-info/12 text-info'
+                : 'border-border bg-card text-muted-foreground'
             }`}
           >
             View Screenshot

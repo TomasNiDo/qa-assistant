@@ -1,6 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { FeatureFormState, ProjectFormMode } from '../types';
-import { fieldClass, mutedButtonClass, primaryButtonClass } from '../uiClasses';
+import {
+  fieldClass,
+  fieldLabelClass,
+  mutedButtonClass,
+  primaryButtonClass,
+} from '../uiClasses';
 import { ModalShell } from './ModalShell';
 
 interface FeatureModalProps {
@@ -31,7 +36,7 @@ export function FeatureModal({
   return (
     <ModalShell title={isCreate ? 'Add Feature' : 'Edit Feature'} onClose={onClose}>
       <div className="space-y-3">
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Feature Title
           <input
             className={fieldClass}
@@ -45,7 +50,7 @@ export function FeatureModal({
           ) : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Acceptance Criteria
           <textarea
             className={`${fieldClass} min-h-24 resize-y py-2`}
@@ -62,7 +67,7 @@ export function FeatureModal({
           ) : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Requirements (Optional)
           <textarea
             className={`${fieldClass} min-h-16 resize-y py-2`}
@@ -73,7 +78,7 @@ export function FeatureModal({
           />
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Notes (Optional)
           <textarea
             className={`${fieldClass} min-h-16 resize-y py-2`}
