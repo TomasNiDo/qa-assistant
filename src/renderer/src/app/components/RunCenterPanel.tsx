@@ -1,5 +1,5 @@
 import { loadFullScreenshot } from '../../screenshotLoader';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { Run, StepResult } from '@shared/types';
 import {
@@ -8,7 +8,11 @@ import {
   panelClass,
   sectionTitleClass,
 } from '../uiClasses';
-import { formatRunDuration } from '../utils';
+import { copyImageSourceToClipboard, formatRunDuration, parseFailureDetails, toErrorMessage } from '../utils';
+
+const SCREENSHOT_VIEWER_MIN_ZOOM = 0.5;
+const SCREENSHOT_VIEWER_MAX_ZOOM = 3;
+const SCREENSHOT_VIEWER_ZOOM_STEP = 0.2;
 
 interface RunCenterPanelProps {
   runs: Run[];
@@ -104,45 +108,6 @@ function toStepDurationLabel(stepOrder: number, totalSteps: number, run: Run | n
   return `${Math.max(0.1, weighted).toFixed(1)}s`;
 }
 
-function toSingleLine(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function trimTrailingPunctuation(value: string): string {
-  return value.replace(/[;,.]+$/g, '').trim();
-}
-
-function parseFailureDetails(step: StepResult | null): {
-  expected: string;
-  received: string;
-  location: string;
-} {
-  if (!step) {
-    return {
-      expected: 'Expected assertion details were not available.',
-      received: "'No received value captured'",
-      location: 'at unknown line',
-    };
-  }
-
-  const compact = toSingleLine(step.errorText ?? '');
-  const lines = (step.errorText ?? '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const expectedLine = lines.find((line) => /^expected\b/i.test(line));
-  const receivedLine = lines.find((line) => /^received\b/i.test(line));
-  const lineMatch = compact.match(/\bline\s+(\d+)\b/i);
-  const atMatch = lines.find((line) => /^at\s+/i.test(line));
-  const fallbackExpected = compact ? trimTrailingPunctuation(compact) : 'Expected assertion details were not available';
-
-  return {
-    expected: trimTrailingPunctuation(expectedLine ?? fallbackExpected),
-    received: trimTrailingPunctuation(receivedLine ?? 'Received: unknown result'),
-    location: lineMatch ? `at line ${lineMatch[1]} · assertion check` : atMatch ?? `at step ${step.stepOrder} · assertion check`,
-  };
-}
-
 export function RunCenterPanel({
   runs,
   selectedRunId,
@@ -163,6 +128,12 @@ export function RunCenterPanel({
   const [viewerImage, setViewerImage] = useState('');
   const [viewerStepLabel, setViewerStepLabel] = useState('');
   const [activeScreenshotPath, setActiveScreenshotPath] = useState('');
+  const [isCopyingImage, setIsCopyingImage] = useState(false);
+  const [copyImageStatus, setCopyImageStatus] = useState('');
+  const [viewerZoom, setViewerZoom] = useState(1);
+
+  const canZoom = Boolean(viewerImage) && !viewerLoading && !viewerError;
+  const zoomPercent = Math.round(viewerZoom * 100);
 
   const sortedRuns = useMemo(
     () => runs.slice().sort((left, right) => right.startedAt.localeCompare(left.startedAt)),
@@ -209,12 +180,35 @@ export function RunCenterPanel({
 
   useEffect(() => {
     if (!viewerOpen) {
+      setViewerImage('');
+      setViewerError('');
+      setViewerLoading(false);
+      setViewerZoom(1);
+      setCopyImageStatus('');
       return;
     }
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         setViewerOpen(false);
+        return;
+      }
+
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setViewerZoom((current) => clampViewerZoom(current + SCREENSHOT_VIEWER_ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        setViewerZoom((current) => clampViewerZoom(current - SCREENSHOT_VIEWER_ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === '0') {
+        event.preventDefault();
+        setViewerZoom(1);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -229,6 +223,52 @@ export function RunCenterPanel({
     setViewerStepLabel(`Step ${step.stepOrder}`);
     setActiveScreenshotPath(step.screenshotPath);
     setViewerOpen(true);
+  }
+
+  function zoomIn(): void {
+    setViewerZoom((current) => clampViewerZoom(current + SCREENSHOT_VIEWER_ZOOM_STEP));
+  }
+
+  function zoomOut(): void {
+    setViewerZoom((current) => clampViewerZoom(current - SCREENSHOT_VIEWER_ZOOM_STEP));
+  }
+
+  function resetZoom(): void {
+    setViewerZoom(1);
+  }
+
+  function handleViewerWheel(event: WheelEvent<HTMLDivElement>): void {
+    if (!canZoom) {
+      return;
+    }
+
+    const shouldZoom = event.ctrlKey || event.metaKey;
+    if (!shouldZoom) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const delta = event.deltaY < 0 ? SCREENSHOT_VIEWER_ZOOM_STEP : -SCREENSHOT_VIEWER_ZOOM_STEP;
+    setViewerZoom((current) => clampViewerZoom(current + delta));
+  }
+
+  async function copyScreenshotImage(): Promise<void> {
+    if (!viewerImage || isCopyingImage) {
+      return;
+    }
+
+    setIsCopyingImage(true);
+    setCopyImageStatus('');
+
+    try {
+      await copyImageSourceToClipboard(viewerImage);
+      setCopyImageStatus('Image copied.');
+    } catch (error) {
+      setCopyImageStatus(toErrorMessage(error));
+    } finally {
+      setIsCopyingImage(false);
+    }
   }
 
   return (
@@ -434,32 +474,88 @@ export function RunCenterPanel({
               onClick={() => setViewerOpen(false)}
             >
               <div
-                className="relative max-h-[92vh] max-w-[92vw] overflow-auto rounded-lg border border-border bg-background p-3"
+                className="relative max-h-[95vh] max-w-[95vw]"
                 onClick={(event) => event.stopPropagation()}
               >
-                <button
-                  type="button"
-                  className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted"
-                  onClick={() => setViewerOpen(false)}
-                  aria-label="Close screenshot viewer"
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
+                  {copyImageStatus ? (
+                    <span className="rounded-md border border-border/80 bg-card px-2 py-1 text-[11px] font-medium text-foreground">
+                      {copyImageStatus}
+                    </span>
+                  ) : null}
+                  <div className="inline-flex h-9 items-center gap-1 rounded-full border border-border/80 bg-card px-1.5">
+                    <button
+                      type="button"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/80 bg-card text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={zoomOut}
+                      disabled={!canZoom || viewerZoom <= SCREENSHOT_VIEWER_MIN_ZOOM}
+                      aria-label="Zoom out"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[54px] text-center text-[11px] font-semibold text-foreground" title="Use Ctrl/Cmd + wheel to zoom">
+                      {zoomPercent}%
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/80 bg-card text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={zoomIn}
+                      disabled={!canZoom || viewerZoom >= SCREENSHOT_VIEWER_MAX_ZOOM}
+                      aria-label="Zoom in"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center justify-center rounded-full border border-border/80 bg-card px-2 text-[11px] font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={resetZoom}
+                      disabled={!canZoom || viewerZoom === 1}
+                      aria-label="Reset zoom"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 items-center justify-center rounded-full border border-border/80 bg-card px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/85 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void copyScreenshotImage()}
+                    disabled={isCopyingImage || viewerLoading || !viewerImage}
+                  >
+                    {isCopyingImage ? 'Copying...' : 'Copy image'}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card text-foreground transition hover:bg-secondary/85"
+                    onClick={() => setViewerOpen(false)}
+                    aria-label="Close screenshot viewer"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+                <div
+                  className="max-h-[95vh] max-w-[95vw] overflow-auto rounded-lg border border-border bg-background p-3 pt-14"
+                  aria-label="Screenshot viewer canvas"
+                  onWheel={handleViewerWheel}
                 >
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
-                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
-                {viewerLoading ? (
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Loading screenshot...</p>
-                ) : null}
-                {!viewerLoading && viewerError ? (
-                  <p className="px-3 py-2 text-xs text-danger">{viewerError}</p>
-                ) : null}
-                {!viewerLoading && !viewerError && viewerImage ? (
-                  <img
-                    src={viewerImage}
-                    alt={`${viewerStepLabel} screenshot`}
-                    className="max-h-[88vh] max-w-[88vw] rounded-md object-contain"
-                  />
-                ) : null}
+                  {viewerLoading ? (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Loading screenshot...</p>
+                  ) : null}
+                  {!viewerLoading && viewerError ? (
+                    <p className="px-3 py-2 text-xs text-danger">{viewerError}</p>
+                  ) : null}
+                  {!viewerLoading && !viewerError && viewerImage ? (
+                    <div className="flex items-center justify-center">
+                      <img
+                        src={viewerImage}
+                        alt={`${viewerStepLabel} screenshot`}
+                        className="max-h-[88vh] max-w-[88vw] rounded-md object-contain select-none"
+                        style={{ transform: `scale(${viewerZoom})`, transformOrigin: 'center center' }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>,
             document.body,
@@ -467,4 +563,8 @@ export function RunCenterPanel({
         : null}
     </>
   );
+}
+
+function clampViewerZoom(value: number): number {
+  return Math.min(SCREENSHOT_VIEWER_MAX_ZOOM, Math.max(SCREENSHOT_VIEWER_MIN_ZOOM, value));
 }

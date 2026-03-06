@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { StepResult } from '@shared/types';
 import { loadFullScreenshot, loadThumbnailWithFallback } from '../../screenshotLoader';
-import { statusClassName, toErrorMessage } from '../utils';
+import { copyImageSourceToClipboard, statusClassName, toErrorMessage } from '../utils';
 
 const SCREENSHOT_VIEWER_MIN_ZOOM = 0.5;
 const SCREENSHOT_VIEWER_MAX_ZOOM = 3;
@@ -204,18 +204,7 @@ export function StepResultCard({ result, compact = false }: StepResultCardProps)
     setCopyImageStatus('');
 
     try {
-      const clipboard = navigator.clipboard;
-      const ClipboardItemCtor = (window as Window & { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
-
-      if (!clipboard?.write || !ClipboardItemCtor) {
-        throw new Error('Image copy is not supported in this environment.');
-      }
-
-      const response = await fetch(fullScreenshotDataUrl);
-      const blob = await response.blob();
-      const mimeType = blob.type || 'image/png';
-      const clipboardItem = new ClipboardItemCtor({ [mimeType]: blob });
-      await clipboard.write([clipboardItem]);
+      await copyImageSourceToClipboard(fullScreenshotDataUrl);
       setCopyImageStatus('Image copied.');
     } catch (error) {
       setCopyImageStatus(toErrorMessage(error));

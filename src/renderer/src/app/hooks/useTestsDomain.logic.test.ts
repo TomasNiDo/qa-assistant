@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, TestCase } from '@shared/types';
 import {
+  applyCodeDraftUpdate,
+  applyRestoreGeneratedCode,
   formatCustomCodeSyntaxError,
   getCustomCodeError,
   getStepParseErrors,
@@ -137,5 +139,47 @@ describe('useTestsDomain logic helpers', () => {
     expect(
       getCustomCodeError(false, 'await page.getByRole("button").click();', 'some syntax error'),
     ).toBeNull();
+  });
+
+  it('updates custom code draft even without edit-enable gate', () => {
+    const base = {
+      id: 't1',
+      title: 'Login flow',
+      testType: 'positive',
+      priority: 'medium',
+      isAiGenerated: false,
+      stepsText: 'Click "Login"',
+      generatedCode: 'await page.goto("/login");',
+      customCode: '',
+      isCustomized: false,
+      activeView: 'code',
+    } as const;
+
+    const diverged = applyCodeDraftUpdate(base, 'await page.goto("/custom-login");');
+    expect(diverged.isCustomized).toBe(true);
+    expect(diverged.customCode).toBe('await page.goto("/custom-login");');
+
+    const synced = applyCodeDraftUpdate(base, base.generatedCode);
+    expect(synced.isCustomized).toBe(false);
+    expect(synced.customCode).toBe('');
+  });
+
+  it('restores generated code by clearing customization state only', () => {
+    const restored = applyRestoreGeneratedCode({
+      id: 't1',
+      title: 'Login flow',
+      testType: 'positive',
+      priority: 'medium',
+      isAiGenerated: false,
+      stepsText: 'Click "Login"',
+      generatedCode: 'await page.goto("/login");',
+      customCode: 'await page.goto("/custom-login");',
+      isCustomized: true,
+      activeView: 'code',
+    });
+
+    expect(restored.isCustomized).toBe(false);
+    expect(restored.customCode).toBe('');
+    expect(restored.generatedCode).toBe('await page.goto("/login");');
   });
 });

@@ -25,7 +25,6 @@ export interface TestFormState {
   generatedCode: string;
   customCode: string;
   isCustomized: boolean;
-  isCodeEditingEnabled: boolean;
   activeView: 'steps' | 'code';
 }
 
@@ -55,7 +54,6 @@ export const DEFAULT_TEST_FORM: TestFormState = {
   generatedCode: '',
   customCode: '',
   isCustomized: false,
-  isCodeEditingEnabled: false,
   activeView: 'steps',
 };
 

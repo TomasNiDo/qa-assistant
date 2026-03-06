@@ -165,82 +165,131 @@
   text-wrap: balance;
 }
 
-/* Syntax-highlighted editor surfaces for Playwright code. */
-.qa-code-editor {
+/* V3 editor shell and syntax-highlighted text areas. */
+.qa-editor-textarea-frame {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  background: #0d0e10;
+}
+
+.qa-editor-line-number-rail {
+  width: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid #1a1a1a;
+  background: #0a0a0a;
+}
+
+.qa-editor-line-number-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 14px 10px;
+  color: #525252;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  will-change: transform;
+}
+
+.qa-editor-line-number-list span {
+  display: block;
+}
+
+.qa-steps-editor-line-number-list span {
+  height: 1.5em;
+  line-height: 1.5em;
+}
+
+.qa-code-editor-line-number-list span {
+  height: 1.6em;
+  line-height: 1.6em;
+}
+
+.qa-code-editor,
+.qa-steps-editor {
   position: relative;
+  flex: 1;
+  min-height: 0;
   overflow: hidden !important;
   max-height: 100%;
 }
 
 .qa-code-editor__textarea,
-.qa-code-editor__pre {
-  min-height: 100%;
-  margin: 0;
-  white-space: pre;
-}
-
-.qa-code-editor__textarea {
-  color: var(--foreground);
-  caret-color: var(--primary);
-  outline: none;
-  overflow: auto !important;
-}
-
-.qa-code-editor__pre {
-  overflow: hidden !important;
-  will-change: transform;
-}
-
-.qa-code-editor pre.qa-code-editor__pre {
-  overflow: hidden !important;
-}
-
-.qa-code-editor__textarea::selection {
-  background-color: rgb(34 197 94 / 0.32);
-}
-
-.qa-steps-editor {
-  position: relative;
-  overflow: hidden !important;
-  max-height: 100%;
-}
-
+.qa-code-editor__pre,
 .qa-steps-editor__textarea,
 .qa-steps-editor__pre {
   min-height: 100%;
   margin: 0;
   white-space: pre;
+  border: 0;
 }
 
+.qa-code-editor__textarea,
 .qa-steps-editor__textarea {
-  color: var(--foreground);
-  caret-color: var(--primary);
+  color: #d4d4d8;
+  caret-color: #22c55e;
   outline: none;
   overflow: auto !important;
 }
 
+.qa-code-editor__pre,
 .qa-steps-editor__pre {
   overflow: hidden !important;
   will-change: transform;
 }
 
+.qa-code-editor pre.qa-code-editor__pre,
 .qa-steps-editor pre.qa-steps-editor__pre {
   overflow: hidden !important;
 }
 
+.qa-code-editor__textarea::selection,
 .qa-steps-editor__textarea::selection {
   background-color: rgb(34 197 94 / 0.32);
 }
 
 .qa-step-token--action {
-  color: #3b82f6;
+  color: #60a5fa;
   font-weight: 600;
 }
 
 .qa-step-token--value {
-  color: #f59e0b;
+  color: #4ade80;
 }
 
 .qa-step-token--target {
-  color: #22c55e;
+  color: #fbbf24;
+}
+
+.qa-code-editor .token.keyword,
+.qa-code-editor .token.atrule,
+.qa-code-editor .token.operator.keyword {
+  color: #c084fc;
+}
+
+.qa-code-editor .token.function,
+.qa-code-editor .token.method,
+.qa-code-editor .token.class-name,
+.qa-code-editor .token.property {
+  color: #60a5fa;
+}
+
+.qa-code-editor .token.string,
+.qa-code-editor .token.char,
+.qa-code-editor .token.template-punctuation.string {
+  color: #4ade80;
+}
+
+.qa-code-editor .token.regex,
+.qa-code-editor .token.number,
+.qa-code-editor .token.boolean {
+  color: #fbbf24;
+}
+
+.qa-code-editor .token.punctuation {
+  color: #9ca3af;
 }

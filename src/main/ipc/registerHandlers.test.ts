@@ -7,9 +7,19 @@ import { IPC_CHANNELS } from '@shared/ipc';
 import { registerHandlers } from './registerHandlers';
 import type { Services } from '../services/services';
 
-const { appGetVersionMock, ipcMainHandleMock, shellOpenExternalMock } = vi.hoisted(() => ({
+const {
+  appGetVersionMock,
+  clipboardWriteImageMock,
+  ipcMainHandleMock,
+  nativeImageCreateFromDataURLMock,
+  shellOpenExternalMock,
+} = vi.hoisted(() => ({
   appGetVersionMock: vi.fn(() => '0.1.1-beta.2'),
+  clipboardWriteImageMock: vi.fn(),
   ipcMainHandleMock: vi.fn(),
+  nativeImageCreateFromDataURLMock: vi.fn(() => ({
+    isEmpty: (): boolean => false,
+  })),
   shellOpenExternalMock: vi.fn(async () => undefined),
 }));
 
@@ -17,8 +27,14 @@ vi.mock('electron', () => ({
   app: {
     getVersion: appGetVersionMock,
   },
+  clipboard: {
+    writeImage: clipboardWriteImageMock,
+  },
   ipcMain: {
     handle: ipcMainHandleMock,
+  },
+  nativeImage: {
+    createFromDataURL: nativeImageCreateFromDataURLMock,
   },
   shell: {
     openExternal: shellOpenExternalMock,
@@ -295,7 +311,12 @@ describe('registerHandlers IPC input validation', () => {
   beforeEach(() => {
     appGetVersionMock.mockReset();
     appGetVersionMock.mockReturnValue('0.1.1-beta.2');
+    clipboardWriteImageMock.mockReset();
     ipcMainHandleMock.mockReset();
+    nativeImageCreateFromDataURLMock.mockReset();
+    nativeImageCreateFromDataURLMock.mockReturnValue({
+      isEmpty: (): boolean => false,
+    });
     shellOpenExternalMock.mockReset();
     shellOpenExternalMock.mockResolvedValue(undefined);
   });
@@ -609,6 +630,59 @@ describe('registerHandlers IPC input validation', () => {
       },
     });
     expect(runService.getScreenshotThumbnailDataUrl).not.toHaveBeenCalled();
+  });
+
+  it('writes image data URLs to the native clipboard', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(
+      IPC_CHANNELS.copyImageToClipboard,
+      'data:image/png;base64,QUJD',
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      data: true,
+    });
+    expect(nativeImageCreateFromDataURLMock).toHaveBeenCalledWith('data:image/png;base64,QUJD');
+    expect(clipboardWriteImageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates clipboard image payloads before writing', async () => {
+    const { services } = createServicesMock();
+    registerHandlers(services);
+
+    const result = await invoke(IPC_CHANNELS.copyImageToClipboard, '   ');
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        message: expect.stringContaining(
+          'Invalid app.copyImageToClipboard payload: Image data URL is required.',
+        ),
+      },
+    });
+    expect(clipboardWriteImageMock).not.toHaveBeenCalled();
+  });
+
+  it('returns error when native image decoding fails for clipboard writes', async () => {
+    const { services } = createServicesMock();
+    nativeImageCreateFromDataURLMock.mockReturnValueOnce({
+      isEmpty: () => true,
+    });
+    registerHandlers(services);
+
+    const result = await invoke(
+      IPC_CHANNELS.copyImageToClipboard,
+      'data:image/png;base64,QUJD',
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: { message: 'Unable to decode image data for clipboard copy.' },
+    });
+    expect(clipboardWriteImageMock).not.toHaveBeenCalled();
   });
 
   it('shapes sync service exceptions into ApiResult errors', async () => {

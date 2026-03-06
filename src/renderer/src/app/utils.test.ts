@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { GeneratedBugReport, Run } from '@shared/types';
-import { formatBugReport, formatRunDuration, parseStepLines, validateBaseUrl } from './utils';
+import {
+  formatBugReport,
+  formatRunDuration,
+  parseFailureDetails,
+  parseStepLines,
+  validateBaseUrl,
+} from './utils';
 
 describe('app utils', () => {
   it('validates base urls with required protocol', () => {
@@ -57,4 +63,24 @@ describe('app utils', () => {
 
     expect(formatRunDuration(run)).toBe('3.4s');
   });
+
+  it('parses failure details from step error text', () => {
+    expect(
+      parseFailureDetails({
+        id: 'result-1',
+        runId: 'run-1',
+        stepId: 'step-1',
+        stepOrder: 2,
+        stepRawText: 'Expect dashboard URL',
+        status: 'failed',
+        errorText: "Expected URL to match /dashboard/\nReceived: '/login?error=invalid'\nat line 7",
+        screenshotPath: null,
+      }),
+    ).toEqual({
+      expected: 'Expected URL to match /dashboard/',
+      received: "Received: '/login?error=invalid'",
+      location: 'at line 7 · assertion check',
+    });
+  });
+
 });

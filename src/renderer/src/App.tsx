@@ -8,6 +8,7 @@ import type {
   TestPlanningStatus,
 } from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
+import { BugReportModal } from './app/components/BugReportModal';
 import {
   DraftedTestCaseModal,
   type DraftedTestCaseFormState,
@@ -21,6 +22,7 @@ import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
 import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
 import { useFeaturesDomain } from './app/hooks/useFeaturesDomain';
+import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
@@ -119,6 +121,18 @@ export function App(): JSX.Element {
   }, []);
 
   const {
+    bugReport,
+    bugReportDraft,
+    isGeneratingBugReport,
+    generateBugReport,
+    copyBugReport,
+    closeBugReportDraft,
+    clearBugReportState,
+  } = useBugReportDomain({
+    onMessage,
+  });
+
+  const {
     runs,
     selectedRunId,
     setSelectedRunId,
@@ -203,15 +217,11 @@ export function App(): JSX.Element {
     isGeneratingSteps,
     effectiveCode,
     isCodeModified,
-    isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectFeature,
-    beginCreateTest,
     setEditorView,
-    enableCodeEditing,
     updateCodeDraft,
     restoreGeneratedCode,
-    deleteSelectedTest,
     generateSteps,
   } = useTestsDomain({
     featuresByProject,
@@ -245,6 +255,10 @@ export function App(): JSX.Element {
   const draftedTestCaseTitleError = draftedTestCaseForm.title.trim()
     ? null
     : 'Test title is required.';
+
+  useEffect(() => {
+    clearBugReportState();
+  }, [clearBugReportState, selectedRunId, selectedTestId]);
 
   const resolvePreferredFeatureId = useCallback(
     (
@@ -585,41 +599,31 @@ export function App(): JSX.Element {
     [approvedTests, onMessage],
   );
 
-  const handleResetWorkspaceForm = useCallback((): void => {
-    if (!selectedTest) {
-      beginCreateTest();
+  const handleValidateCode = useCallback(async (): Promise<void> => {
+    const source = testForm.isCustomized ? testForm.customCode : effectiveCode;
+    if (!source.trim()) {
+      onMessage('Code is empty. Add Playwright code before validating.');
       return;
     }
 
-    setTestForm((previous) => ({
-      ...previous,
-      id: selectedTest.id,
-      title: selectedTest.title,
-      testType: selectedTest.testType,
-      priority: selectedTest.priority,
-      isAiGenerated: selectedTest.isAiGenerated,
-      isCodeEditingEnabled: false,
-      activeView: 'steps',
-    }));
-  }, [beginCreateTest, selectedTest, setTestForm]);
-
-  const handleDeleteSelectedWorkspaceTest = useCallback(async (): Promise<void> => {
-    const deleted = await deleteSelectedTest(async () => {
-      await refreshSidebar(selectedProjectId, selectedFeatureId);
-      await refreshExecutionSummary(selectedFeatureId);
-      setFeaturePhase('execution');
-    });
-
-    if (!deleted) {
+    const validation = await window.qaApi.testValidateCustomCodeSyntax(source);
+    if (!validation.ok) {
+      onMessage(validation.error.message);
       return;
     }
-  }, [
-    deleteSelectedTest,
-    refreshExecutionSummary,
-    refreshSidebar,
-    selectedFeatureId,
-    selectedProjectId,
-  ]);
+
+    if (validation.data.valid) {
+      onMessage('Code syntax looks valid.');
+      return;
+    }
+
+    onMessage(
+      validation.data.message ??
+        (validation.data.line
+          ? `Custom code syntax error at line ${validation.data.line}.`
+          : 'Custom code syntax is invalid.'),
+    );
+  }, [effectiveCode, onMessage, testForm.customCode, testForm.isCustomized]);
 
   const handleRunApprovedTestCase = useCallback(
     async (testCaseId: string): Promise<void> => {
@@ -1252,13 +1256,6 @@ export function App(): JSX.Element {
 
               <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_392px]">
                 <TestCaseEditorPanel
-                  testCasePanelTitle="Steps Editor"
-                  testCasePanelDescription={
-                    selectedTest
-                      ? 'Edit natural-language steps and code for this scenario.'
-                      : 'Select a test case from Execution page to edit.'
-                  }
-                  hasAtLeastOneTestCase={Boolean(selectedTest)}
                   testForm={testForm}
                   setTestForm={setTestForm}
                   testTitleError={testTitleError}
@@ -1267,26 +1264,16 @@ export function App(): JSX.Element {
                   stepParseWarnings={stepParseWarnings}
                   ambiguousStepWarningCount={ambiguousStepWarningCount}
                   isGeneratingSteps={isGeneratingSteps}
-                  hasSelectedTest={Boolean(selectedTest)}
-                  isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
                   effectiveCode={effectiveCode}
                   isCodeModified={isCodeModified}
-                  browser={browser}
-                  setBrowser={setBrowser}
-                  canStartRun={Boolean(selectedTestId) && selectedTestHasSteps && !activeRunId}
                   setEditorView={setEditorView}
-                  onEnableCodeEditing={enableCodeEditing}
                   onCodeChange={updateCodeDraft}
                   onRestoreGeneratedCode={restoreGeneratedCode}
-                  onBeginCreateTest={handleResetWorkspaceForm}
                   onGenerateSteps={() => {
                     void generateSteps();
                   }}
-                  onDeleteSelectedTest={() => {
-                    void handleDeleteSelectedWorkspaceTest();
-                  }}
-                  onStartRun={() => {
-                    void startRun();
+                  onValidateCode={() => {
+                    void handleValidateCode();
                   }}
                 />
 
@@ -1305,10 +1292,10 @@ export function App(): JSX.Element {
                   }}
                   canRerun={Boolean(selectedTestId)}
                   onGenerateBugReport={() => {
-                    onMessage('Bug report generation is not available in this workspace view yet.');
+                    void generateBugReport(selectedRunId);
                   }}
-                  isGeneratingBugReport={false}
-                  canGenerateBugReport={false}
+                  isGeneratingBugReport={isGeneratingBugReport}
+                  canGenerateBugReport={Boolean(selectedRun && selectedRun.status === 'failed') && !isGeneratingBugReport}
                 />
               </div>
             </div>
@@ -1402,6 +1389,19 @@ export function App(): JSX.Element {
           onSubmit={() => {
             void handleSubmitDraftedTestCase();
           }}
+        />
+      ) : null}
+
+      {bugReport ? (
+        <BugReportModal
+          bugReport={bugReport}
+          fullReportText={bugReportDraft}
+          selectedRun={selectedRun}
+          stepResults={stepResults}
+          testCaseTitle={selectedTest?.title ?? testForm.title}
+          onClose={closeBugReportDraft}
+          onCopyFullReport={() => copyBugReport()}
+          onMessage={onMessage}
         />
       ) : null}
 
