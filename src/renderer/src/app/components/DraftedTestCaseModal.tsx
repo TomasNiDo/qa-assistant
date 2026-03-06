@@ -1,6 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { TestPriority, TestType } from '@shared/types';
-import { fieldClass, mutedButtonClass, primaryButtonClass } from '../uiClasses';
+import {
+  fieldClass,
+  fieldLabelClass,
+  mutedButtonClass,
+  primaryButtonClass,
+} from '../uiClasses';
 import { ModalShell } from './ModalShell';
 
 export interface DraftedTestCaseFormState {
@@ -30,7 +35,7 @@ export function DraftedTestCaseModal({
   return (
     <ModalShell title={mode === 'create' ? 'Add Test Case' : 'Edit Test Case'} onClose={onClose}>
       <div className="space-y-3">
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Title
           <input
             className={fieldClass}
@@ -43,7 +48,7 @@ export function DraftedTestCaseModal({
           {titleError ? <span className="text-[11px] text-danger">{titleError}</span> : null}
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Priority
           <select
             className={fieldClass}
@@ -61,7 +66,7 @@ export function DraftedTestCaseModal({
           </select>
         </label>
 
-        <label className="block space-y-1 text-xs font-semibold text-[#a9b9d1]">
+        <label className={`${fieldLabelClass} space-y-1`}>
           Test Type
           <select
             className={fieldClass}

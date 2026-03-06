@@ -7,21 +7,96 @@
       "x": -345,
       "y": 1431,
       "name": "Approved Sidebar Design",
+      "theme": {
+        "mode": "dark"
+      },
       "width": 280,
       "height": 900,
-      "fill": "#0C0C0C",
+      "fill": "$sys-bg-sidebar",
       "stroke": {
         "align": "inside",
         "thickness": 2,
-        "fill": "#22C55E"
+        "fill": "$sys-accent-success"
       },
       "layout": "vertical",
       "gap": 20,
       "padding": [
+        12,
+        16,
         20,
         16
       ],
       "children": [
+        {
+          "type": "frame",
+          "id": "YNfAk",
+          "name": "Overlay",
+          "width": "fill_container",
+          "height": 0,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "6Ysrs",
+              "x": 194,
+              "y": 4,
+              "name": "Theme Toggle",
+              "height": 24,
+              "fill": "$sys-border-divider",
+              "cornerRadius": 12,
+              "gap": 6,
+              "padding": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "FehtW",
+                  "name": "Light Mode Btn",
+                  "width": 20,
+                  "height": 20,
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "1mvln",
+                      "name": "sunIcon",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "sun",
+                      "iconFontFamily": "lucide",
+                      "fill": "$sys-text-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cAl50",
+                  "name": "Dark Mode Btn",
+                  "width": 20,
+                  "height": 20,
+                  "fill": "$sys-accent-success",
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "1WFEu",
+                      "name": "moonIcon",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "moon",
+                      "iconFontFamily": "lucide",
+                      "fill": "$sys-bg-sidebar"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
         {
           "type": "frame",
           "id": "O7JWw",
@@ -60,13 +135,13 @@
                       "height": 14,
                       "iconFontName": "square-pen",
                       "iconFontFamily": "lucide",
-                      "fill": "#A3A3A3"
+                      "fill": "$sys-text-secondary"
                     },
                     {
                       "type": "text",
                       "id": "CIIR0",
                       "name": "newProjText",
-                      "fill": "#A3A3A3",
+                      "fill": "$sys-text-secondary",
                       "content": "New project",
                       "fontFamily": "JetBrains Mono",
                       "fontSize": 13,
@@ -78,7 +153,7 @@
                   "type": "text",
                   "id": "wilyE",
                   "name": "projectsLabel",
-                  "fill": "#737373",
+                  "fill": "$sys-text-muted",
                   "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
@@ -105,7 +180,7 @@
                           "id": "XS5rs",
                           "name": "proj1Header",
                           "width": "fill_container",
-                          "fill": "#1A1A1A",
+                          "fill": "$sys-border-divider",
                           "cornerRadius": 4,
                           "gap": 8,
                           "padding": [
@@ -128,7 +203,7 @@
                                   "name": "proj1Icon",
                                   "width": 20,
                                   "height": 20,
-                                  "fill": "#22C55E",
+                                  "fill": "$sys-accent-success",
                                   "cornerRadius": 4,
                                   "justifyContent": "center",
                                   "alignItems": "center",
@@ -137,7 +212,7 @@
                                       "type": "ellipse",
                                       "id": "w3hUm",
                                       "name": "proj1Dot",
-                                      "fill": "#0C0C0C",
+                                      "fill": "$sys-bg-sidebar",
                                       "width": 6,
                                       "height": 6
                                     }
@@ -147,7 +222,7 @@
                                   "type": "text",
                                   "id": "9SZ71",
                                   "name": "proj1Name",
-                                  "fill": "#E5E5E5",
+                                  "fill": "$sys-text-primary",
                                   "content": "E-Commerce Platform",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 13,
@@ -163,7 +238,7 @@
                               "height": 14,
                               "iconFontName": "plus",
                               "iconFontFamily": "lucide",
-                              "fill": "#525252"
+                              "fill": "$sys-text-muted"
                             }
                           ]
                         },
@@ -186,7 +261,7 @@
                               "id": "HHqIk",
                               "name": "Feature Active",
                               "width": "fill_container",
-                              "fill": "#171717",
+                              "fill": "$sys-bg-content",
                               "cornerRadius": 4,
                               "gap": 8,
                               "padding": [
@@ -203,13 +278,13 @@
                                   "height": 12,
                                   "iconFontName": "folder-open",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#22C55E"
+                                  "fill": "$sys-accent-success"
                                 },
                                 {
                                   "type": "text",
                                   "id": "bcWW2",
                                   "name": "feat1Name",
-                                  "fill": "#E5E5E5",
+                                  "fill": "$sys-text-primary",
                                   "content": "User Authentication",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -238,13 +313,13 @@
                                   "height": 12,
                                   "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#525252"
+                                  "fill": "$sys-text-muted"
                                 },
                                 {
                                   "type": "text",
                                   "id": "NnDxq",
                                   "name": "feat2Name",
-                                  "fill": "#737373",
+                                  "fill": "$sys-text-muted",
                                   "content": "Shopping Cart",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -273,13 +348,13 @@
                                   "height": 12,
                                   "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#525252"
+                                  "fill": "$sys-text-muted"
                                 },
                                 {
                                   "type": "text",
                                   "id": "XJxko",
                                   "name": "feat3Name",
-                                  "fill": "#737373",
+                                  "fill": "$sys-text-muted",
                                   "content": "Payment Processing",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -310,12 +385,12 @@
                           "name": "proj2Icon",
                           "width": 20,
                           "height": 20,
-                          "fill": "#171717",
+                          "fill": "$sys-bg-content",
                           "cornerRadius": 4,
                           "stroke": {
                             "align": "inside",
                             "thickness": 1,
-                            "fill": "#252525"
+                            "fill": "$sys-border-subtle"
                           },
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -324,7 +399,7 @@
                               "type": "ellipse",
                               "id": "Q0a6m",
                               "name": "proj2Dot",
-                              "fill": "#525252",
+                              "fill": "$sys-text-muted",
                               "width": 6,
                               "height": 6
                             }
@@ -334,7 +409,7 @@
                           "type": "text",
                           "id": "KZahD",
                           "name": "proj2Name",
-                          "fill": "#737373",
+                          "fill": "$sys-text-muted",
                           "content": "Internal Dashboard",
                           "fontFamily": "JetBrains Mono",
                           "fontSize": 13,
@@ -361,12 +436,12 @@
                           "name": "proj3Icon",
                           "width": 20,
                           "height": 20,
-                          "fill": "#171717",
+                          "fill": "$sys-bg-content",
                           "cornerRadius": 4,
                           "stroke": {
                             "align": "inside",
                             "thickness": 1,
-                            "fill": "#252525"
+                            "fill": "$sys-border-subtle"
                           },
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -375,7 +450,7 @@
                               "type": "ellipse",
                               "id": "PT8Xf",
                               "name": "proj3Dot",
-                              "fill": "#525252",
+                              "fill": "$sys-text-muted",
                               "width": 6,
                               "height": 6
                             }
@@ -385,7 +460,7 @@
                           "type": "text",
                           "id": "gE5QH",
                           "name": "proj3Name",
-                          "fill": "#737373",
+                          "fill": "$sys-text-muted",
                           "content": "Mobile App QA",
                           "fontFamily": "JetBrains Mono",
                           "fontSize": 13,
@@ -404,6 +479,7 @@
           "id": "iFOFZ",
           "name": "Sidebar Footer",
           "width": "fill_container",
+          "gap": 8,
           "justifyContent": "space_between",
           "alignItems": "center",
           "children": [
@@ -411,7 +487,7 @@
               "type": "text",
               "id": "1fjuH",
               "name": "edVersionText",
-              "fill": "#525252",
+              "fill": "$sys-text-muted",
               "content": "v1.0.0",
               "fontFamily": "JetBrains Mono",
               "fontSize": 11,
@@ -425,7 +501,7 @@
               "height": 14,
               "iconFontName": "settings",
               "iconFontFamily": "lucide",
-              "fill": "#525252"
+              "fill": "$sys-text-muted"
             }
           ]
         }
@@ -459,10 +535,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "NsjD0",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "EmMX4",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#1A1A1A",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "C76R3",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "iD1US",
+                          "name": "si1",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#525252"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Zsgur",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "71XKl",
+                          "name": "mi1",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#0C0C0C"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "ehY6J",
@@ -3814,10 +3962,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "dbjH7",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "R9HwU",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#1A1A1A",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Hmd8a",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "XlWYV",
+                          "name": "si2",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#525252"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NjWu7",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "2CXtd",
+                          "name": "mi2",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#0C0C0C"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "KkWEY",
@@ -6500,10 +6720,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "HGEXr",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "BqNQo",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#1A1A1A",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "lGH5A",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "2bD86",
+                          "name": "si3",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#525252"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "eKUDH",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "eM8JG",
+                          "name": "mi3",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#0C0C0C"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "MlGDK",
@@ -8825,10 +9117,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "UBwVy",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "I9Oc5",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#1A1A1A",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "XZRFG",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "UzPzI",
+                          "name": "si4",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#525252"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "fFTQX",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "NPueE",
+                          "name": "mi4",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#0C0C0C"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "UaPG0",
@@ -11304,10 +11668,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "jmUf7",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zY0oO",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#1A1A1A",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "H8g16",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "2fiD8",
+                          "name": "si5",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#525252"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ReEOJ",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "MGbDz",
+                          "name": "mi5",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#0C0C0C"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "bDtA0",
@@ -15290,10 +15726,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "IJXVg",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "WpXz6",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#E2E8F0",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "zBxnV",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "nKxkX",
+                          "name": "si1",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#F8FAFC"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EXw4C",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "mT6vX",
+                          "name": "mi1",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9CA3AF"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "2avSz",
@@ -18676,10 +19184,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "TkdXU",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "xe0tO",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#E2E8F0",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "nn9ci",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "UfDZy",
+                          "name": "si2",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#F8FAFC"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "d3LeG",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "1mobJ",
+                          "name": "mi2",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9CA3AF"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "CWzWU",
@@ -21363,10 +21943,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "SRGGI",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "mVWST",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#E2E8F0",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "raoSt",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "t3ti6",
+                          "name": "si3",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#F8FAFC"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "39qcz",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "JURkg",
+                          "name": "mi3",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9CA3AF"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "yVOnA",
@@ -23689,10 +24341,82 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "maIbG",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "UROlb",
+                  "x": 194,
+                  "y": 4,
+                  "name": "Theme Toggle",
+                  "height": 24,
+                  "fill": "#E2E8F0",
+                  "cornerRadius": 12,
+                  "gap": 6,
+                  "padding": 4,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "madMb",
+                      "name": "Light Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "#22C55E",
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "g6pgJ",
+                          "name": "si4",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "sun",
+                          "iconFontFamily": "lucide",
+                          "fill": "#F8FAFC"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "6R5l8",
+                      "name": "Dark Mode Btn",
+                      "width": 20,
+                      "height": 20,
+                      "cornerRadius": 10,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "nROxT",
+                          "name": "mi4",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "moon",
+                          "iconFontFamily": "lucide",
+                          "fill": "#9CA3AF"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "3gQc0",
@@ -26169,10 +26893,20 @@
           "layout": "vertical",
           "gap": 20,
           "padding": [
+            12,
+            16,
             20,
             16
           ],
           "children": [
+            {
+              "type": "frame",
+              "id": "DtKNB",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": 0,
+              "layout": "none"
+            },
             {
               "type": "frame",
               "id": "w99sT",
@@ -30145,21 +30879,96 @@
       "x": -345,
       "y": 2815,
       "name": "Approved Sidebar Design - Light",
+      "theme": {
+        "mode": "light"
+      },
       "width": 280,
       "height": 900,
-      "fill": "#f8fafc",
+      "fill": "$sys-bg-sidebar",
       "stroke": {
         "align": "inside",
         "thickness": 2,
-        "fill": "#22c55e"
+        "fill": "$sys-accent-success"
       },
       "layout": "vertical",
       "gap": 20,
       "padding": [
+        12,
+        16,
         20,
         16
       ],
       "children": [
+        {
+          "type": "frame",
+          "id": "zFjea",
+          "name": "Overlay",
+          "width": "fill_container",
+          "height": 0,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "e5feC",
+              "x": 194,
+              "y": 4,
+              "name": "Theme Toggle",
+              "height": 24,
+              "fill": "$sys-border-divider",
+              "cornerRadius": 12,
+              "gap": 6,
+              "padding": 4,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "gHAsv",
+                  "name": "Light Mode Btn",
+                  "width": 20,
+                  "height": 20,
+                  "fill": "$sys-accent-success",
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "L7p1a",
+                      "name": "sunIcon",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "sun",
+                      "iconFontFamily": "lucide",
+                      "fill": "$sys-bg-sidebar"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uO0QT",
+                  "name": "Dark Mode Btn",
+                  "width": 20,
+                  "height": 20,
+                  "cornerRadius": 10,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "1EZOK",
+                      "name": "moonIcon",
+                      "width": 12,
+                      "height": 12,
+                      "iconFontName": "moon",
+                      "iconFontFamily": "lucide",
+                      "fill": "$sys-text-muted"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
         {
           "type": "frame",
           "id": "EkHEx",
@@ -30198,13 +31007,13 @@
                       "height": 14,
                       "iconFontName": "square-pen",
                       "iconFontFamily": "lucide",
-                      "fill": "#374151"
+                      "fill": "$sys-text-secondary"
                     },
                     {
                       "type": "text",
                       "id": "xm8vZ",
                       "name": "newProjText",
-                      "fill": "#374151",
+                      "fill": "$sys-text-secondary",
                       "content": "New project",
                       "fontFamily": "JetBrains Mono",
                       "fontSize": 13,
@@ -30216,7 +31025,7 @@
                   "type": "text",
                   "id": "XPhv3",
                   "name": "projectsLabel",
-                  "fill": "#6B7280",
+                  "fill": "$sys-text-muted",
                   "content": "Projects",
                   "fontFamily": "JetBrains Mono",
                   "fontSize": 11,
@@ -30266,7 +31075,7 @@
                                   "name": "proj1Icon",
                                   "width": 20,
                                   "height": 20,
-                                  "fill": "#22C55E",
+                                  "fill": "$sys-accent-success",
                                   "cornerRadius": 4,
                                   "justifyContent": "center",
                                   "alignItems": "center",
@@ -30275,7 +31084,7 @@
                                       "type": "ellipse",
                                       "id": "6HR9P",
                                       "name": "proj1Dot",
-                                      "fill": "#F8FAFC",
+                                      "fill": "$sys-bg-sidebar",
                                       "width": 6,
                                       "height": 6
                                     }
@@ -30285,7 +31094,7 @@
                                   "type": "text",
                                   "id": "oOy4y",
                                   "name": "proj1Name",
-                                  "fill": "#111827",
+                                  "fill": "$sys-text-primary",
                                   "content": "E-Commerce Platform",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 13,
@@ -30301,7 +31110,7 @@
                               "height": 14,
                               "iconFontName": "plus",
                               "iconFontFamily": "lucide",
-                              "fill": "#9CA3AF"
+                              "fill": "$sys-text-secondary"
                             }
                           ]
                         },
@@ -30341,13 +31150,13 @@
                                   "height": 12,
                                   "iconFontName": "folder-open",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#22C55E"
+                                  "fill": "$sys-accent-success"
                                 },
                                 {
                                   "type": "text",
                                   "id": "nor1X",
                                   "name": "feat1Name",
-                                  "fill": "#111827",
+                                  "fill": "$sys-text-primary",
                                   "content": "User Authentication",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -30376,13 +31185,13 @@
                                   "height": 12,
                                   "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#9CA3AF"
+                                  "fill": "$sys-text-secondary"
                                 },
                                 {
                                   "type": "text",
                                   "id": "NtzzN",
                                   "name": "feat2Name",
-                                  "fill": "#6B7280",
+                                  "fill": "$sys-text-muted",
                                   "content": "Shopping Cart",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -30411,13 +31220,13 @@
                                   "height": 12,
                                   "iconFontName": "folder",
                                   "iconFontFamily": "lucide",
-                                  "fill": "#9CA3AF"
+                                  "fill": "$sys-text-secondary"
                                 },
                                 {
                                   "type": "text",
                                   "id": "aG0PO",
                                   "name": "feat3Name",
-                                  "fill": "#6B7280",
+                                  "fill": "$sys-text-muted",
                                   "content": "Payment Processing",
                                   "fontFamily": "JetBrains Mono",
                                   "fontSize": 12,
@@ -30448,12 +31257,12 @@
                           "name": "proj2Icon",
                           "width": 20,
                           "height": 20,
-                          "fill": "#F1F5F9",
+                          "fill": "$sys-bg-content",
                           "cornerRadius": 4,
                           "stroke": {
                             "align": "inside",
                             "thickness": 1,
-                            "fill": "#D1D5DB"
+                            "fill": "$sys-border-subtle"
                           },
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -30462,7 +31271,7 @@
                               "type": "ellipse",
                               "id": "JE7en",
                               "name": "proj2Dot",
-                              "fill": "#9CA3AF",
+                              "fill": "$sys-text-secondary",
                               "width": 6,
                               "height": 6
                             }
@@ -30472,7 +31281,7 @@
                           "type": "text",
                           "id": "0W2l9",
                           "name": "proj2Name",
-                          "fill": "#6B7280",
+                          "fill": "$sys-text-muted",
                           "content": "Internal Dashboard",
                           "fontFamily": "JetBrains Mono",
                           "fontSize": 13,
@@ -30499,12 +31308,12 @@
                           "name": "proj3Icon",
                           "width": 20,
                           "height": 20,
-                          "fill": "#F1F5F9",
+                          "fill": "$sys-bg-content",
                           "cornerRadius": 4,
                           "stroke": {
                             "align": "inside",
                             "thickness": 1,
-                            "fill": "#D1D5DB"
+                            "fill": "$sys-border-subtle"
                           },
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -30513,7 +31322,7 @@
                               "type": "ellipse",
                               "id": "y4WSB",
                               "name": "proj3Dot",
-                              "fill": "#9CA3AF",
+                              "fill": "$sys-text-secondary",
                               "width": 6,
                               "height": 6
                             }
@@ -30523,7 +31332,7 @@
                           "type": "text",
                           "id": "IV59I",
                           "name": "proj3Name",
-                          "fill": "#6B7280",
+                          "fill": "$sys-text-muted",
                           "content": "Mobile App QA",
                           "fontFamily": "JetBrains Mono",
                           "fontSize": 13,
@@ -30549,7 +31358,7 @@
               "type": "text",
               "id": "XVXcN",
               "name": "edVersionText",
-              "fill": "#9ca3af",
+              "fill": "$sys-text-secondary",
               "content": "v1.0.0",
               "fontFamily": "JetBrains Mono",
               "fontSize": 11,
@@ -30563,7 +31372,7 @@
               "height": 14,
               "iconFontName": "settings",
               "iconFontFamily": "lucide",
-              "fill": "#9ca3af"
+              "fill": "$sys-text-secondary"
             }
           ]
         }

@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron';
+import { app, clipboard, ipcMain, nativeImage, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,6 +8,7 @@ import { validateRendererDevUrl } from '../security';
 import {
   aiGenerateBugReportInputSchema,
   aiGenerateStepsInputSchema,
+  copyImageToClipboardDataUrlSchema,
   configSetInputSchema,
   featureCreateInputSchema,
   featureDeleteIdSchema,
@@ -46,6 +47,22 @@ interface RegisterHandlersOptions {
 export function registerHandlers(services: Services, options: RegisterHandlersOptions = {}): void {
   ipcMain.handle(IPC_CHANNELS.healthPing, async () => wrap(() => 'pong'));
   ipcMain.handle(IPC_CHANNELS.appGetVersion, async () => wrap(() => app.getVersion()));
+  ipcMain.handle(IPC_CHANNELS.copyImageToClipboard, async (_event, dataUrl) =>
+    wrap(() => {
+      const validated = parseIpcInput(
+        copyImageToClipboardDataUrlSchema,
+        dataUrl,
+        'app.copyImageToClipboard payload',
+      );
+      const image = nativeImage.createFromDataURL(validated);
+      if (image.isEmpty()) {
+        throw new Error('Unable to decode image data for clipboard copy.');
+      }
+
+      clipboard.writeImage(image);
+      return true;
+    }),
+  );
   ipcMain.handle(IPC_CHANNELS.configGet, async () => wrap(() => services.configService.get()));
   ipcMain.handle(IPC_CHANNELS.configSet, async (_event, input) =>
     wrap(() => {

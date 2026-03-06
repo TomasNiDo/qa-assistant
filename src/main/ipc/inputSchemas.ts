@@ -119,6 +119,8 @@ export const runHistoryTestCaseIdSchema = idSchema;
 export const stepResultsRunIdSchema = idSchema;
 export const runGetScreenshotPathSchema = nonEmptyTrimmedString('Screenshot path is required.');
 export const runGetScreenshotThumbnailPathSchema = runGetScreenshotPathSchema;
+export const copyImageToClipboardDataUrlSchema = nonEmptyTrimmedString('Image data URL is required.')
+  .refine((value) => value.startsWith('data:'), 'Image data URL must start with "data:".');
 export const runInstallBrowserSchema = browserSchema;
 
 export const aiGenerateStepsInputSchema = z

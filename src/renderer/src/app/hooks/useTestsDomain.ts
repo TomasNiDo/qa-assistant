@@ -62,7 +62,6 @@ export interface UseTestsDomainResult {
   selectFeature: (featureId: string) => void;
   beginCreateTest: () => void;
   setEditorView: (view: TestFormState['activeView']) => void;
-  enableCodeEditing: () => void;
   updateCodeDraft: (nextCode: string) => void;
   restoreGeneratedCode: () => void;
   saveTestCase: () => Promise<TestCase | null>;
@@ -136,6 +135,33 @@ export function getCustomCodeError(
   }
 
   return customCodeSyntaxError;
+}
+
+export function applyCodeDraftUpdate(
+  previous: TestFormState,
+  nextCode: string,
+): TestFormState {
+  if (!previous.isCustomized) {
+    const hasDiverged = nextCode !== previous.generatedCode;
+    return {
+      ...previous,
+      isCustomized: hasDiverged,
+      customCode: hasDiverged ? nextCode : '',
+    };
+  }
+
+  return {
+    ...previous,
+    customCode: nextCode,
+  };
+}
+
+export function applyRestoreGeneratedCode(previous: TestFormState): TestFormState {
+  return {
+    ...previous,
+    isCustomized: false,
+    customCode: '',
+  };
 }
 
 export function resolveSelectedTestId({
@@ -374,9 +400,6 @@ export function useTestsDomain({
         generatedCode: selectedTest.generatedCode,
         customCode: selectedTest.customCode ?? '',
         isCustomized: selectedTest.isCustomized,
-        isCodeEditingEnabled: isSameTest
-          ? previous.isCodeEditingEnabled && selectedTest.isCustomized
-          : false,
         activeView: isSameTest ? previous.activeView : 'steps',
       };
     });
@@ -482,39 +505,12 @@ export function useTestsDomain({
     setTestForm((previous) => ({ ...previous, activeView: view }));
   }, []);
 
-  const enableCodeEditing = useCallback(() => {
-    setTestForm((previous) => ({ ...previous, isCodeEditingEnabled: true }));
-  }, []);
-
   const updateCodeDraft = useCallback((nextCode: string) => {
-    setTestForm((previous) => {
-      if (!previous.isCodeEditingEnabled) {
-        return previous;
-      }
-
-      if (!previous.isCustomized) {
-        const hasDiverged = nextCode !== previous.generatedCode;
-        return {
-          ...previous,
-          isCustomized: hasDiverged,
-          customCode: hasDiverged ? nextCode : '',
-        };
-      }
-
-      return {
-        ...previous,
-        customCode: nextCode,
-      };
-    });
+    setTestForm((previous) => applyCodeDraftUpdate(previous, nextCode));
   }, []);
 
   const restoreGeneratedCode = useCallback(() => {
-    setTestForm((previous) => ({
-      ...previous,
-      isCustomized: false,
-      customCode: '',
-      isCodeEditingEnabled: false,
-    }));
+    setTestForm((previous) => applyRestoreGeneratedCode(previous));
   }, []);
 
   const saveTestCase = useCallback(async (): Promise<TestCase | null> => {
@@ -589,7 +585,6 @@ export function useTestsDomain({
       generatedCode: result.data.generatedCode,
       customCode: result.data.customCode ?? '',
       isCustomized: result.data.isCustomized,
-      isCodeEditingEnabled: previous.isCodeEditingEnabled && result.data.isCustomized,
     }));
 
     setTestCasesByFeature((previous) => {
@@ -865,7 +860,6 @@ export function useTestsDomain({
     selectFeature,
     beginCreateTest,
     setEditorView,
-    enableCodeEditing,
     updateCodeDraft,
     restoreGeneratedCode,
     saveTestCase,

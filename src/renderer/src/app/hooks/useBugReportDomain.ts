@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { GeneratedBugReport } from '@shared/types';
-import { formatBugReport, toErrorMessage } from '../utils';
+import { copyTextToClipboard, formatBugReport, toErrorMessage } from '../utils';
 
 interface UseBugReportDomainArgs {
   onMessage: (message: string) => void;
@@ -54,8 +54,8 @@ export function useBugReportDomain({ onMessage }: UseBugReportDomainArgs): UseBu
   );
 
   const copyBugReport = useCallback(async () => {
-    await navigator.clipboard.writeText(bugReportDraft);
-    onMessage('Bug report copied to clipboard.');
+    const copied = await copyTextToClipboard(bugReportDraft);
+    onMessage(copied ? 'Bug report copied to clipboard.' : 'Unable to copy bug report.');
   }, [bugReportDraft, onMessage]);
 
   const clearBugReportState = useCallback(() => {

@@ -10,13 +10,13 @@ export function FeaturePhaseToggle({
   canOpenExecution,
 }: FeaturePhaseToggleProps): JSX.Element {
   return (
-    <div className="inline-flex rounded-full border border-[#223247]/70 bg-[#101826]/80 p-1">
+    <div className="inline-flex rounded-md border border-border bg-card p-1">
       <button
         type="button"
-        className={`min-w-[112px] rounded-full px-3 py-1.5 text-[12px] font-semibold transition ${
+        className={`min-w-[108px] rounded-sm px-3 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 ${
           activePhase === 'planning'
-            ? 'bg-[#1a2b40] text-[#dce8f8]'
-            : 'text-[#92a8c2] hover:bg-[#152335]/80 hover:text-[#c7d7ec]'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-secondary-foreground hover:bg-muted/55 hover:text-foreground'
         }`}
         onClick={() => onChangePhase('planning')}
       >
@@ -24,10 +24,10 @@ export function FeaturePhaseToggle({
       </button>
       <button
         type="button"
-        className={`min-w-[112px] rounded-full px-3 py-1.5 text-[12px] font-semibold transition ${
+        className={`min-w-[108px] rounded-sm px-3 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60 ${
           activePhase === 'execution'
-            ? 'bg-primary/95 text-primary-foreground'
-            : 'text-[#92a8c2] hover:bg-[#152335]/80 hover:text-[#c7d7ec]'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-secondary-foreground hover:bg-muted/55 hover:text-foreground'
         }`}
         onClick={() => onChangePhase('execution')}
         disabled={!canOpenExecution}

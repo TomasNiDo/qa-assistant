@@ -73,6 +73,7 @@ describe('FeatureExecutionPage', () => {
         canOpenExecution
         onEditTestCase={vi.fn()}
         onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
         runBlocked={false}
       />,
     );
@@ -80,7 +81,7 @@ describe('FeatureExecutionPage', () => {
     expect(screen.getAllByText('Passed').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Running').length).toBeGreaterThan(0);
-    expect(screen.getByText('50%')).toBeTruthy();
+    expect(screen.getByText('25%')).toBeTruthy();
     expect(screen.getByText('Valid login')).toBeTruthy();
     expect(screen.getByText('No steps yet')).toBeTruthy();
   });
@@ -101,17 +102,18 @@ describe('FeatureExecutionPage', () => {
         canOpenExecution
         onEditTestCase={onEditTestCase}
         onRunTestCase={onRunTestCase}
+        onStopActiveRun={vi.fn()}
         runBlocked={false}
       />,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Valid login' }));
     expect(onEditTestCase).toHaveBeenCalledWith('test-1');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Run' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Run Valid login' }));
     expect(onRunTestCase).toHaveBeenCalledWith('test-1');
 
-    expect(screen.getAllByRole('button', { name: 'Run' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /Run / })).toHaveLength(3);
   });
 
   it('applies filters', () => {
@@ -128,6 +130,7 @@ describe('FeatureExecutionPage', () => {
         canOpenExecution
         onEditTestCase={vi.fn()}
         onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
         runBlocked={false}
       />,
     );
@@ -147,11 +150,60 @@ describe('FeatureExecutionPage', () => {
         canOpenExecution
         onEditTestCase={vi.fn()}
         onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
         runBlocked={false}
       />,
     );
 
     expect(screen.getByText('Invalid login')).toBeTruthy();
     expect(screen.queryByText('Valid login')).toBeNull();
+  });
+
+  it('formats snake_case project labels for header display', () => {
+    render(
+      <FeatureExecutionPage
+        hasSelectedProject
+        selectedProjectName="to_do_list"
+        featureTitle="Authentication hardening"
+        summary={baseSummary}
+        activeFilter="all"
+        onChangeFilter={vi.fn()}
+        onSwitchPhase={vi.fn()}
+        canOpenExecution
+        onEditTestCase={vi.fn()}
+        onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
+        runBlocked={false}
+      />,
+    );
+
+    expect(screen.getByText('To do list /')).toBeTruthy();
+  });
+
+  it('uses success tone for positive test type pills', () => {
+    render(
+      <FeatureExecutionPage
+        hasSelectedProject
+        selectedProjectName="ShopFlow"
+        featureTitle="Authentication hardening"
+        summary={baseSummary}
+        activeFilter="all"
+        onChangeFilter={vi.fn()}
+        onSwitchPhase={vi.fn()}
+        canOpenExecution
+        onEditTestCase={vi.fn()}
+        onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
+        runBlocked={false}
+      />,
+    );
+
+    const positivePills = screen.getAllByText('positive');
+    expect(positivePills.length).toBeGreaterThan(0);
+    positivePills.forEach((pill) => {
+      expect(pill.className).toContain('text-success');
+      expect(pill.className).toContain('bg-success/10');
+      expect(pill.className).not.toContain('text-info');
+    });
   });
 });
