@@ -374,7 +374,7 @@ export function BugReportModal({
         aria-label="Bug report"
         className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/72 px-4 py-8"
       >
-        <div className="flex max-h-[92vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[0_30px_80px_-36px_rgb(0_0_0/0.96)]">
+        <div className="flex max-h-[92vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
           <header className="flex items-center justify-between border-b border-border-divider px-6 py-5">
             <div className="flex items-center gap-3">
               <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
@@ -437,7 +437,7 @@ export function BugReportModal({
                 </button>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border bg-[#0D0E10] p-3.5">
+              <div className="space-y-3 rounded-lg border border-border bg-input p-3.5">
                 <p className="text-[13px] font-semibold leading-[1.45] text-foreground">{summaryTitle}</p>
                 <p className="text-[11px] leading-[1.55] text-secondary-foreground">{summaryDescription}</p>
                 <div className="h-px bg-border" />
@@ -465,21 +465,21 @@ export function BugReportModal({
             <section className="space-y-2.5">
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.05em] text-secondary-foreground">Environment</h3>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-md border border-border bg-[#0D0E10] px-3 py-2">
+                <div className="rounded-md border border-border bg-input px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">Browser</p>
                   <p className="text-[10px] font-medium text-foreground">{selectedRun?.browser ?? 'Unknown'}</p>
                 </div>
-                <div className="rounded-md border border-border bg-[#0D0E10] px-3 py-2">
+                <div className="rounded-md border border-border bg-input px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">Duration</p>
                   <p className="text-[10px] font-medium text-foreground">{selectedRun ? formatRunDuration(selectedRun) : '--s'}</p>
                 </div>
-                <div className="rounded-md border border-border bg-[#0D0E10] px-3 py-2">
+                <div className="rounded-md border border-border bg-input px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">Test Case</p>
                   <p className="truncate text-[10px] font-medium text-foreground" title={testCaseTitle || 'Unknown test case'}>
                     {testCaseTitle || 'Unknown'}
                   </p>
                 </div>
-                <div className="rounded-md border border-border bg-[#0D0E10] px-3 py-2">
+                <div className="rounded-md border border-border bg-input px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">Run</p>
                   <p className="text-[10px] font-medium text-foreground">
                     {selectedRun ? `${toRunStatusLabel(selectedRun.status)} · ${selectedRun.id.slice(0, 8)}` : 'Unavailable'}
@@ -530,7 +530,7 @@ export function BugReportModal({
                   </p>
                 </div>
                 <p className="text-[11px] text-secondary-foreground">{failureDetails.expected}</p>
-                <div className="rounded-sm bg-[#0d0e10] px-2 py-1.5">
+                <div className="rounded-sm bg-input px-2 py-1.5">
                   <p className="text-[10px] text-danger">{failureDetails.received}</p>
                 </div>
                 <p className="text-[10px] text-muted-foreground">{failureDetails.location}</p>
@@ -572,7 +572,7 @@ export function BugReportModal({
               </div>
 
               {screenshotSteps.length === 0 ? (
-                <div className="rounded-lg border border-border bg-[#0D0E10] px-3 py-2">
+                <div className="rounded-lg border border-border bg-input px-3 py-2">
                   <p className="text-[11px] text-muted-foreground">No screenshots were captured for this run.</p>
                 </div>
               ) : (
@@ -588,7 +588,7 @@ export function BugReportModal({
                       <article key={step.id} className="space-y-1.5">
                         <button
                           type="button"
-                          className="group flex h-[70px] w-full items-center justify-center overflow-hidden rounded-md border border-border bg-[#0D0E10] transition-colors hover:border-border-strong"
+                          className="group flex h-[70px] w-full items-center justify-center overflow-hidden rounded-md border border-border bg-input transition-colors hover:border-border-strong"
                           onClick={() => openScreenshot(step)}
                           disabled={!step.screenshotPath}
                           aria-label={`Open screenshot for step ${step.stepOrder}`}

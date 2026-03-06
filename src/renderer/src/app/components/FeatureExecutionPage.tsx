@@ -80,7 +80,7 @@ function priorityClass(priority: TestPriority): string {
 
 function typePillClass(testType: TestType): string {
   if (testType === 'positive') {
-    return 'border border-info/30 bg-info/10 text-info';
+    return 'border border-success/30 bg-success/10 text-success';
   }
   if (testType === 'negative') {
     return 'border border-danger/30 bg-danger/10 text-danger';

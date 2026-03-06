@@ -173,6 +173,29 @@ describe('RunCenterPanel', () => {
     expect(screen.getByRole('button', { name: 'Generating...' })).toBeTruthy();
   });
 
+  it('uses success color for current run progress when selected run passed', () => {
+    render(
+      <RunCenterPanel
+        runs={runs}
+        selectedRunId="run-1"
+        setSelectedRunId={vi.fn()}
+        selectedRun={runs[0]}
+        stepResults={stepResults}
+        activeRunId=""
+        onCancelRun={vi.fn()}
+        onRerun={vi.fn()}
+        canRerun
+        onGenerateBugReport={vi.fn()}
+        isGeneratingBugReport={false}
+        canGenerateBugReport
+      />,
+    );
+
+    const progressFill = screen.getByTestId('current-run-progress-fill');
+    expect(progressFill.className).toContain('bg-success');
+    expect(progressFill.className).not.toContain('bg-danger');
+  });
+
   it('supports screenshot viewer zoom controls, ctrl/cmd wheel zoom, copy image, and escape close', async () => {
     const copyImageToClipboard = vi.fn(async () => ({ ok: true as const, data: true }));
     Object.defineProperty(window, 'qaApi', {

@@ -179,4 +179,31 @@ describe('FeatureExecutionPage', () => {
 
     expect(screen.getByText('To do list /')).toBeTruthy();
   });
+
+  it('uses success tone for positive test type pills', () => {
+    render(
+      <FeatureExecutionPage
+        hasSelectedProject
+        selectedProjectName="ShopFlow"
+        featureTitle="Authentication hardening"
+        summary={baseSummary}
+        activeFilter="all"
+        onChangeFilter={vi.fn()}
+        onSwitchPhase={vi.fn()}
+        canOpenExecution
+        onEditTestCase={vi.fn()}
+        onRunTestCase={vi.fn()}
+        onStopActiveRun={vi.fn()}
+        runBlocked={false}
+      />,
+    );
+
+    const positivePills = screen.getAllByText('positive');
+    expect(positivePills.length).toBeGreaterThan(0);
+    positivePills.forEach((pill) => {
+      expect(pill.className).toContain('text-success');
+      expect(pill.className).toContain('bg-success/10');
+      expect(pill.className).not.toContain('text-info');
+    });
+  });
 });

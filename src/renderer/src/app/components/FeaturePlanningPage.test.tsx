@@ -401,6 +401,100 @@ describe('FeaturePlanningPage', () => {
     expect(scoped.getByText('Approved negative case')).toBeTruthy();
   });
 
+  it('sorts approved test cases by selected dropdown field and direction', () => {
+    render(
+      <FeaturePlanningPageHarness
+        approvedTests={[
+          {
+            id: 'approved-edge-medium',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved edge medium',
+            testType: 'edge',
+            priority: 'medium',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'approved-positive-high',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved positive high',
+            testType: 'positive',
+            priority: 'high',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+          {
+            id: 'approved-negative-low',
+            projectId: 'project-1',
+            featureId: 'feature-1',
+            title: 'Approved negative low',
+            testType: 'negative',
+            priority: 'low',
+            planningStatus: 'approved',
+            isAiGenerated: false,
+            generatedCode: '',
+            customCode: null,
+            isCustomized: false,
+            createdAt: '2026-02-20T00:00:00.000Z',
+            updatedAt: '2026-02-20T00:00:00.000Z',
+          },
+        ]}
+      />,
+    );
+
+    const approvedHeading = screen.getByRole('heading', { name: /^Approved Test Cases/ });
+    const approvedSection = approvedHeading.closest('article');
+    expect(approvedSection).toBeTruthy();
+    const scoped = within(approvedSection as HTMLElement);
+
+    const getApprovedTitles = (): string[] =>
+      scoped
+        .getAllByRole('listitem')
+        .map((listItem) => listItem.querySelector('p')?.textContent?.trim() ?? '');
+
+    const sortField = scoped.getByRole('combobox', { name: 'Approved sort field' }) as HTMLSelectElement;
+    expect(sortField.value).toBe('');
+    expect(scoped.queryByRole('button', { name: 'Toggle approved sort direction' })).toBeNull();
+    expect(getApprovedTitles()).toEqual([
+      'Approved edge medium',
+      'Approved positive high',
+      'Approved negative low',
+    ]);
+
+    fireEvent.change(sortField, { target: { value: 'priority' } });
+    expect(getApprovedTitles()).toEqual([
+      'Approved positive high',
+      'Approved edge medium',
+      'Approved negative low',
+    ]);
+
+    fireEvent.click(scoped.getByRole('button', { name: 'Toggle approved sort direction' }));
+    expect(getApprovedTitles()).toEqual([
+      'Approved negative low',
+      'Approved edge medium',
+      'Approved positive high',
+    ]);
+
+    fireEvent.change(sortField, { target: { value: 'testType' } });
+    expect(getApprovedTitles()).toEqual([
+      'Approved positive high',
+      'Approved negative low',
+      'Approved edge medium',
+    ]);
+  });
+
   it('formats snake_case project names for display', () => {
     render(<FeaturePlanningPageHarness selectedProjectName="to_do_list" />);
 

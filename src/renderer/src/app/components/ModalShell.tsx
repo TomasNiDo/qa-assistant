@@ -11,7 +11,7 @@ export function ModalShell({ title, children, onClose, maxWidthClass = 'max-w-[4
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4 py-8">
       <div
-        className={`w-full ${maxWidthClass} rounded-md border border-border bg-card px-4 py-4 shadow-[0_24px_72px_-30px_rgb(0_0_0/0.95)]`}
+        className={`w-full ${maxWidthClass} rounded-md border border-border bg-card px-4 py-4 shadow-[var(--shadow-soft)]`}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-foreground">{title}</h2>

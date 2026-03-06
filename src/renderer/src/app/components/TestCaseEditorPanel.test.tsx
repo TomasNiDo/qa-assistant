@@ -172,7 +172,7 @@ describe('TestCaseEditorPanel', () => {
     expect(onRestoreGeneratedCode).toHaveBeenCalledTimes(1);
   });
 
-  it('renders ambiguous warning indicator and inline suggested rewrite', () => {
+  it('renders ambiguous warning indicator beside the line number with hover tooltip', () => {
     const [testForm, setTestForm] = [
       createTestForm({
         priority: 'high',
@@ -211,7 +211,59 @@ describe('TestCaseEditorPanel', () => {
 
     expect(screen.getByText('Ambiguous Steps: 1')).toBeTruthy();
     expect(
-      screen.getByText(/Enter "product1" in "Search" field using placeholder/),
-    ).toBeTruthy();
+      screen.queryByText(/Enter "product1" in "Search" field using placeholder/),
+    ).toBeNull();
+
+    const warningDot = document.querySelector('.qa-editor-line-warning-dot') as HTMLElement | null;
+    expect(warningDot).not.toBeNull();
+    if (!warningDot) {
+      return;
+    }
+
+    fireEvent.mouseEnter(warningDot);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain('Target lookup is ambiguous.');
+    expect(tooltip.textContent).toContain(
+      'Enter "product1" in "Search" field using placeholder',
+    );
+  });
+
+  it('renders red error indicator beside the line number with error tooltip', () => {
+    const [testForm, setTestForm] = [
+      createTestForm({
+        stepsText: 'Click "Delete"\nawdwad',
+      }),
+      vi.fn(),
+    ];
+
+    render(
+      <TestCaseEditorPanel
+        testForm={testForm}
+        setTestForm={setTestForm}
+        testTitleError={null}
+        customCodeError={null}
+        testStepsErrors={[null, 'Unable to parse step. Use Enter/Click/Go to/Expect.']}
+        stepParseWarnings={[[], []]}
+        ambiguousStepWarningCount={0}
+        isGeneratingSteps={false}
+        effectiveCode=""
+        isCodeModified={false}
+        setEditorView={vi.fn()}
+        onCodeChange={vi.fn()}
+        onRestoreGeneratedCode={vi.fn()}
+        onGenerateSteps={vi.fn()}
+        onValidateCode={vi.fn()}
+      />,
+    );
+
+    const errorDot = document.querySelector('.qa-editor-line-error-dot') as HTMLElement | null;
+    expect(errorDot).not.toBeNull();
+    if (!errorDot) {
+      return;
+    }
+
+    fireEvent.mouseEnter(errorDot);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain('Unable to parse step. Use Enter/Click/Go to/Expect.');
   });
 });

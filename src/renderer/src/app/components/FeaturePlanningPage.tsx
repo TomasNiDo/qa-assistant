@@ -52,6 +52,7 @@ const PRIORITY_ORDER: Record<TestCase['priority'], number> = {
 type PlanningTab = 'acceptance' | 'requirements' | 'notes';
 type DraftedFilter = 'all' | TestCase['testType'];
 type ApprovedSortDirection = 'asc' | 'desc';
+type ApprovedSortField = 'priority' | 'testType';
 
 function formatEnumLabel(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -84,10 +85,6 @@ function draftedTypeTagClass(testType: TestCase['testType']): string {
     return 'inline-flex items-center rounded-sm bg-danger/12 px-1.5 py-0.5 text-[9px] font-medium text-danger';
   }
   return 'inline-flex items-center rounded-sm bg-warning/12 px-1.5 py-0.5 text-[9px] font-medium text-warning';
-}
-
-function approvedTypeTagClass(): string {
-  return 'inline-flex items-center rounded-sm bg-info/12 px-1.5 py-0.5 text-[9px] font-medium text-info';
 }
 
 function priorityTagClass(priority: TestCase['priority']): string {
@@ -148,6 +145,7 @@ export function FeaturePlanningPage({
   const [activeTab, setActiveTab] = useState<PlanningTab>('acceptance');
   const [draftedFilter, setDraftedFilter] = useState<DraftedFilter>('all');
   const [approvedFilter, setApprovedFilter] = useState<DraftedFilter>('all');
+  const [approvedSortField, setApprovedSortField] = useState<ApprovedSortField | ''>('');
   const [approvedSortDirection, setApprovedSortDirection] = useState<ApprovedSortDirection>('asc');
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const projectDisplayName = useMemo(
@@ -180,16 +178,24 @@ export function FeaturePlanningPage({
   );
 
   const sortedApprovedTests = useMemo(() => {
+    if (!approvedSortField) {
+      return approvedTests;
+    }
+
     const rows = [...approvedTests].sort((left, right) => {
-      if (PRIORITY_ORDER[left.priority] !== PRIORITY_ORDER[right.priority]) {
-        return PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority];
+      if (approvedSortField === 'priority') {
+        if (PRIORITY_ORDER[left.priority] !== PRIORITY_ORDER[right.priority]) {
+          return PRIORITY_ORDER[left.priority] - PRIORITY_ORDER[right.priority];
+        }
+      } else if (TEST_TYPE_DISPLAY_ORDER[left.testType] !== TEST_TYPE_DISPLAY_ORDER[right.testType]) {
+        return TEST_TYPE_DISPLAY_ORDER[left.testType] - TEST_TYPE_DISPLAY_ORDER[right.testType];
       }
 
       return left.title.localeCompare(right.title);
     });
 
     return approvedSortDirection === 'asc' ? rows : rows.reverse();
-  }, [approvedSortDirection, approvedTests]);
+  }, [approvedSortDirection, approvedSortField, approvedTests]);
 
   const filteredApprovedTests = useMemo(
     () =>
@@ -394,7 +400,7 @@ export function FeaturePlanningPage({
 
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="flex min-h-[320px] flex-col rounded-md border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex min-h-8 items-center justify-between gap-2">
             <h2 className={`${sectionTitleClass} flex items-center gap-2`}>
               Drafted Test Cases
               <span className={draftedCountPillClass()} aria-label={`Drafted count: ${sortedDraftedTests.length}`}>
@@ -427,7 +433,7 @@ export function FeaturePlanningPage({
             </div>
           </div>
 
-          <div className="mt-2 flex items-center gap-1.5">
+          <div className="mt-2 flex min-h-8 items-center gap-1.5">
             {(['all', 'positive', 'negative', 'edge'] as const).map((filterKey) => (
               <button
                 key={filterKey}
@@ -551,7 +557,7 @@ export function FeaturePlanningPage({
         </article>
 
         <article className="flex min-h-[320px] flex-col rounded-md border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex min-h-8 items-center justify-between gap-2">
             <h2 className={`${sectionTitleClass} flex items-center gap-2`}>
               Approved Test Cases
               <span className={countPillClass()} aria-label={`Approved count: ${approvedTests.length}`}>
@@ -559,27 +565,51 @@ export function FeaturePlanningPage({
               </span>
             </h2>
 
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-2 py-0.5 text-[10px] text-secondary-foreground transition-colors hover:border-border-strong"
-              onClick={() =>
-                setApprovedSortDirection((previous) => (previous === 'asc' ? 'desc' : 'asc'))
-              }
-              aria-label="Priority sorting"
-              title="Sort by priority"
+            <div
+              className="inline-flex h-8 items-center gap-1 rounded-sm border border-border bg-background px-2 py-0.5 text-[10px] text-secondary-foreground transition-colors hover:border-border-strong"
+              aria-label="Approved sorting"
+              title="Sort approved test cases"
             >
-              Priority
-              <svg viewBox="0 0 24 24" className="h-3 w-3" aria-hidden="true">
-                {approvedSortDirection === 'asc' ? (
-                  <path d="M12 7l-4 4h8l-4-4z" fill="currentColor" />
-                ) : (
-                  <path d="M12 17l4-4H8l4 4z" fill="currentColor" />
-                )}
-              </svg>
-            </button>
+              <span>Sort:</span>
+              <select
+                aria-label="Approved sort field"
+                className="h-6 border-0 bg-transparent pr-4 text-[10px] text-secondary-foreground outline-none"
+                value={approvedSortField}
+                onChange={(event) => {
+                  const nextField = event.target.value as ApprovedSortField | '';
+                  setApprovedSortField(nextField);
+                  setApprovedSortDirection('asc');
+                }}
+              >
+                <option value=""> </option>
+                <option value="priority">Priority</option>
+                <option value="testType">Test type</option>
+              </select>
+              {approvedSortField ? (
+                <button
+                  type="button"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-secondary-foreground transition-colors hover:bg-muted"
+                  onClick={() =>
+                    setApprovedSortDirection((previous) => (previous === 'asc' ? 'desc' : 'asc'))
+                  }
+                  aria-label="Toggle approved sort direction"
+                  title={
+                    approvedSortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'
+                  }
+                >
+                  <svg viewBox="0 0 24 24" className="h-3 w-3" aria-hidden="true">
+                    {approvedSortDirection === 'asc' ? (
+                      <path d="M12 7l-4 4h8l-4-4z" fill="currentColor" />
+                    ) : (
+                      <path d="M12 17l4-4H8l4 4z" fill="currentColor" />
+                    )}
+                  </svg>
+                </button>
+              ) : null}
+            </div>
           </div>
 
-          <div className="mt-2 flex items-center gap-1.5">
+          <div className="mt-2 flex min-h-8 items-center gap-1.5">
             {(['all', 'positive', 'negative', 'edge'] as const).map((filterKey) => (
               <button
                 key={`approved-${filterKey}`}
@@ -613,7 +643,9 @@ export function FeaturePlanningPage({
                       {testCase.title}
                     </p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className={approvedTypeTagClass()}>{formatEnumLabel(testCase.testType)}</span>
+                      <span className={draftedTypeTagClass(testCase.testType)}>
+                        {formatEnumLabel(testCase.testType)}
+                      </span>
                       <span className={priorityTagClass(testCase.priority)}>
                         {testCase.priority === 'high'
                           ? 'P1'

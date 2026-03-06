@@ -222,13 +222,13 @@ export function StepResultCard({ result, compact = false }: StepResultCardProps)
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="space-y-1">
-            <h4 className={compact ? 'text-xs font-semibold text-[#dce4ef]' : 'text-sm font-semibold text-[#dce4ef]'}>
+            <h4 className={compact ? 'text-xs font-semibold text-foreground' : 'text-sm font-semibold text-foreground'}>
               Step {result.stepOrder} · {result.stepRawText}
             </h4>
             {result.errorText ? (
-              <p className="text-[11px] text-[#f1a3b4]">{result.errorText}</p>
+              <p className="text-[11px] text-danger">{result.errorText}</p>
             ) : (
-              <p className="text-[11px] text-[#8f99a8]">No error recorded.</p>
+              <p className="text-[11px] text-muted-foreground">No error recorded.</p>
             )}
           </div>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClassName(result.status)}`}>
@@ -369,4 +369,3 @@ export function StepResultCard({ result, compact = false }: StepResultCardProps)
 function clampViewerZoom(value: number): number {
   return Math.min(SCREENSHOT_VIEWER_MAX_ZOOM, Math.max(SCREENSHOT_VIEWER_MIN_ZOOM, Number(value.toFixed(2))));
 }
-

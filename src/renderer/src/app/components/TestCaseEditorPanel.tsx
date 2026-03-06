@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
 import type { StepParseWarning } from '@shared/types';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
@@ -72,6 +72,12 @@ function formatCodeFileName(title: string): string {
   return `${slug || 'untitled'}.spec.ts`;
 }
 
+function formatStepWarningTooltip(warnings: StepParseWarning[]): string {
+  return warnings
+    .map((warning) => `${warning.message} Suggested: ${warning.suggestedStep}`)
+    .join('\n');
+}
+
 export function TestCaseEditorPanel({
   testForm,
   setTestForm,
@@ -89,6 +95,12 @@ export function TestCaseEditorPanel({
   onGenerateSteps,
   onValidateCode,
 }: TestCaseEditorPanelProps): JSX.Element {
+  const [hoveredStepWarning, setHoveredStepWarning] = useState<{
+    message: string;
+    top: number;
+    left: number;
+    tone: 'warning' | 'error';
+  } | null>(null);
   const isStepsView = testForm.activeView === 'steps';
   const stepsEditorHostRef = useRef<HTMLDivElement | null>(null);
   const codeEditorHostRef = useRef<HTMLDivElement | null>(null);
@@ -98,10 +110,21 @@ export function TestCaseEditorPanel({
   const [codeCopyStatus, setCodeCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const stepLineCount = Math.max(1, testForm.stepsText.split('\n').length);
   const codeLineCount = Math.max(1, effectiveCode.split('\n').length);
-  const parseIssueCount =
-    testStepsErrors.filter(Boolean).length +
-    stepParseWarnings.reduce((total, warnings) => total + warnings.length, 0);
   const codeFileName = formatCodeFileName(testForm.title);
+
+  const showStepWarningTooltip = (
+    event: MouseEvent<HTMLElement>,
+    warningMessage: string,
+    tone: 'warning' | 'error',
+  ): void => {
+    const targetBounds = event.currentTarget.getBoundingClientRect();
+    setHoveredStepWarning({
+      message: warningMessage,
+      top: targetBounds.top + targetBounds.height / 2,
+      left: targetBounds.right + 12,
+      tone,
+    });
+  };
 
   useEffect(
     () =>
@@ -125,6 +148,12 @@ export function TestCaseEditorPanel({
     [isStepsView, effectiveCode],
   );
 
+  useEffect(() => {
+    if (!isStepsView) {
+      setHoveredStepWarning(null);
+    }
+  }, [isStepsView]);
+
   useEffect(
     () => () => {
       if (resetStepsCopiedTimeoutRef.current !== null) {
@@ -138,13 +167,13 @@ export function TestCaseEditorPanel({
   );
 
   const viewToggle = (
-    <div className="inline-flex items-center rounded-[6px] border border-[#2A2A2A] bg-[#121212] p-[2px]">
+    <div className="inline-flex items-center rounded-[6px] border border-border bg-muted/55 p-[2px]">
       <button
         type="button"
         className={`rounded-[4px] px-[10px] py-[6px] text-[11px] transition-colors ${
           isStepsView
-            ? 'border border-[#10B98166] bg-[#22C55E22] font-semibold text-[#22C55E]'
-            : 'border border-[#2D3440] bg-[#16181C] text-[#6B7280]'
+            ? 'border border-success/50 bg-success/14 font-semibold text-success'
+            : 'border border-border bg-card text-muted-foreground'
         }`}
         onClick={() => setEditorView('steps')}
         aria-pressed={isStepsView}
@@ -155,8 +184,8 @@ export function TestCaseEditorPanel({
         type="button"
         className={`rounded-[4px] px-[10px] py-[6px] text-[11px] transition-colors ${
           !isStepsView
-            ? 'border border-[#10B98166] bg-[#22C55E22] font-semibold text-[#86efac]'
-            : 'border border-[#1F1F1F] bg-[#111111] text-[#6B7280]'
+            ? 'border border-success/50 bg-success/14 font-semibold text-success'
+            : 'border border-border bg-card text-muted-foreground'
         }`}
         onClick={() => setEditorView('code')}
         aria-pressed={!isStepsView}
@@ -167,24 +196,24 @@ export function TestCaseEditorPanel({
   );
 
   return (
-    <section className="flex min-h-0 flex-col rounded-[10px] border border-[#1A1A1A] bg-[#111111] p-[14px]">
+    <section className="flex min-h-0 flex-col rounded-[10px] border border-border-divider bg-card p-[14px]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <span className="text-[12px] font-medium text-[#737373]">Test Definition</span>
+          <span className="text-[12px] font-medium text-secondary-foreground">Test Definition</span>
           {viewToggle}
         </div>
 
         {isStepsView ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#7C3AED44] bg-[#7C3AED18] px-3 py-1.5 text-[11px] font-medium text-[#A78BFA] transition-colors hover:bg-[#7C3AED24] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-[6px] border border-purple/35 bg-purple/14 px-3 py-1.5 text-[11px] font-medium text-purple transition-colors hover:bg-purple/22 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={onGenerateSteps}
             disabled={isGeneratingSteps}
             aria-busy={isGeneratingSteps}
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
               <path
-                d="M12 3l1.7 4.7L18.5 9l-4.8 1.3L12 15l-1.7-4.7L5.5 9l4.8-1.3L12 3z"
+                d="M12 3l1.7 4.7L18.5 9l-4.8 1.3L12 15l-1.7-4.7L5.5 9l4.8-1.3L12 3zm6.5 11.5l.8 2.2l2.2.8l-2.2.8l-.8 2.2l-.8-2.2l-2.2-.8l2.2-.8l.8-2.2zM4.5 14l.8 2.2l2.2.8l-2.2.8l-.8 2.2l-.8-2.2l-2.2-.8l2.2-.8l.8-2.2z"
                 fill="currentColor"
               />
             </svg>
@@ -193,25 +222,48 @@ export function TestCaseEditorPanel({
         ) : null}
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[11px] text-[#525252]">
+      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{isStepsView ? 'Natural language steps' : 'TypeScript'}</span>
-        {ambiguousStepWarningCount > 0 ? (
-          <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
-            Ambiguous Steps: {ambiguousStepWarningCount}
-          </span>
-        ) : null}
       </div>
 
       <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
         {isStepsView ? (
           <>
-            <div className="text-[11px] text-[#3F3F46]">steps.txt</div>
+            <div className="text-[11px] text-muted-foreground">steps.txt</div>
             <div ref={stepsEditorHostRef} className="qa-editor-textarea-frame h-[460px]">
               <div className="qa-editor-line-number-rail">
                 <div className="qa-editor-line-number-list qa-steps-editor-line-number-list" data-testid="qa-steps-line-numbers">
-                  {Array.from({ length: stepLineCount }, (_unused, index) => (
-                    <span key={`step-line-${index + 1}`}>{index + 1}</span>
-                  ))}
+                  {Array.from({ length: stepLineCount }, (_unused, index) => {
+                    const lineWarnings = stepParseWarnings[index] ?? [];
+                    const warningTooltip =
+                      lineWarnings.length > 0 ? formatStepWarningTooltip(lineWarnings) : null;
+                    const lineError = testStepsErrors[index];
+                    const indicatorTone = lineError ? 'error' : warningTooltip ? 'warning' : null;
+                    const indicatorTooltip = lineError ?? warningTooltip;
+
+                    return (
+                      <div
+                        key={`step-line-${index + 1}`}
+                        className="qa-editor-line-number-entry qa-steps-editor-line-number-entry"
+                      >
+                        <span>{index + 1}</span>
+                        {indicatorTooltip && indicatorTone ? (
+                          <i
+                            aria-label={`Line ${index + 1} has ${indicatorTone} indicator`}
+                            className={`qa-editor-line-indicator-dot ${
+                              indicatorTone === 'error'
+                                ? 'qa-editor-line-error-dot'
+                                : 'qa-editor-line-warning-dot'
+                            }`}
+                            onMouseEnter={(event) =>
+                              showStepWarningTooltip(event, indicatorTooltip, indicatorTone)
+                            }
+                            onMouseLeave={() => setHoveredStepWarning(null)}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -238,10 +290,17 @@ export function TestCaseEditorPanel({
             </div>
 
             <div className="flex items-center justify-between px-0 py-[6px]">
-              <span className="text-[11px] text-[#525252]">{stepLineCount} steps</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">{stepLineCount} steps</span>
+                {ambiguousStepWarningCount > 0 ? (
+                  <span className="inline-flex rounded-full border border-warning/45 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                    Ambiguous Steps: {ambiguousStepWarningCount}
+                  </span>
+                ) : null}
+              </div>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 rounded-[4px] border border-[#1F1F1F] px-[10px] py-[5px] text-[11px] text-[#737373] transition-colors hover:border-[#2B2B2B] hover:text-[#A3A3A3] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-[4px] border border-border px-[10px] py-[5px] text-[11px] text-muted-foreground transition-colors hover:border-border-strong hover:text-secondary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => {
                   void (async () => {
                     setStepsCopyStatus('copied');
@@ -274,42 +333,24 @@ export function TestCaseEditorPanel({
                 This test has custom code. Step edits will not auto-sync.
               </p>
             ) : null}
-
-            {parseIssueCount > 0 ? (
-              <div className="space-y-1.5 rounded-md border border-border bg-background px-2.5 py-2">
-                {testStepsErrors.map((error, index) => {
-                  const warnings = stepParseWarnings[index] ?? [];
-                  if (!error && warnings.length === 0) {
-                    return null;
-                  }
-
-                  return (
-                    <div key={`step-issue-${index}`} className="space-y-1 text-[11px]">
-                      {error ? <p className="text-danger">Line {index + 1}: {error}</p> : null}
-                      {warnings.map((warning, warningIndex) => (
-                        <p key={`step-warning-${index}-${warningIndex}`} className="text-warning">
-                          Line {index + 1}: {warning.message} Suggested:{' '}
-                          <code>{warning.suggestedStep}</code>
-                        </p>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between text-[11px] text-[#525252]">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>{codeFileName}</span>
-              <span className="text-[#3F3F46]">Converted from natural language</span>
+              <span className="text-muted-foreground">Converted from natural language</span>
             </div>
 
             <div ref={codeEditorHostRef} className="qa-editor-textarea-frame h-[460px]">
               <div className="qa-editor-line-number-rail">
                 <div className="qa-editor-line-number-list qa-code-editor-line-number-list" data-testid="qa-code-line-numbers">
                   {Array.from({ length: codeLineCount }, (_unused, index) => (
-                    <span key={`code-line-${index + 1}`}>{index + 1}</span>
+                    <div
+                      key={`code-line-${index + 1}`}
+                      className="qa-editor-line-number-entry qa-code-editor-line-number-entry"
+                    >
+                      <span>{index + 1}</span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -333,18 +374,18 @@ export function TestCaseEditorPanel({
             </div>
 
             <div className="flex items-center justify-between px-0 py-[6px]">
-              <span className="text-[11px] text-[#525252]">{codeLineCount} lines · TypeScript</span>
+              <span className="text-[11px] text-muted-foreground">{codeLineCount} lines · TypeScript</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-[#1F1F1F] px-[10px] py-[5px] text-[11px] text-[#737373] transition-colors hover:border-[#2B2B2B] hover:text-[#A3A3A3]"
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-border px-[10px] py-[5px] text-[11px] text-muted-foreground transition-colors hover:border-border-strong hover:text-secondary-foreground"
                   onClick={onValidateCode}
                 >
                   Validate
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-[#1F1F1F] px-[10px] py-[5px] text-[11px] text-[#737373] transition-colors hover:border-[#2B2B2B] hover:text-[#A3A3A3] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-border px-[10px] py-[5px] text-[11px] text-muted-foreground transition-colors hover:border-border-strong hover:text-secondary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     void (async () => {
                       setCodeCopyStatus('copied');
@@ -374,13 +415,13 @@ export function TestCaseEditorPanel({
             </div>
 
             {testForm.isCustomized ? (
-              <div className="flex items-center justify-between border-t border-[#1A1A1A] pt-2">
-                <span className="text-[11px] text-[#525252]">
+              <div className="flex items-center justify-between border-t border-border-divider pt-2">
+                <span className="text-[11px] text-muted-foreground">
                   {isCodeModified ? 'Modified' : 'Auto-synced'}
                 </span>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-[#1F1F1F] px-[10px] py-[5px] text-[11px] text-[#737373] transition-colors hover:border-[#2B2B2B] hover:text-[#A3A3A3]"
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-border px-[10px] py-[5px] text-[11px] text-muted-foreground transition-colors hover:border-border-strong hover:text-secondary-foreground"
                   onClick={onRestoreGeneratedCode}
                 >
                   Restore Auto-Generated
@@ -393,6 +434,19 @@ export function TestCaseEditorPanel({
 
       {testTitleError ? <p className="mt-2 text-[11px] text-danger">{testTitleError}</p> : null}
       {customCodeError ? <p className="mt-1 text-[11px] text-danger">{customCodeError}</p> : null}
+      {hoveredStepWarning ? (
+        <div
+          role="tooltip"
+          className={`qa-editor-hover-tooltip ${
+            hoveredStepWarning.tone === 'error'
+              ? 'qa-editor-hover-tooltip--error'
+              : 'qa-editor-hover-tooltip--warning'
+          }`}
+          style={{ top: hoveredStepWarning.top, left: hoveredStepWarning.left }}
+        >
+          {hoveredStepWarning.message}
+        </div>
+      ) : null}
     </section>
   );
 }

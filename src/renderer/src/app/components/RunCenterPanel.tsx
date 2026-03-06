@@ -50,7 +50,7 @@ function runBadgeClass(status: Run['status']): string {
 function statusIcon(result: StepResult): JSX.Element {
   if (result.status === 'passed') {
     return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-success" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-success" aria-hidden="true">
         <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
         <path
           d="M8 12.5l2.3 2.3L16 9"
@@ -66,7 +66,7 @@ function statusIcon(result: StepResult): JSX.Element {
 
   if (result.status === 'failed') {
     return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-danger" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-danger" aria-hidden="true">
         <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
         <path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -75,7 +75,7 @@ function statusIcon(result: StepResult): JSX.Element {
 
   if (result.status === 'pending') {
     return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-warning" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-warning" aria-hidden="true">
         <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
         <path d="M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -83,7 +83,7 @@ function statusIcon(result: StepResult): JSX.Element {
   }
 
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 text-muted-foreground" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true">
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
       <path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
@@ -95,6 +95,22 @@ function rowTone(result: StepResult): string {
     return 'border-danger/35 bg-danger/10';
   }
   return 'border-border bg-background';
+}
+
+function runProgressFillClass(status: Run['status'] | 'idle'): string {
+  if (status === 'passed') {
+    return 'bg-success';
+  }
+  if (status === 'running') {
+    return 'bg-info';
+  }
+  if (status === 'failed') {
+    return 'bg-danger';
+  }
+  if (status === 'cancelled') {
+    return 'bg-warning';
+  }
+  return 'bg-muted-foreground/45';
 }
 
 function toStepDurationLabel(stepOrder: number, totalSteps: number, run: Run | null): string {
@@ -311,7 +327,8 @@ export function RunCenterPanel({
 
         <div className="h-1 w-full overflow-hidden rounded-sm bg-muted">
           <div
-            className="h-full rounded-sm bg-danger"
+            data-testid="current-run-progress-fill"
+            className={`h-full rounded-sm ${runProgressFillClass(selectedRun?.status ?? 'idle')}`}
             style={{
               width: `${Math.round(
                 (sortedSteps.filter((step) => step.status !== 'pending').length / Math.max(sortedSteps.length, 1)) * 100,
@@ -388,7 +405,7 @@ export function RunCenterPanel({
                 <p className="text-[12px] font-semibold leading-none">Assertion Failed</p>
               </div>
               <p className="text-[11px] text-secondary-foreground">{failureDetails.expected}</p>
-              <div className="rounded-sm bg-[#0d0e10] px-2 py-1.5">
+              <div className="rounded-sm bg-input px-2 py-1.5">
                 <p className="text-[10px] text-danger">{failureDetails.received}</p>
               </div>
               <p className="text-[10px] text-muted-foreground">{failureDetails.location}</p>

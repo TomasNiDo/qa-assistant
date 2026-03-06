@@ -25,6 +25,7 @@ import { useFeaturesDomain } from './app/hooks/useFeaturesDomain';
 import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
+import { useThemePreference } from './app/hooks/useThemePreference';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
 import { toErrorMessage } from './app/utils';
 import {
@@ -85,7 +86,28 @@ function formatRelativeTimestamp(iso: string): string {
   return `${deltaDays}d ago`;
 }
 
+function formatTestTypeLabel(testType: 'positive' | 'negative' | 'edge'): string {
+  if (testType === 'positive') {
+    return 'Positive';
+  }
+  if (testType === 'negative') {
+    return 'Negative';
+  }
+  return 'Edge';
+}
+
+function testTypeBadgeClass(testType: 'positive' | 'negative' | 'edge'): string {
+  if (testType === 'positive') {
+    return 'border-success/40 bg-success/12 text-success';
+  }
+  if (testType === 'negative') {
+    return 'border-danger/40 bg-danger/12 text-danger';
+  }
+  return 'border-warning/40 bg-warning/12 text-warning';
+}
+
 export function App(): JSX.Element {
+  const { theme, setTheme } = useThemePreference();
   const [message, setMessage] = useState('');
   const [selectedTestId, setSelectedTestId] = useState('');
   const [appVersion, setAppVersion] = useState('0.0.0');
@@ -1072,7 +1094,7 @@ export function App(): JSX.Element {
           pauseOnHover
           pauseOnFocusLoss={false}
           draggable={false}
-          theme="dark"
+          theme={theme}
         />
       </main>
     );
@@ -1104,7 +1126,7 @@ export function App(): JSX.Element {
           pauseOnHover
           pauseOnFocusLoss={false}
           draggable={false}
-          theme="dark"
+          theme={theme}
         />
       </main>
     );
@@ -1118,6 +1140,7 @@ export function App(): JSX.Element {
           featuresByProject={featuresByProject}
           selectedProjectId={selectedProjectId}
           selectedFeatureId={selectedFeatureId}
+          theme={theme}
           appVersion={appVersion}
           isProjectDeleteBlocked={isProjectDeleteBlocked}
           onSelectProject={handleSelectProject}
@@ -1139,6 +1162,9 @@ export function App(): JSX.Element {
           onBeginEditFeature={(featureId) => beginEditSelectedFeature(featureId)}
           onDeleteFeature={(featureId) => {
             void handleDeleteFeatureById(featureId);
+          }}
+          onChangeTheme={(mode) => {
+            setTheme(mode);
           }}
           onOpenStepDocs={() => {
             void handleOpenStepDocs();
@@ -1236,12 +1262,10 @@ export function App(): JSX.Element {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                  <span className="inline-flex items-center rounded-sm border border-success/40 bg-success/12 px-2 py-0.5 font-semibold text-success">
-                    {testForm.testType === 'positive'
-                      ? 'E2E Test'
-                      : testForm.testType === 'negative'
-                        ? 'Negative Test'
-                        : 'Edge Test'}
+                  <span
+                    className={`inline-flex items-center rounded-sm border px-2 py-0.5 font-semibold ${testTypeBadgeClass(testForm.testType)}`}
+                  >
+                    {formatTestTypeLabel(testForm.testType)}
                   </span>
                   <span className="inline-flex items-center rounded-sm border border-warning/40 bg-warning/12 px-2 py-0.5 font-semibold text-warning">
                     {testForm.priority === 'high' ? 'P1 - Critical' : testForm.priority === 'medium' ? 'P2 - Medium' : 'P3 - Low'}
@@ -1413,7 +1437,7 @@ export function App(): JSX.Element {
         pauseOnHover
         pauseOnFocusLoss={false}
         draggable={false}
-        theme="dark"
+        theme={theme}
       />
     </main>
   );

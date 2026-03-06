@@ -44,6 +44,7 @@ describe('SidebarProjectsPanel', () => {
         featuresByProject={featuresByProject}
         selectedProjectId=""
         selectedFeatureId=""
+        theme="dark"
         appVersion="0.1.1-beta.2"
         isProjectDeleteBlocked={() => false}
         onSelectProject={onSelectProject}
@@ -54,6 +55,7 @@ describe('SidebarProjectsPanel', () => {
         onDeleteProject={vi.fn()}
         onBeginEditFeature={vi.fn()}
         onDeleteFeature={vi.fn()}
+        onChangeTheme={vi.fn()}
         onOpenStepDocs={vi.fn()}
         onOpenBrowserInstall={vi.fn()}
       />, 
@@ -84,6 +86,7 @@ describe('SidebarProjectsPanel', () => {
         featuresByProject={featuresByProject}
         selectedProjectId="project-1"
         selectedFeatureId="feature-1"
+        theme="dark"
         appVersion="0.1.1-beta.2"
         isProjectDeleteBlocked={() => false}
         onSelectProject={onSelectProject}
@@ -94,6 +97,7 @@ describe('SidebarProjectsPanel', () => {
         onDeleteProject={onDeleteProject}
         onBeginEditFeature={onBeginEditFeature}
         onDeleteFeature={onDeleteFeature}
+        onChangeTheme={vi.fn()}
         onOpenStepDocs={vi.fn()}
         onOpenBrowserInstall={vi.fn()}
       />, 
@@ -131,6 +135,7 @@ describe('SidebarProjectsPanel', () => {
         featuresByProject={featuresByProject}
         selectedProjectId="project-1"
         selectedFeatureId="feature-1"
+        theme="dark"
         appVersion="0.1.1-beta.2"
         isProjectDeleteBlocked={() => false}
         onSelectProject={vi.fn()}
@@ -141,11 +146,42 @@ describe('SidebarProjectsPanel', () => {
         onDeleteProject={vi.fn()}
         onBeginEditFeature={vi.fn()}
         onDeleteFeature={vi.fn()}
+        onChangeTheme={vi.fn()}
         onOpenStepDocs={vi.fn()}
         onOpenBrowserInstall={vi.fn()}
       />, 
     );
 
     expect(screen.queryByRole('button', { name: /Create test case in feature/i })).toBeNull();
+  });
+
+  it('switches theme from sidebar toggle', () => {
+    const onChangeTheme = vi.fn();
+
+    render(
+      <SidebarProjectsPanel
+        projects={projects}
+        featuresByProject={featuresByProject}
+        selectedProjectId="project-1"
+        selectedFeatureId="feature-1"
+        theme="dark"
+        appVersion="0.1.1-beta.2"
+        isProjectDeleteBlocked={() => false}
+        onSelectProject={vi.fn()}
+        onSelectFeature={vi.fn()}
+        onBeginCreateProject={vi.fn()}
+        onCreateFeatureForProject={vi.fn()}
+        onBeginEditProject={vi.fn()}
+        onDeleteProject={vi.fn()}
+        onBeginEditFeature={vi.fn()}
+        onDeleteFeature={vi.fn()}
+        onChangeTheme={onChangeTheme}
+        onOpenStepDocs={vi.fn()}
+        onOpenBrowserInstall={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /switch to light mode/i }));
+    expect(onChangeTheme).toHaveBeenCalledWith('light');
   });
 });
