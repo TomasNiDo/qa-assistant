@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import type {
+  BrowserName,
   Feature,
   FeatureExecutionSummary,
   TestCase,
   TestPlanningStatus,
 } from '@shared/types';
 import { BrowserInstallScreen } from './app/components/BrowserInstallScreen';
+import { BugReportModal } from './app/components/BugReportModal';
 import {
   DraftedTestCaseModal,
   type DraftedTestCaseFormState,
@@ -20,11 +22,16 @@ import { RunCenterPanel } from './app/components/RunCenterPanel';
 import { SidebarProjectsPanel } from './app/components/SidebarProjectsPanel';
 import { TestCaseEditorPanel } from './app/components/TestCaseEditorPanel';
 import { useFeaturesDomain } from './app/hooks/useFeaturesDomain';
+import { useBugReportDomain } from './app/hooks/useBugReportDomain';
 import { useProjectsDomain } from './app/hooks/useProjectsDomain';
 import { useRunsDomain } from './app/hooks/useRunsDomain';
+import { useThemePreference } from './app/hooks/useThemePreference';
 import { useTestsDomain } from './app/hooks/useTestsDomain';
 import { toErrorMessage } from './app/utils';
-import { appShellClass } from './app/uiClasses';
+import {
+  appShellClass,
+  primaryButtonClass,
+} from './app/uiClasses';
 
 const DEFAULT_DRAFTED_TEST_CASE_FORM: DraftedTestCaseFormState = {
   id: '',
@@ -62,7 +69,45 @@ function mapTestPlanningStatusUpdateError(message: string): string {
   return message;
 }
 
+function formatRelativeTimestamp(iso: string): string {
+  const deltaMs = Date.now() - Date.parse(iso);
+  const deltaMinutes = Math.max(1, Math.floor(deltaMs / 60_000));
+
+  if (deltaMinutes < 60) {
+    return `${deltaMinutes}m ago`;
+  }
+
+  const deltaHours = Math.floor(deltaMinutes / 60);
+  if (deltaHours < 24) {
+    return `${deltaHours}h ago`;
+  }
+
+  const deltaDays = Math.floor(deltaHours / 24);
+  return `${deltaDays}d ago`;
+}
+
+function formatTestTypeLabel(testType: 'positive' | 'negative' | 'edge'): string {
+  if (testType === 'positive') {
+    return 'Positive';
+  }
+  if (testType === 'negative') {
+    return 'Negative';
+  }
+  return 'Edge';
+}
+
+function testTypeBadgeClass(testType: 'positive' | 'negative' | 'edge'): string {
+  if (testType === 'positive') {
+    return 'border-success/40 bg-success/12 text-success';
+  }
+  if (testType === 'negative') {
+    return 'border-danger/40 bg-danger/12 text-danger';
+  }
+  return 'border-warning/40 bg-warning/12 text-warning';
+}
+
 export function App(): JSX.Element {
+  const { theme, setTheme } = useThemePreference();
   const [message, setMessage] = useState('');
   const [selectedTestId, setSelectedTestId] = useState('');
   const [appVersion, setAppVersion] = useState('0.0.0');
@@ -83,7 +128,7 @@ export function App(): JSX.Element {
     'planning',
   );
   const [executionFilter, setExecutionFilter] = useState<
-    'all' | 'passed' | 'failed' | 'running'
+    'all' | 'passed' | 'failed' | 'running' | 'not_run'
   >('all');
   const [executionSummary, setExecutionSummary] = useState<FeatureExecutionSummary | null>(null);
   const [isGeneratingAiScenarios, setIsGeneratingAiScenarios] = useState(false);
@@ -91,10 +136,23 @@ export function App(): JSX.Element {
   const hasInitializedSidebar = useRef(false);
   const featureAutoSaveVersion = useRef(0);
   const lastSavedFeatureSignatureRef = useRef('');
+  const workspaceTitleInputRef = useRef<HTMLInputElement | null>(null);
 
   const onMessage = useCallback((nextMessage: string) => {
     setMessage(nextMessage);
   }, []);
+
+  const {
+    bugReport,
+    bugReportDraft,
+    isGeneratingBugReport,
+    generateBugReport,
+    copyBugReport,
+    closeBugReportDraft,
+    clearBugReportState,
+  } = useBugReportDomain({
+    onMessage,
+  });
 
   const {
     runs,
@@ -181,15 +239,11 @@ export function App(): JSX.Element {
     isGeneratingSteps,
     effectiveCode,
     isCodeModified,
-    isSelectedTestDeleteBlocked,
     refreshTestsTree,
     selectFeature,
-    beginCreateTest,
     setEditorView,
-    enableCodeEditing,
     updateCodeDraft,
     restoreGeneratedCode,
-    deleteSelectedTest,
     generateSteps,
   } = useTestsDomain({
     featuresByProject,
@@ -223,6 +277,10 @@ export function App(): JSX.Element {
   const draftedTestCaseTitleError = draftedTestCaseForm.title.trim()
     ? null
     : 'Test title is required.';
+
+  useEffect(() => {
+    clearBugReportState();
+  }, [clearBugReportState, selectedRunId, selectedTestId]);
 
   const resolvePreferredFeatureId = useCallback(
     (
@@ -563,41 +621,31 @@ export function App(): JSX.Element {
     [approvedTests, onMessage],
   );
 
-  const handleResetWorkspaceForm = useCallback((): void => {
-    if (!selectedTest) {
-      beginCreateTest();
+  const handleValidateCode = useCallback(async (): Promise<void> => {
+    const source = testForm.isCustomized ? testForm.customCode : effectiveCode;
+    if (!source.trim()) {
+      onMessage('Code is empty. Add Playwright code before validating.');
       return;
     }
 
-    setTestForm((previous) => ({
-      ...previous,
-      id: selectedTest.id,
-      title: selectedTest.title,
-      testType: selectedTest.testType,
-      priority: selectedTest.priority,
-      isAiGenerated: selectedTest.isAiGenerated,
-      isCodeEditingEnabled: false,
-      activeView: 'steps',
-    }));
-  }, [beginCreateTest, selectedTest, setTestForm]);
-
-  const handleDeleteSelectedWorkspaceTest = useCallback(async (): Promise<void> => {
-    const deleted = await deleteSelectedTest(async () => {
-      await refreshSidebar(selectedProjectId, selectedFeatureId);
-      await refreshExecutionSummary(selectedFeatureId);
-      setFeaturePhase('execution');
-    });
-
-    if (!deleted) {
+    const validation = await window.qaApi.testValidateCustomCodeSyntax(source);
+    if (!validation.ok) {
+      onMessage(validation.error.message);
       return;
     }
-  }, [
-    deleteSelectedTest,
-    refreshExecutionSummary,
-    refreshSidebar,
-    selectedFeatureId,
-    selectedProjectId,
-  ]);
+
+    if (validation.data.valid) {
+      onMessage('Code syntax looks valid.');
+      return;
+    }
+
+    onMessage(
+      validation.data.message ??
+        (validation.data.line
+          ? `Custom code syntax error at line ${validation.data.line}.`
+          : 'Custom code syntax is invalid.'),
+    );
+  }, [effectiveCode, onMessage, testForm.customCode, testForm.isCustomized]);
 
   const handleRunApprovedTestCase = useCallback(
     async (testCaseId: string): Promise<void> => {
@@ -1046,7 +1094,7 @@ export function App(): JSX.Element {
           pauseOnHover
           pauseOnFocusLoss={false}
           draggable={false}
-          theme="dark"
+          theme={theme}
         />
       </main>
     );
@@ -1055,7 +1103,7 @@ export function App(): JSX.Element {
   if (activeScreen === 'install') {
     return (
       <main className="h-screen w-screen bg-background">
-        <div className="h-full w-full overflow-hidden bg-[#0b0d12]">
+        <div className="h-full w-full overflow-hidden bg-background">
           <BrowserInstallScreen
             browserStates={browserStates}
             browserInstallProgress={browserInstallProgress}
@@ -1078,7 +1126,7 @@ export function App(): JSX.Element {
           pauseOnHover
           pauseOnFocusLoss={false}
           draggable={false}
-          theme="dark"
+          theme={theme}
         />
       </main>
     );
@@ -1092,6 +1140,7 @@ export function App(): JSX.Element {
           featuresByProject={featuresByProject}
           selectedProjectId={selectedProjectId}
           selectedFeatureId={selectedFeatureId}
+          theme={theme}
           appVersion={appVersion}
           isProjectDeleteBlocked={isProjectDeleteBlocked}
           onSelectProject={handleSelectProject}
@@ -1114,6 +1163,9 @@ export function App(): JSX.Element {
           onDeleteFeature={(featureId) => {
             void handleDeleteFeatureById(featureId);
           }}
+          onChangeTheme={(mode) => {
+            setTheme(mode);
+          }}
           onOpenStepDocs={() => {
             void handleOpenStepDocs();
           }}
@@ -1122,95 +1174,154 @@ export function App(): JSX.Element {
           }}
         />
 
-        <section className="min-w-0 overflow-y-auto bg-transparent px-7 py-6">
+        <section className="min-w-0 overflow-y-auto bg-transparent px-8 py-6">
           {activeScreen === 'empty' ? (
             <ProjectSetupScreen onBeginCreateProject={beginCreateProject} />
           ) : featurePhase === 'workspace' ? (
-            <div className="space-y-4">
-              <header className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-semibold text-[#edf3fb]">Test Case Workspace</h1>
-                  <p className="text-sm text-[#a9b8cb]">
-                    Project:{' '}
-                    <span className="font-semibold text-[#d9e4f5]">
-                      {selectedProject?.name ?? 'Unselected'}
-                    </span>
-                  </p>
-                  <p className="text-sm text-[#a9b8cb]">
-                    Feature:{' '}
-                    <span className="font-semibold text-[#d9e4f5]">
-                      {selectedFeature?.title ?? 'Unselected'}
-                    </span>
-                  </p>
+            <div className="flex min-h-full flex-col gap-5">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                  <span>{selectedProject?.name ?? 'Unselected'}</span>
+                  <span>/</span>
+                  <button
+                    type="button"
+                    className="rounded-sm px-1 py-0.5 text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-70"
+                    onClick={() => setFeaturePhase('execution')}
+                    disabled={!selectedFeatureId}
+                  >
+                    {selectedFeature?.title ?? 'Unselected'}
+                  </button>
+                  <span>/</span>
+                  <span className="text-foreground">{testForm.title || 'Untitled test case'}</span>
                 </div>
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center justify-center rounded-full bg-secondary/50 px-3 text-[11px] font-medium text-secondary-foreground transition hover:bg-secondary/72"
-                  onClick={() => setFeaturePhase('execution')}
-                >
-                  Back To Execution
-                </button>
-              </header>
 
-              <TestCaseEditorPanel
-                testCasePanelTitle="Scenario Setup"
-                testCasePanelDescription={
-                  selectedTest
-                    ? 'Edit metadata and keep execution steps in sync from this workspace.'
-                    : 'Select a test case from Execution page to edit.'
-                }
-                hasAtLeastOneTestCase={Boolean(selectedTest)}
-                testForm={testForm}
-                setTestForm={setTestForm}
-                testTitleError={testTitleError}
-                customCodeError={customCodeError}
-                testStepsErrors={testStepsErrors}
-                stepParseWarnings={stepParseWarnings}
-                ambiguousStepWarningCount={ambiguousStepWarningCount}
-                isGeneratingSteps={isGeneratingSteps}
-                hasSelectedTest={Boolean(selectedTest)}
-                isSelectedTestDeleteBlocked={isSelectedTestDeleteBlocked}
-                effectiveCode={effectiveCode}
-                isCodeModified={isCodeModified}
-                browser={browser}
-                setBrowser={setBrowser}
-                canStartRun={Boolean(selectedTestId) && selectedTestHasSteps && !activeRunId}
-                setEditorView={setEditorView}
-                onEnableCodeEditing={enableCodeEditing}
-                onCodeChange={updateCodeDraft}
-                onRestoreGeneratedCode={restoreGeneratedCode}
-                onBeginCreateTest={handleResetWorkspaceForm}
-                onGenerateSteps={() => {
-                  void generateSteps();
-                }}
-                onDeleteSelectedTest={() => {
-                  void handleDeleteSelectedWorkspaceTest();
-                }}
-                onStartRun={() => {
-                  void startRun();
-                }}
-              />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <input
+                      ref={workspaceTitleInputRef}
+                      aria-label="Workspace test case title"
+                      className="min-w-[320px] flex-1 border-0 bg-transparent px-0 py-0 text-[28px] font-semibold leading-none text-foreground outline-none"
+                      value={testForm.title}
+                      onChange={(event) =>
+                        setTestForm((previous) => ({ ...previous, title: event.target.value }))
+                      }
+                      placeholder="Login with valid credentials"
+                    />
+                    <button
+                      type="button"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-card hover:text-secondary-foreground"
+                      aria-label="Edit test case title"
+                      onClick={() => workspaceTitleInputRef.current?.focus()}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                        <path
+                          d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 000-1.42L18.38 3.3a1 1 0 00-1.42 0l-1.83 1.83l3.75 3.75L20.7 7.04z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                  </div>
 
-              <RunCenterPanel
-                runs={runs}
-                selectedRunId={selectedRunId}
-                setSelectedRunId={setSelectedRunId}
-                selectedRun={selectedRun}
-                stepResults={stepResults}
-                activeRunId={activeRunId}
-                onCancelRun={() => {
-                  void cancelRun();
-                }}
-                onRerun={() => {
-                  void startRun();
-                }}
-                canRerun={Boolean(selectedTestId)}
-                onGenerateBugReport={() => {
-                  onMessage('Bug report generation is not available in this workspace view yet.');
-                }}
-                isGeneratingBugReport={false}
-                canGenerateBugReport={false}
-              />
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-1.5 text-[12px] text-secondary-foreground">
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                        <path
+                          d="M4 6h16M4 12h16M4 18h16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <select
+                        className="border-0 bg-transparent text-[12px] text-secondary-foreground outline-none"
+                        value={browser}
+                        onChange={(event) => setBrowser(event.target.value as BrowserName)}
+                        aria-label="Browser selector"
+                      >
+                        <option value="chromium">chromium</option>
+                        <option value="firefox">firefox</option>
+                        <option value="webkit">webkit</option>
+                      </select>
+                    </label>
+
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      onClick={() => {
+                        void startRun();
+                      }}
+                      disabled={!selectedTestId || !selectedTestHasSteps || Boolean(activeRunId)}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true">
+                        <path d="M8 6l10 6-10 6z" fill="currentColor" />
+                      </svg>
+                      Run
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                  <span
+                    className={`inline-flex items-center rounded-sm border px-2 py-0.5 font-semibold ${testTypeBadgeClass(testForm.testType)}`}
+                  >
+                    {formatTestTypeLabel(testForm.testType)}
+                  </span>
+                  <span className="inline-flex items-center rounded-sm border border-warning/40 bg-warning/12 px-2 py-0.5 font-semibold text-warning">
+                    {testForm.priority === 'high' ? 'P1 - Critical' : testForm.priority === 'medium' ? 'P2 - Medium' : 'P3 - Low'}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span>
+                    last edited{' '}
+                    {selectedTest?.updatedAt ? formatRelativeTimestamp(selectedTest.updatedAt) : 'just now'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_392px]">
+                <TestCaseEditorPanel
+                  testForm={testForm}
+                  setTestForm={setTestForm}
+                  testTitleError={testTitleError}
+                  customCodeError={customCodeError}
+                  testStepsErrors={testStepsErrors}
+                  stepParseWarnings={stepParseWarnings}
+                  ambiguousStepWarningCount={ambiguousStepWarningCount}
+                  isGeneratingSteps={isGeneratingSteps}
+                  effectiveCode={effectiveCode}
+                  isCodeModified={isCodeModified}
+                  setEditorView={setEditorView}
+                  onCodeChange={updateCodeDraft}
+                  onRestoreGeneratedCode={restoreGeneratedCode}
+                  onGenerateSteps={() => {
+                    void generateSteps();
+                  }}
+                  onValidateCode={() => {
+                    void handleValidateCode();
+                  }}
+                />
+
+                <RunCenterPanel
+                  runs={runs}
+                  selectedRunId={selectedRunId}
+                  setSelectedRunId={setSelectedRunId}
+                  selectedRun={selectedRun}
+                  stepResults={stepResults}
+                  activeRunId={activeRunId}
+                  onCancelRun={() => {
+                    void cancelRun();
+                  }}
+                  onRerun={() => {
+                    void startRun();
+                  }}
+                  canRerun={Boolean(selectedTestId)}
+                  onGenerateBugReport={() => {
+                    void generateBugReport(selectedRunId);
+                  }}
+                  isGeneratingBugReport={isGeneratingBugReport}
+                  canGenerateBugReport={Boolean(selectedRun && selectedRun.status === 'failed') && !isGeneratingBugReport}
+                />
+              </div>
             </div>
           ) : featurePhase === 'execution' ? (
             <FeatureExecutionPage
@@ -1227,6 +1338,9 @@ export function App(): JSX.Element {
               }}
               onRunTestCase={(testCaseId) => {
                 void handleRunApprovedTestCase(testCaseId);
+              }}
+              onStopActiveRun={() => {
+                void cancelRun();
               }}
               runBlocked={Boolean(activeRunContext)}
             />
@@ -1302,6 +1416,19 @@ export function App(): JSX.Element {
         />
       ) : null}
 
+      {bugReport ? (
+        <BugReportModal
+          bugReport={bugReport}
+          fullReportText={bugReportDraft}
+          selectedRun={selectedRun}
+          stepResults={stepResults}
+          testCaseTitle={selectedTest?.title ?? testForm.title}
+          onClose={closeBugReportDraft}
+          onCopyFullReport={() => copyBugReport()}
+          onMessage={onMessage}
+        />
+      ) : null}
+
       <ToastContainer
         position="top-right"
         autoClose={3200}
@@ -1310,7 +1437,7 @@ export function App(): JSX.Element {
         pauseOnHover
         pauseOnFocusLoss={false}
         draggable={false}
-        theme="dark"
+        theme={theme}
       />
     </main>
   );

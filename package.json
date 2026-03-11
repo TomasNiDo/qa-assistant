@@ -1,11 +1,15 @@
 {
   "name": "qa-assistant",
-  "version": "0.2.0-beta.2",
+  "version": "1.0.0",
   "private": true,
   "description": "Local AI-powered QA Assistant desktop app",
   "main": "out/main/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.11.1"
+  },
   "scripts": {
+    "predev": "npm run rebuild:native",
     "dev": "electron-vite dev",
     "build": "electron-vite build && npm run build:copy-migrations",
     "prepare:native:win": "node scripts/prepare-native-win.cjs",

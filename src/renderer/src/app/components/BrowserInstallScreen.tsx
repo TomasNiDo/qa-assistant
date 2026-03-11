@@ -1,6 +1,12 @@
 ﻿import type { BrowserInstallPhase, BrowserInstallState, BrowserName } from '@shared/types';
 import type { BrowserInstallProgressState } from '../types';
-import { panelClass, primaryButtonClass } from '../uiClasses';
+import {
+  helperTextClass,
+  mutedButtonClass,
+  pageTitleClass,
+  panelClass,
+  primaryButtonClass,
+} from '../uiClasses';
 import { statusClassName } from '../utils';
 
 interface BrowserInstallScreenProps {
@@ -23,15 +29,17 @@ export function BrowserInstallScreen({
       <div className={`${panelClass} mx-auto w-full max-w-[940px]`}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold text-[#e8eff9]">Install browsers</h2>
-            <p className="text-sm text-[#8f99a8]">Continue after installing at least one browser runtime.</p>
+            <h2 className={pageTitleClass}>Install browsers</h2>
+            <p className={helperTextClass}>Continue after installing at least one browser runtime.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-secondary/80 px-3 py-1 text-[11px] text-[#bccadd]">Required</span>
+            <span className="rounded-md border border-border bg-card px-3 py-1 text-[11px] text-secondary-foreground">
+              Required
+            </span>
             {onBackToWorkspace ? (
               <button
                 type="button"
-                className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-secondary-foreground transition hover:bg-secondary/80"
+                className={mutedButtonClass}
                 onClick={onBackToWorkspace}
               >
                 Back
@@ -59,11 +67,11 @@ export function BrowserInstallScreen({
             return (
               <div
                 key={state.browser}
-                className="grid items-center gap-3 rounded-md bg-background/55 px-3 py-2 sm:grid-cols-[160px_minmax(0,1fr)_auto]"
+                className="grid items-center gap-3 rounded-md border border-border bg-background px-3 py-2 sm:grid-cols-[160px_minmax(0,1fr)_auto]"
               >
                 <div>
-                  <p className="text-lg font-semibold capitalize text-[#e4edf9]">{state.browser}</p>
-                  <p className="text-xs text-[#8b96a5]">{runtimeMessage}</p>
+                  <p className="text-lg font-semibold capitalize text-foreground">{state.browser}</p>
+                  <p className="text-xs text-muted-foreground">{runtimeMessage}</p>
                 </div>
                 <span
                   className={`justify-self-start rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClassName(isInstalling ? 'installing' : isInstalled ? 'installed' : 'missing')}`}
@@ -94,7 +102,7 @@ export function BrowserInstallScreen({
         </div>
 
         <div className="mt-4 flex justify-center">
-          <span className="rounded-full bg-secondary/85 px-3 py-1 text-xs text-[#edf3fb]">
+          <span className="rounded-md border border-border bg-card px-3 py-1 text-xs text-secondary-foreground">
             {hasInstalledBrowser ? 'Ready' : 'Install at least one browser to continue'}
           </span>
         </div>
@@ -102,4 +110,3 @@ export function BrowserInstallScreen({
     </section>
   );
 }
-
